@@ -84,8 +84,14 @@ void showTaskDetailWoltModal(
     ],
     modalTypeBuilder: (context) => WoltModalType.bottomSheet(),
     onModalDismissedWithBarrierTap: () {
-      debugPrint('✅ [TaskWolt] Modal dismissed');
+      FocusScope.of(context).unfocus(); // ✅ 키보드 닫기
+      debugPrint('✅ [TaskWolt] Modal dismissed with tap');
     },
+    onModalDismissedWithDrag: () {
+      FocusScope.of(context).unfocus(); // ✅ 키보드 닫기
+      debugPrint('✅ [TaskWolt] Modal dismissed with drag');
+    },
+    useSafeArea: false, // ✅ SafeArea 비활성화
   );
 }
 
@@ -103,38 +109,58 @@ SliverWoltModalSheetPage _buildTaskDetailPage(
 
     mainContentSliversBuilder: (context) => [
       SliverToBoxAdapter(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ========== TopNavi (60px) ==========
-            _buildTopNavi(context, task: task, selectedDate: selectedDate),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFFCFCFC), // ✅ Figma 배경색
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(36),
+              topRight: Radius.circular(36),
+            ),
+            border: Border.all(
+              color: const Color(0xFF111111).withOpacity(0.1), // #111111 10%
+              width: 1,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(36),
+              topRight: Radius.circular(36),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ========== TopNavi (60px) ==========
+                _buildTopNavi(context, task: task, selectedDate: selectedDate),
 
-            // ========== TextField (51px) ==========
-            _buildTextField(context),
+                // ========== TextField (51px) ==========
+                _buildTextField(context),
 
-            const SizedBox(height: 24), // gap
-            // ========== Deadline Label (32px) ==========
-            _buildDeadlineLabel(context),
+                const SizedBox(height: 24), // gap
+                // ========== Deadline Label (32px) ==========
+                _buildDeadlineLabel(context),
 
-            const SizedBox(height: 12), // gap
-            // ========== Deadline Picker (94px or 63px) ==========
-            _buildDeadlinePicker(context),
+                const SizedBox(height: 12), // gap
+                // ========== Deadline Picker (94px or 63px) ==========
+                _buildDeadlinePicker(context),
 
-            const SizedBox(height: 36), // gap
-            // ========== DetailOptions (64px) ==========
-            _buildDetailOptions(context, selectedDate: selectedDate),
+                const SizedBox(height: 36), // gap
+                // ========== DetailOptions (64px) ==========
+                _buildDetailOptions(context, selectedDate: selectedDate),
 
-            const SizedBox(height: 48), // gap
-            // ========== Delete Button (52px) ==========
-            if (task != null) _buildDeleteButton(context, task: task),
+                const SizedBox(height: 48), // gap
+                // ========== Delete Button (52px) ==========
+                if (task != null) _buildDeleteButton(context, task: task),
 
-            const SizedBox(height: 40), // bottom
-          ],
+                const SizedBox(height: 32), // ✅ 하단 패딩 32px
+              ],
+            ),
+          ),
         ),
       ),
     ],
 
-    backgroundColor: const Color(0xFFFCFCFC),
+    // ✅ 배경색 투명 (Container가 배경색 처리)
+    backgroundColor: Colors.transparent,
     surfaceTintColor: Colors.transparent,
   );
 }

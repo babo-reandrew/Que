@@ -16,6 +16,7 @@ import 'package:drift/drift.dart' hide Column;
 import '../providers/bottom_sheet_controller.dart';
 import '../design_system/wolt_typography.dart'; // ✅ WoltTypography 사용
 import '../design_system/wolt_helpers.dart'; // ✅ Wolt helper functions
+import 'package:keyboard_attachable/keyboard_attachable.dart';
 
 /// CreateEntryBottomSheet - Quick_Add 시스템 통합 버전
 /// 이거를 설정하고 → 기존 기능을 모두 보존하면서 새 컴포넌트를 조합해서
@@ -55,10 +56,26 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
   final TextEditingController _habitTitleController =
       TextEditingController(); // 습관 제목 입력 컨트롤러
 
+  double _savedKeyboardHeight = 0.0; // 키보드 내려가도 높이 유지
+
   @override
   void initState() {
     super.initState();
     print('🎬 [CreateEntry] 바텀시트 초기화 완료');
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // ✅ 키보드 높이 저장 (build 중이 아닌 여기서!)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+      if (keyboardHeight > 0 && _savedKeyboardHeight != keyboardHeight) {
+        setState(() {
+          _savedKeyboardHeight = keyboardHeight;
+        });
+      }
+    });
   }
 
   @override
@@ -546,31 +563,59 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
     print('🎯 [CreateEntryBottomSheet] _useQuickAdd: $_useQuickAdd');
     print('🎯 [CreateEntryBottomSheet] hasKeyboard: $hasKeyboard');
 
-    // ✅ Quick Add 모드일 때 하나의 위젯만 사용 (위치만 변경)
+    // ✅ Quick Add 모드일 때 keyboard_attachable로 정확히 고정!
     if (_useQuickAdd) {
-      print('✅ [CreateEntryBottomSheet] Quick Add 모드 진입!');
+      print(
+        '✅ [CreateEntryBottomSheet] Quick Add 모드 진입! (keyboard_attachable)',
+      );
 
-      if (hasKeyboard) {
-        // 키보드 있을 때: 키보드 위에 배치
-        return Container(
-          color: Colors.transparent,
-          child: Stack(
-            children: [
-              Positioned(
-                bottom: keyboardHeight + 20,
-                left: (MediaQuery.of(context).size.width - 365) / 2,
-                child: _buildQuickAddUI(),
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        resizeToAvoidBottomInset: false, // keyboard_attachable 필수!
+        body: SafeArea(
+          top: false,
+          bottom: false,
+          child: FooterLayout(
+            child: const SizedBox.shrink(),
+            footer: KeyboardAttachable(
+              backgroundColor: Colors.transparent,
+              child: Builder(
+                builder: (context) {
+                  final currentKeyboardHeight = MediaQuery.of(
+                    context,
+                  ).viewInsets.bottom;
+                  final bottomSafeArea = MediaQuery.of(context).padding.bottom;
+
+                  // ✅ 키보드 내려갔을 때 추가 패딩 (저장된 높이 사용)
+                  final extraBottomPadding =
+                      (currentKeyboardHeight == 0 && _savedKeyboardHeight > 0)
+                      ? _savedKeyboardHeight
+                      : 0.0;
+
+                  print(
+                    '⌨️ [KeyboardAttachable] current=$currentKeyboardHeight, saved=$_savedKeyboardHeight, extra=$extraBottomPadding',
+                  );
+
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    curve: Curves.easeOutCubic,
+                    padding: EdgeInsets.only(
+                      left: 14,
+                      right: 14,
+                      top: 6,
+                      bottom: 6 + bottomSafeArea + extraBottomPadding,
+                    ),
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: _buildQuickAddUI(),
+                    ),
+                  );
+                },
               ),
-            ],
+            ),
           ),
-        );
-      } else {
-        // 키보드 없을 때: 중앙 배치
-        return Container(
-          color: Colors.transparent,
-          child: Center(child: _buildQuickAddUI()),
-        );
-      }
+        ),
+      );
     }
 
     // ✅ 레거시 폼 모드

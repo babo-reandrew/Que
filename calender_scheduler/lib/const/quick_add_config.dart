@@ -72,11 +72,13 @@ class QuickAddConfig {
   /// Quick_Add_ControlBox 기본 높이 (피그마: 132px)
   static const double controlBoxInitialHeight = 132.0;
 
-  /// Quick_Add_ControlBox 확장 높이 - 일정 모드 (피그마: 196px)
-  static const double controlBoxScheduleHeight = 196.0;
+  /// Quick_Add_ControlBox 확장 높이 - 일정 모드 (하단 여백 16px)
+  static const double controlBoxScheduleHeight =
+      148.0; // 52(TextField) + 80(옵션+버튼) + 16(여백)
 
-  /// Quick_Add_ControlBox 확장 높이 - 할일 모드 (피그마: 192px)
-  static const double controlBoxTaskHeight = 192.0;
+  /// Quick_Add_ControlBox 확장 높이 - 할일 모드 (하단 여백 16px)
+  static const double controlBoxTaskHeight =
+      148.0; // 52(TextField) + 80(옵션+버튼) + 16(여백)
 
   /// 색상 선택 모달 높이 (피그마: 414px)
   static const double colorPickerModalHeight = 414.0;

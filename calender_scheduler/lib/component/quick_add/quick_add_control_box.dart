@@ -6,8 +6,9 @@ import 'quick_add_type_selector.dart';
 import 'quick_detail_button.dart';
 import 'quick_detail_popup.dart';
 import '../modal/date_time_picker_modal.dart';
-import '../full_schedule_bottom_sheet.dart'; // ✅ 전체 일정 바텀시트 import
+import '../modal/schedule_detail_wolt_modal.dart'; // ✅ 일정 Wolt 모달
 import '../modal/task_detail_wolt_modal.dart'; // ✅ 할일 Wolt 모달
+import '../modal/habit_detail_wolt_modal.dart'; // ✅ 습관 Wolt 모달
 import '../../design_system/wolt_helpers.dart'; // ✅ Wolt helper functions
 
 /// Quick_Add_ControlBox 메인 위젯
@@ -109,6 +110,38 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   // 타입 선택 시 높이 변경
   // ========================================
   void _onTypeSelected(QuickAddType type) {
+    // ✅ 습관 선택 시 → 바로 모달만 표시 (QuickAdd 상태 변경 없음)
+    if (type == QuickAddType.habit) {
+      print('🔄 [Quick Add] 습관 선택 → 모달만 표시');
+      _showFullHabitBottomSheet();
+      return;
+    }
+
+    // ✅ 같은 타입 다시 터치 시 → 기본 상태로 복귀
+    if (_selectedType == type) {
+      setState(() {
+        _selectedType = null;
+        _showDetailPopup = false;
+      });
+      widget.onTypeChanged?.call(null);
+
+      // 높이 축소 애니메이션
+      _heightAnimation =
+          Tween<double>(
+            begin: _heightAnimation.value,
+            end: QuickAddConfig.controlBoxInitialHeight, // 132px
+          ).animate(
+            CurvedAnimation(
+              parent: _heightAnimationController,
+              curve: QuickAddConfig.heightExpandCurve,
+            ),
+          );
+      _heightAnimationController.forward(from: 0.0);
+
+      print('🔄 [Quick Add] 타입 해제 → 기본 상태 복귀 (132px)');
+      return;
+    }
+
     setState(() {
       _selectedType = type;
       _showDetailPopup = false; // ✅ 타입 선택 시 팝업 숨김
@@ -157,9 +190,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
         break;
 
       case QuickAddType.habit:
-        targetHeight = QuickAddConfig.controlBoxInitialHeight; // 132px (확장 없음)
-        print('🔄 [Quick Add] 습관 모드 - 바텀시트 대신 표시');
-        // TODO: 습관 바텀시트 표시 로직
+        // ✅ 습관은 위에서 이미 처리됨 (모달 표시)
         return;
     }
 
@@ -219,50 +250,23 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   }
 
   // ========================================
-  // 전체 일정 바텀시트 표시
+  // 전체 일정 Wolt 모달 표시
   // ========================================
   void _showFullScheduleBottomSheet() {
-    print('📋 [Quick Add] 전체 일정 바텀시트 열기');
+    print('📋 [Quick Add] 일정 Wolt 모달 열기');
 
     // ✅ 먼저 현재 bottom sheet 닫기 (검은 화면 방지!)
     Navigator.of(context).pop();
 
-    // 약간의 딜레이 후 새 bottom sheet 열기 (애니메이션 충돌 방지)
+    // 약간의 딜레이 후 Wolt 모달 열기 (애니메이션 충돌 방지)
     Future.delayed(const Duration(milliseconds: 100), () {
       if (!mounted) return;
 
-      // 🎨 애플스러운 스프링 애니메이션
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        useRootNavigator: false,
-        // ✨ iOS 네이티브 스타일 애니메이션
-        transitionAnimationController: AnimationController(
-          vsync: Navigator.of(context),
-          duration: const Duration(milliseconds: 350),
-        )..addListener(() {}),
-        builder: (context) => TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.0, end: 1.0),
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeOutCubic, // 🎯 애플스러운 감속 곡선
-          builder: (context, value, child) {
-            return Transform.translate(
-              offset: Offset(0, (1 - value) * 50), // 아래에서 50px 위로
-              child: Opacity(
-                opacity: value, // 페이드 인
-                child: child,
-              ),
-            );
-          },
-          child: FullScheduleBottomSheet(
-            selectedDate: widget.selectedDate,
-            initialTitle: _textController.text,
-          ),
-        ),
-      ).then((_) {
-        print('📋 [Quick Add] 전체 일정 바텀시트 닫힘');
-      });
+      showScheduleDetailWoltModal(
+        context,
+        schedule: null, // 새 일정 생성
+        selectedDate: widget.selectedDate,
+      );
     });
   }
 
@@ -282,6 +286,27 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
       showTaskDetailWoltModal(
         context,
         task: null,
+        selectedDate: widget.selectedDate,
+      );
+    });
+  }
+
+  // ========================================
+  // 전체 습관 Wolt 모달 표시
+  // ========================================
+  void _showFullHabitBottomSheet() {
+    print('📋 [Quick Add] 습관 Wolt 모달 열기');
+
+    // ✅ 먼저 현재 bottom sheet 닫기 (검은 화면 방지!)
+    Navigator.of(context).pop();
+
+    // 약간의 딜레이 후 Wolt 모달 열기 (애니메이션 충돌 방지)
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted) return;
+
+      showHabitDetailWoltModal(
+        context,
+        habit: null, // 새 습관
         selectedDate: widget.selectedDate,
       );
     });
@@ -343,23 +368,12 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
                               // ✅ 상단: 텍스트 입력만 (Frame 700)
                               _buildTextInputArea(),
 
-                              // ✅ 중단: QuickDetail 옵션 (일정/할일 선택 시 표시)
+                              // ✅ 중단: QuickDetail 옵션 + 버튼 (일정/할일 선택 시 표시)
                               if (_selectedType != null) _buildQuickDetails(),
 
                               const Spacer(),
                             ],
                           ),
-                        ),
-
-                        // ✅ Figma: Frame 702 - 우측 하단 절대 위치
-                        Positioned(
-                          right: QuickAddSpacing
-                              .addButtonContainerPadding
-                              .right, // 18px
-                          bottom: QuickAddSpacing
-                              .addButtonContainerPadding
-                              .bottom, // 18px
-                          child: _buildAddButton(),
                         ),
                       ],
                     ),
@@ -486,31 +500,25 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   }
 
   /// QuickDetail 옵션 영역 (피그마: Frame 711)
-  /// ✅ Figma: justify-content: space-between
+  /// ✅ Figma: 옵션 + 버튼을 같은 Row에 배치
   Widget _buildQuickDetails() {
     return Container(
       width: QuickAddDimensions.frameWidth, // 365px
       height: 80, // Figma: Frame 711 height
-      padding: EdgeInsets.zero,
+      padding: const EdgeInsets.symmetric(horizontal: 18), // 좌우 18px
       child: Row(
-        mainAxisAlignment:
-            MainAxisAlignment.spaceBetween, // Figma: space-between
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // ✅ Frame 709: 세부 옵션 버튼들 (좌측)
-          Padding(
-            padding: QuickAddSpacing.detailButtonsContainerPadding, // 0px 18px
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: _selectedType == QuickAddType.schedule
-                  ? _buildScheduleDetails()
-                  : _buildTaskDetails(),
-            ),
+          // ✅ 좌측: 세부 옵션 버튼들
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: _selectedType == QuickAddType.schedule
+                ? _buildScheduleDetails()
+                : _buildTaskDetails(),
           ),
 
-          // ✅ Spacer to push DirectAddButton to right
-          const Spacer(),
-
-          // DirectAddButton은 이미 Positioned로 배치되어 있음
+          // ✅ 우측: 추가 버튼
+          _buildAddButton(),
         ],
       ),
     );

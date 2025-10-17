@@ -52,8 +52,13 @@ class QuickAddTypeSelector extends StatelessWidget {
             icon: Icons.calendar_today_outlined,
             isSelected: selectedType == QuickAddType.schedule,
             onTap: () {
-              print('📅 [타입 선택] 일정 선택됨');
-              onTypeSelected(QuickAddType.schedule);
+              if (selectedType == QuickAddType.schedule) {
+                print('📅 [타입 선택] 일정 다시 터치 → 기본 상태로 복귀');
+                onTypeSelected(QuickAddType.schedule); // 부모에서 null 처리하도록 신호
+              } else {
+                print('📅 [타입 선택] 일정 선택됨');
+                onTypeSelected(QuickAddType.schedule);
+              }
             },
           ),
 
@@ -62,8 +67,13 @@ class QuickAddTypeSelector extends StatelessWidget {
             icon: Icons.check_box_outline_blank,
             isSelected: selectedType == QuickAddType.task,
             onTap: () {
-              print('✅ [타입 선택] 할일 선택됨');
-              onTypeSelected(QuickAddType.task);
+              if (selectedType == QuickAddType.task) {
+                print('✅ [타입 선택] 할일 다시 터치 → 기본 상태로 복귀');
+                onTypeSelected(QuickAddType.task);
+              } else {
+                print('✅ [타입 선택] 할일 선택됨');
+                onTypeSelected(QuickAddType.task);
+              }
             },
           ),
 
@@ -72,8 +82,13 @@ class QuickAddTypeSelector extends StatelessWidget {
             icon: Icons.repeat,
             isSelected: selectedType == QuickAddType.habit,
             onTap: () {
-              print('🔄 [타입 선택] 습관 선택됨');
-              onTypeSelected(QuickAddType.habit);
+              if (selectedType == QuickAddType.habit) {
+                print('🔄 [타입 선택] 습관 다시 터치 → 기본 상태로 복귀');
+                onTypeSelected(QuickAddType.habit);
+              } else {
+                print('🔄 [타입 선택] 습관 선택됨');
+                onTypeSelected(QuickAddType.habit);
+              }
             },
           ),
         ],
@@ -114,8 +129,10 @@ class _TypeIconButton extends StatelessWidget {
         child: Icon(
           icon,
           size: 24, // Figma: icon 크기 24×24px
-          // Figma: border 2px solid rgba(186,186,186,0.54)
-          color: const Color(0xFFBABABA).withOpacity(0.54),
+          // ✅ 선택 시 검은색, 미선택 시 회색
+          color: isSelected
+              ? const Color(0xFF3B3B3B) // 선택: 검은색 #3B3B3B
+              : const Color(0xFFBABABA).withOpacity(0.54), // 미선택: 회색
         ),
       ),
     );

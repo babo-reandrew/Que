@@ -220,7 +220,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     final targetDate = selectedDay ?? DateTime.now();
                     showModalBottomSheet(
                       context: context,
-                      isScrollControlled: true, // ✅ 키보드 높이에 따라 동적으로 조절
+                      isScrollControlled: false, // 🔥 키보드 자동 패딩 비활성화!
+                      isDismissible: true,
+                      enableDrag: true,
+                      useSafeArea: false, // 🔥 SafeArea 비활성화!
                       backgroundColor: Colors.transparent, // ✅ 투명 배경
                       barrierColor: Colors.transparent, // ✅ 배경 터치 차단 없음
                       elevation: 0, // ✅ 그림자 제거

@@ -105,8 +105,14 @@ void showScheduleDetailWoltModal(
     ],
     modalTypeBuilder: (context) => WoltModalType.bottomSheet(),
     onModalDismissedWithBarrierTap: () {
-      debugPrint('✅ [ScheduleWolt] Modal dismissed');
+      FocusScope.of(context).unfocus(); // ✅ 키보드 닫기
+      debugPrint('✅ [ScheduleWolt] Modal dismissed with tap');
     },
+    onModalDismissedWithDrag: () {
+      FocusScope.of(context).unfocus(); // ✅ 키보드 닫기
+      debugPrint('✅ [ScheduleWolt] Modal dismissed with drag');
+    },
+    useSafeArea: false, // ✅ SafeArea 비활성화
   );
 }
 
@@ -124,43 +130,63 @@ SliverWoltModalSheetPage _buildScheduleDetailPage(
 
     mainContentSliversBuilder: (context) => [
       SliverToBoxAdapter(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ========== TopNavi (60px) ==========
-            _buildTopNavi(
-              context,
-              schedule: schedule,
-              selectedDate: selectedDate,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFFCFCFC), // ✅ Figma 배경색
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(36),
+              topRight: Radius.circular(36),
             ),
+            border: Border.all(
+              color: const Color(0xFF111111).withOpacity(0.1), // #111111 10%
+              width: 1,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(36),
+              topRight: Radius.circular(36),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ========== TopNavi (60px) ==========
+                _buildTopNavi(
+                  context,
+                  schedule: schedule,
+                  selectedDate: selectedDate,
+                ),
 
-            // ========== TextField (51px) ==========
-            _buildTextField(context),
+                // ========== TextField (51px) ==========
+                _buildTextField(context),
 
-            const SizedBox(height: 24), // gap
-            // ========== AllDay Toggle (32px) ==========
-            _buildAllDayToggle(context),
+                const SizedBox(height: 24), // gap
+                // ========== AllDay Toggle (32px) ==========
+                _buildAllDayToggle(context),
 
-            const SizedBox(height: 12), // gap
-            // ========== Time Picker (94px ~ 97px) ==========
-            _buildTimePicker(context),
+                const SizedBox(height: 12), // gap
+                // ========== Time Picker (94px ~ 97px) ==========
+                _buildTimePicker(context),
 
-            const SizedBox(height: 36), // gap
-            // ========== DetailOptions (64px) ==========
-            _buildDetailOptions(context, selectedDate: selectedDate),
+                const SizedBox(height: 36), // gap
+                // ========== DetailOptions (64px) ==========
+                _buildDetailOptions(context, selectedDate: selectedDate),
 
-            const SizedBox(height: 48), // gap
-            // ========== Delete Button (52px) ==========
-            if (schedule != null)
-              _buildDeleteButton(context, schedule: schedule),
+                const SizedBox(height: 48), // gap
+                // ========== Delete Button (52px) ==========
+                if (schedule != null)
+                  _buildDeleteButton(context, schedule: schedule),
 
-            const SizedBox(height: 40), // bottom (66 → 40으로 감소)
-          ],
+                const SizedBox(height: 32), // ✅ 하단 패딩 32px
+              ],
+            ),
+          ),
         ),
       ),
     ],
 
-    backgroundColor: const Color(0xFFFCFCFC),
+    // ✅ 배경색 투명 (Container가 배경색 처리)
+    backgroundColor: Colors.transparent,
     surfaceTintColor: Colors.transparent,
   );
 }

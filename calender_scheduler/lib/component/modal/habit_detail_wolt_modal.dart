@@ -53,29 +53,32 @@ import '../../providers/habit_form_controller.dart';
 /// - Text: "削除" - Bold 13px, #F74A4A
 void showHabitDetailWoltModal(
   BuildContext context, {
-  required HabitData habit,
+  required HabitData? habit, // ✅ nullable로 변경 (새 습관 생성 지원)
   required DateTime selectedDate,
 }) {
-  // ✅ Provider 초기화 (모달 열기 전)
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    final habitController = Provider.of<HabitFormController>(
-      context,
-      listen: false,
-    );
-    final bottomSheetController = Provider.of<BottomSheetController>(
-      context,
-      listen: false,
-    );
+  // Provider 초기화 (모달 띄우기 전에!)
+  final habitController = Provider.of<HabitFormController>(
+    context,
+    listen: false,
+  );
+  final bottomSheetController = Provider.of<BottomSheetController>(
+    context,
+    listen: false,
+  );
 
-    // 기존 습관 데이터로 초기화
+  if (habit != null) {
+    // 기존 습관 수정
     habitController.titleController.text = habit.title;
     habitController.setHabitTime(habit.createdAt); // 생성일을 시간으로 사용
     bottomSheetController.updateColor(habit.colorId);
     bottomSheetController.updateReminder(habit.reminder);
     bottomSheetController.updateRepeatRule(habit.repeatRule);
+  } else {
+    // 새 습관 생성
+    habitController.reset();
+  }
 
-    debugPrint('✅ [HabitWolt] Provider 초기화 완료: ${habit.title}');
-  });
+  debugPrint('✅ [HabitWolt] Provider 초기화 완료');
 
   WoltModalSheet.show(
     context: context,
@@ -84,8 +87,14 @@ void showHabitDetailWoltModal(
     ],
     modalTypeBuilder: (context) => WoltModalType.bottomSheet(),
     onModalDismissedWithBarrierTap: () {
-      debugPrint('✅ [HabitWolt] Modal dismissed');
+      FocusScope.of(context).unfocus(); // ✅ 키보드 닫기
+      debugPrint('✅ [HabitWolt] Modal dismissed with tap');
     },
+    onModalDismissedWithDrag: () {
+      FocusScope.of(context).unfocus(); // ✅ 키보드 닫기
+      debugPrint('✅ [HabitWolt] Modal dismissed with drag');
+    },
+    useSafeArea: false, // ✅ SafeArea 비활성화 (키보드 영역까지 사용)
   );
 }
 
@@ -95,9 +104,12 @@ void showHabitDetailWoltModal(
 
 SliverWoltModalSheetPage _buildHabitDetailPage(
   BuildContext context, {
-  required HabitData habit,
+  required HabitData? habit, // ✅ nullable로 변경
   required DateTime selectedDate,
 }) {
+  // ✅ 하단 패딩 제거 (키보드 여부 무관하게 0px)
+  debugPrint('⌨️ [HabitWolt] 하단 패딩: 0px');
+
   return SliverWoltModalSheetPage(
     // ==================== TopBar 비활성화 (Figma: TopNavi는 컨텐츠 안에 포함) ====================
     hasTopBarLayer: false, // 🎯 앱바 레이어 비활성화
@@ -109,33 +121,56 @@ SliverWoltModalSheetPage _buildHabitDetailPage(
     // - Delete: padding 0px 24px
     mainContentSliversBuilder: (context) => [
       SliverToBoxAdapter(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start, // 🎯 좌측 정렬
-          children: [
-            // ========== TopNavi (60px) - 컨텐츠 최상단 ==========
-            // Figma: padding 28px 28px 9px 28px (top만 28px!)
-            _buildTopNavi(context, habit: habit, selectedDate: selectedDate),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFFCFCFC), // ✅ Figma 배경색
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(36),
+              topRight: Radius.circular(36),
+            ),
+            border: Border.all(
+              color: const Color(0xFF111111).withOpacity(0.1), // #111111 10%
+              width: 1,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(36),
+              topRight: Radius.circular(36),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, // 🎯 좌측 정렬
+              children: [
+                // ========== TopNavi (60px) - 컨텐츠 최상단 ==========
+                // Figma: padding 28px 28px 9px 28px (top만 28px!)
+                _buildTopNavi(
+                  context,
+                  habit: habit,
+                  selectedDate: selectedDate,
+                ),
 
-            // ========== TextField Section (Frame 776) ==========
-            // Figma: padding 12px 0px (vertical)
-            _buildTextField(context),
+                // ========== TextField Section (Frame 776) ==========
+                // Figma: padding 12px 0px (vertical)
+                _buildTextField(context),
 
-            const SizedBox(height: 24), // Figma: gap 24px (Frame 777)
-            // ========== DetailOptions (64px) ==========
-            _buildDetailOptions(context, selectedDate: selectedDate),
+                const SizedBox(height: 24), // Figma: gap 24px (Frame 777)
+                // ========== DetailOptions (64px) ==========
+                _buildDetailOptions(context, selectedDate: selectedDate),
 
-            const SizedBox(height: 48), // Figma: gap 48px (Frame 778)
-            // ========== Delete Button ==========
-            _buildDeleteButton(context, habit: habit),
+                const SizedBox(height: 48), // Figma: gap 48px (Frame 778)
+                // ========== Delete Button (기존 습관만 표시) ==========
+                if (habit != null) _buildDeleteButton(context, habit: habit),
 
-            const SizedBox(height: 66), // Figma: bottom 66px
-          ],
+                // ✅ 하단 패딩 제거
+              ],
+            ),
+          ),
         ),
       ),
     ],
 
-    // Figma: 배경색 #FCFCFC
-    backgroundColor: const Color(0xFFFCFCFC),
+    // ✅ 배경색 투명 (Container가 배경색 처리)
+    backgroundColor: Colors.transparent,
 
     // Figma: 투명 surface tint
     surfaceTintColor: Colors.transparent,
@@ -148,7 +183,7 @@ SliverWoltModalSheetPage _buildHabitDetailPage(
 
 Widget _buildTopNavi(
   BuildContext context, {
-  required HabitData habit,
+  required HabitData? habit, // ✅ nullable로 변경
   required DateTime selectedDate,
 }) {
   // Figma: padding 28px 28px 9px 28px (top만 28px!)
@@ -241,7 +276,7 @@ Widget _buildTextField(BuildContext context) {
       ), // Figma: DetailView_Title - 0px 24px
       child: TextField(
         controller: habitController.titleController,
-        autofocus: false, // 🎯 키보드 없는 상태
+        autofocus: true, // ✅ QuickAdd에서 전환 시 키보드 자동 활성화
         // Figma: Bold 19px, #111111
         style: const TextStyle(
           fontFamily: 'LINE Seed JP App_TTF',
@@ -266,7 +301,9 @@ Widget _buildTextField(BuildContext context) {
           isDense: true,
           contentPadding: EdgeInsets.zero, // 내부 여백 제거
         ),
-        maxLines: 1,
+        keyboardType: TextInputType.multiline, // ✅ 개행 지원 키보드
+        textInputAction: TextInputAction.newline, // ✅ 완료 대신 개행 버튼
+        maxLines: null, // ✅ 여러 줄 입력 가능
       ),
     ),
   );
@@ -446,7 +483,7 @@ Widget _buildDeleteButton(BuildContext context, {required HabitData habit}) {
 /// Save Button Handler
 void _handleSave(
   BuildContext context, {
-  required HabitData habit,
+  required HabitData? habit, // ✅ nullable로 변경
   required DateTime selectedDate,
 }) async {
   final habitController = Provider.of<HabitFormController>(
@@ -467,18 +504,28 @@ void _handleSave(
     return;
   }
 
-  // Create updated habit using HabitCompanion
-  final updatedHabit = HabitCompanion(
-    id: Value(habit.id),
-    title: Value(habitController.titleController.text.trim()),
-    createdAt: Value(habit.createdAt),
-    reminder: Value(bottomSheetController.reminder),
-    repeatRule: Value(bottomSheetController.repeatRule),
-    colorId: Value(bottomSheetController.selectedColor),
-  );
-
-  // Save to database
-  await database.updateHabit(updatedHabit);
+  if (habit != null) {
+    // 기존 습관 수정
+    final updatedHabit = HabitCompanion(
+      id: Value(habit.id),
+      title: Value(habitController.titleController.text.trim()),
+      createdAt: Value(habit.createdAt),
+      reminder: Value(bottomSheetController.reminder),
+      repeatRule: Value(bottomSheetController.repeatRule),
+      colorId: Value(bottomSheetController.selectedColor),
+    );
+    await database.updateHabit(updatedHabit);
+  } else {
+    // 새 습관 생성
+    final newHabit = HabitCompanion(
+      title: Value(habitController.titleController.text.trim()),
+      createdAt: Value(selectedDate),
+      reminder: Value(bottomSheetController.reminder),
+      repeatRule: Value(bottomSheetController.repeatRule),
+      colorId: Value(bottomSheetController.selectedColor),
+    );
+    await database.createHabit(newHabit);
+  }
 
   // Close modal
   Navigator.of(context).pop();

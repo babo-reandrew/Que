@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 /// - endDate/Time: 종료 날짜/시간
 ///
 /// **사용처**:
-/// - FullScheduleBottomSheet
+/// - ScheduleDetailWoltModal (일정 상세 모달)
 ///
 /// **목적**: 스케줄 입력 상태를 중앙에서 관리
 class ScheduleFormController extends ChangeNotifier {

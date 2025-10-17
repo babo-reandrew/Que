@@ -9,10 +9,11 @@ import 'package:flutter/material.dart';
 ///
 /// **사용처**:
 /// - CreateEntryBottomSheet
-/// - FullScheduleBottomSheet
-/// - FullTaskBottomSheet
+/// - ScheduleDetailWoltModal (일정 상세 모달)
+/// - TaskDetailWoltModal (할일 상세 모달)
+/// - HabitDetailWoltModal (습관 상세 모달)
 ///
-/// **목적**: 3곳에서 중복되던 상태를 하나로 통합
+/// **목적**: 바텀시트들의 공통 상태를 하나로 통합
 class BottomSheetController extends ChangeNotifier {
   String _selectedColor = 'gray';
   String _repeatRule = '';

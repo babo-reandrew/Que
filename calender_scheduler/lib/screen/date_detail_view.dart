@@ -118,6 +118,10 @@ class _DateDetailViewState extends State<DateDetailView> {
                         // 이거를 해서 → 사용자가 이어서 작업할 수 있다
                         showModalBottomSheet(
                           context: context,
+                          isScrollControlled: false, // 🔥 키보드 자동 패딩 비활성화!
+                          isDismissible: true,
+                          enableDrag: true,
+                          useSafeArea: false, // 🔥 SafeArea 비활성화!
                           barrierColor: Colors.black.withOpacity(0.0),
                           backgroundColor: Colors.transparent,
                           builder: (context) => Container(
