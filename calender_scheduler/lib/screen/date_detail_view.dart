@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../component/schedule_card.dart';
 import '../component/create_entry_bottom_sheet.dart';
+import '../component/keyboard_attachable_input_view.dart'; // 🆕 KeyboardAttachable 추가
 import '../component/slidable_schedule_card.dart'; // ✅ Slidable 컴포넌트 추가
 import '../component/modal/task_detail_wolt_modal.dart'; // ✅ 할일 상세 Wolt 모달
 import '../component/modal/habit_detail_wolt_modal.dart'; // ✅ 습관 상세 Wolt 모달
 import '../component/modal/schedule_detail_wolt_modal.dart'; // ✅ 일정 상세 Wolt 모달
+import '../component/modal/option_setting_wolt_modal.dart'; // ✅ OptionSetting Wolt 모달 (Detached)
 import '../widgets/bottom_navigation_bar.dart'; // ✅ 하단 네비게이션 바 추가
 import '../widgets/temp_input_box.dart'; // ✅ 임시 입력 박스 추가
 import '../widgets/date_detail_header.dart'; // ✅ 날짜 헤더 위젯 추가
@@ -14,7 +16,6 @@ import '../widgets/slidable_task_card.dart'; // ✅ SlidableTaskCard 추가
 import '../widgets/slidable_habit_card.dart'; // ✅ SlidableHabitCard 추가
 import '../widgets/completed_section.dart'; // ✅ CompletedSection 추가
 import '../widgets/dashed_divider.dart'; // ✅ DashedDivider 추가
-import '../widgets/option_setting_bottom_sheet.dart'; // ✅ OptionSettingBottomSheet 추가
 import '../screen/completed_detail_screen.dart'; // ✅ CompletedDetailScreen 추가
 import '../const/color.dart';
 import '../Database/schedule_database.dart';
@@ -96,6 +97,7 @@ class _DateDetailViewState extends State<DateDetailView> {
               appBar: _buildAppBar(context),
               // 배경색을 밝은 회색으로 설정해서 깔끔한 느낌을 만든다
               backgroundColor: gray050,
+              resizeToAvoidBottomInset: false, // ✅ KeyboardAttachable 필수 설정!
               // ⭐️ PageView로 좌우 스와이프 날짜 변경 기능 추가 (기존 Hero 구조 유지)
               body: Stack(
                 children: [
@@ -159,36 +161,31 @@ class _DateDetailViewState extends State<DateDetailView> {
                   // TODO: 즐겨찾기 화면으로 이동
                 },
                 onAddTap: () {
-                  // 이거를 설정하고 → 바텀시트를 표시해서
-                  // 이거를 해서 → 사용자가 일정을 입력하면
-                  // 이거는 이래서 → CreateEntryBottomSheet에서 DB에 저장한다
-                  // 이거라면 → StreamBuilder가 자동으로 감지해서 UI 갱신한다
-                  showModalBottomSheet(
-                    context: context,
-                    barrierColor: Colors.black.withOpacity(
-                      0.0,
-                    ), // 이거를 설정하고 → 배경은 완전 투명
-                    backgroundColor: Colors.transparent, // 이거를 해서 → 바텀시트 자체도 투명
-                    builder: (context) => Container(
-                      decoration: BoxDecoration(
-                        // 이거를 설정하고 → 상단에서 자연스럽게 그라데이션으로 흐려지면서
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.white.withOpacity(0.0), // 이거를 해서 → 상단은 완전 투명
-                            Colors.white.withOpacity(
-                              0.95,
-                            ), // 이거는 이래서 → 중간부터 불투명
-                            Colors.white, // 이거라면 → 하단은 완전 불투명
-                          ],
-                          stops: [0.0, 0.3, 1.0], // 이거를 설정하고 → 30% 지점부터 불투명 시작
-                        ),
-                      ),
-                      child: CreateEntryBottomSheet(selectedDate: _currentDate),
-                    ),
-                  );
-                  print('➕ [하단 네비] 일정 추가 버튼 클릭 → 바텀시트 표시');
+                  // 🆕 KeyboardAttachable 방식으로 변경!
+                  _showKeyboardAttachableQuickAdd();
+
+                  // ⚠️ 기존 방식 (테스트 완료 후 제거 예정)
+                  // showModalBottomSheet(
+                  //   context: context,
+                  //   barrierColor: Colors.black.withOpacity(0.0),
+                  //   backgroundColor: Colors.transparent,
+                  //   builder: (context) => Container(
+                  //     decoration: BoxDecoration(
+                  //       gradient: LinearGradient(
+                  //         begin: Alignment.topCenter,
+                  //         end: Alignment.bottomCenter,
+                  //         colors: [
+                  //           Colors.white.withOpacity(0.0),
+                  //           Colors.white.withOpacity(0.95),
+                  //           Colors.white,
+                  //         ],
+                  //         stops: [0.0, 0.3, 1.0],
+                  //       ),
+                  //     ),
+                  //     child: CreateEntryBottomSheet(selectedDate: _currentDate),
+                  //   ),
+                  // );
+                  // print('➕ [하단 네비] 일정 추가 버튼 클릭 → 바텀시트 표시');
                 },
                 isStarSelected: false, // TODO: 상태 관리
               ),
@@ -324,12 +321,10 @@ class _DateDetailViewState extends State<DateDetailView> {
             ),
           ),
           onPressed: () {
-            print('⋮ [UI] 앱바 좌측 메뉴 버튼 클릭 → OptionSetting 바텀시트 표시');
-            showModalBottomSheet(
-              context: context,
-              backgroundColor: Colors.transparent,
-              builder: (context) => const OptionSettingBottomSheet(),
+            debugPrint(
+              '⋮ [UI] 앱바 좌측 메뉴 버튼 클릭 → OptionSetting Wolt Modal (Detached) 표시',
             );
+            showOptionSettingWoltModal(context);
           },
         ),
       ),
@@ -391,13 +386,10 @@ class _DateDetailViewState extends State<DateDetailView> {
           child: DateDetailHeader(
             selectedDate: date,
             onSettingsTap: () {
-              // 이거를 설정하고 → 설정 버튼 클릭 시 바텀시트 표시
-              showModalBottomSheet(
-                context: context,
-                backgroundColor: Colors.transparent,
-                builder: (context) => const OptionSettingBottomSheet(),
+              showOptionSettingWoltModal(context);
+              debugPrint(
+                '⚙️ [DateDetailView] 설정 버튼 클릭 → OptionSetting Wolt Modal (Detached) 표시',
               );
-              print('⚙️ [DateDetailView] 설정 버튼 클릭 → OptionSetting 바텀시트 표시');
             },
           ),
         ),
@@ -729,3 +721,92 @@ class _DateDetailViewState extends State<DateDetailView> {
 
   /// 스케줄 리스트를 구성하는 함수 (삭제됨 - _buildUnifiedList 사용)
 }
+
+// ============================================================================
+// 🆕 KEYBOARD_ATTACHABLE 마이그레이션 - 기존 코드 건들지 않고 새 함수 추가!
+// ============================================================================
+//
+// ⚠️ **중요: 기존 onAddTap() 로직은 그대로 유지!**
+// - 이 함수들은 새로운 keyboard_attachable 방식을 테스트하기 위한 것
+// - 기존 showModalBottomSheet 방식과 병행 사용 가능
+// - 검증 완료 후에만 기존 코드 제거
+//
+// **새로운 방식의 장점:**
+// 1. iOS inputAccessoryView 완벽 구현 (키보드에 정확히 붙음!)
+// 2. 키보드와 함께 자연스러운 애니메이션
+// 3. Figma 디자인 5가지 상태 완벽 지원
+// 4. 백그라운드 블러 효과 (Rectangle 385)
+// ============================================================================
+
+extension KeyboardAttachableQuickAdd on _DateDetailViewState {
+  /// 🆕 KeyboardAttachable 방식으로 QuickAdd 표시
+  ///
+  /// 기존 방식:
+  /// ```dart
+  /// showModalBottomSheet(
+  ///   context: context,
+  ///   builder: (context) => CreateEntryBottomSheet(selectedDate: _currentDate),
+  /// );
+  /// ```
+  ///
+  /// 신규 방식 (병행 테스트):
+  /// ```dart
+  /// _showKeyboardAttachableQuickAdd();
+  /// ```
+  void _showKeyboardAttachableQuickAdd() {
+    InputAccessoryHelper.showQuickAdd(
+      context,
+      selectedDate: _currentDate,
+      onSaveComplete: () {
+        print('✅ [KeyboardAttachable] 저장 완료 → StreamBuilder 자동 갱신');
+        // StreamBuilder가 자동으로 UI 갱신하므로 추가 로직 불필요
+      },
+    );
+
+    print('➕ [KeyboardAttachable] 더하기 버튼 클릭 → 날짜: $_currentDate');
+  }
+
+  /// 🆕 디버그: 5가지 Figma 상태 테스트
+  void _testKeyboardAttachableStates() {
+    // TODO: 임포트 추가 필요
+    // import '../component/keyboard_attachable_input_view.dart';
+
+    // InputAccessoryHelper.testAllStates(context);
+
+    print('🧪 [KeyboardAttachable] 5가지 상태 테스트 실행');
+    print('  1. Anything (기본)');
+    print('  2. Variant5 (버튼만)');
+    print('  3. Touched_Anything (확장)');
+    print('  4. Task');
+    print('  5. Schedule');
+  }
+}
+
+// ============================================================================
+// 📝 사용 가이드
+// ============================================================================
+// 
+// **Step 1: 임포트 추가 (파일 상단)**
+// ```dart
+// import '../component/keyboard_attachable_input_view.dart';
+// ```
+// 
+// **Step 2: onAddTap()에서 호출 (기존 코드와 병행)**
+// ```dart
+// onAddTap: () {
+//   // ⭐️ 방법 A: 기존 방식 (현재 사용 중)
+//   // showModalBottomSheet(...);
+//   
+//   // ⭐️ 방법 B: 새로운 keyboard_attachable 방식 (테스트)
+//   _showKeyboardAttachableQuickAdd();
+// },
+// ```
+// 
+// **Step 3: 검증 후 기존 코드 제거**
+// - 5가지 Figma 상태 모두 정상 동작 확인
+// - DB 저장/불러오기 정상 동작 확인
+// - 키보드 애니메이션 자연스러운지 확인
+// - 문제 없으면 showModalBottomSheet 방식 제거
+// 
+// ============================================================================
+

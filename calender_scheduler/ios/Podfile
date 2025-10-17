@@ -1,5 +1,5 @@
 # Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
+platform :ios, '13.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -39,5 +39,38 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    
+    # Fix for "Command PhaseScriptExecution failed" error
+    target.build_configurations.each do |config|
+      # Xcode 15+ 호환성
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      
+      # ✅ ARM64 아키텍처 명시적 설정 (iPhone 실행 가능)
+      config.build_settings['ARCHS'] = 'arm64'
+      
+      # Apple Silicon Mac에서만 시뮬레이터용 arm64 제외
+      # 실제 디바이스에서는 arm64 필수!
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'i386'
+      
+      # ✅ 빌드 활성 아키텍처만 사용 (디버그용)
+      config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
+      
+      # Code signing 이슈 해결
+      config.build_settings['CODE_SIGN_IDENTITY'] = ''
+      
+      # Bitcode 비활성화 (Xcode 14+에서 deprecated)
+      config.build_settings['ENABLE_BITCODE'] = 'NO'
+      
+      # ✅ Valid Architectures 설정
+      config.build_settings['VALID_ARCHS'] = 'arm64 arm64e'
+      
+      # ✅ sqlite3 경고 무시 (매크로 충돌 해결)
+      if target.name == 'sqlite3'
+        config.build_settings['GCC_WARN_AMBIGUOUS_MACRO'] = 'NO'
+        config.build_settings['GCC_WARN_64_TO_32_BIT_CONVERSION'] = 'NO'
+        config.build_settings['CLANG_WARN_COMMA'] = 'NO'
+        config.build_settings['CLANG_ANALYZER_DEADCODE_DEADSTORES'] = 'NO'
+      end
+    end
   end
 end

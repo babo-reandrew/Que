@@ -175,8 +175,8 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
 
     _heightAnimationController.forward(from: 0.0);
 
-    // 햅틱 피드백 (iOS 네이티브 스타일)
-    HapticFeedback.lightImpact();
+    // 햅틱 피드백 제거 (사용자 요청)
+    // HapticFeedback.lightImpact();
   }
 
   // ========================================
@@ -223,20 +223,46 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   // ========================================
   void _showFullScheduleBottomSheet() {
     print('📋 [Quick Add] 전체 일정 바텀시트 열기');
-    // 이거를 설정하고 → 전체 일정 바텀시트를 isScrollControlled로 표시해서
-    // 이거를 해서 → 전체 화면 크기로 확장되도록 한다
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true, // 전체 화면 크기
-      backgroundColor: Colors.transparent, // 투명 배경
-      builder: (context) => FullScheduleBottomSheet(
-        selectedDate: widget.selectedDate,
-        initialTitle: _textController.text, // 이거는 이래서 → 기존 입력 제목 전달
-      ),
-    ).then((_) {
-      // 이거라면 → 바텀시트 닫힌 후 원래 바텀시트도 닫기
-      print('📋 [Quick Add] 전체 일정 바텀시트 닫힘');
-      // Navigator.of(context).pop(); // 원래 바텀시트도 닫으려면 주석 해제
+
+    // ✅ 먼저 현재 bottom sheet 닫기 (검은 화면 방지!)
+    Navigator.of(context).pop();
+
+    // 약간의 딜레이 후 새 bottom sheet 열기 (애니메이션 충돌 방지)
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted) return;
+
+      // 🎨 애플스러운 스프링 애니메이션
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        useRootNavigator: false,
+        // ✨ iOS 네이티브 스타일 애니메이션
+        transitionAnimationController: AnimationController(
+          vsync: Navigator.of(context),
+          duration: const Duration(milliseconds: 350),
+        )..addListener(() {}),
+        builder: (context) => TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic, // 🎯 애플스러운 감속 곡선
+          builder: (context, value, child) {
+            return Transform.translate(
+              offset: Offset(0, (1 - value) * 50), // 아래에서 50px 위로
+              child: Opacity(
+                opacity: value, // 페이드 인
+                child: child,
+              ),
+            );
+          },
+          child: FullScheduleBottomSheet(
+            selectedDate: widget.selectedDate,
+            initialTitle: _textController.text,
+          ),
+        ),
+      ).then((_) {
+        print('📋 [Quick Add] 전체 일정 바텀시트 닫힘');
+      });
     });
   }
 
@@ -246,11 +272,19 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   void _showFullTaskBottomSheet() {
     print('📋 [Quick Add] 할일 Wolt 모달 열기');
 
-    showTaskDetailWoltModal(
-      context,
-      task: null,
-      selectedDate: widget.selectedDate,
-    );
+    // ✅ 먼저 현재 bottom sheet 닫기 (검은 화면 방지!)
+    Navigator.of(context).pop();
+
+    // 약간의 딜레이 후 Wolt 모달 열기 (애니메이션 충돌 방지)
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted) return;
+
+      showTaskDetailWoltModal(
+        context,
+        task: null,
+        selectedDate: widget.selectedDate,
+      );
+    });
   }
 
   // ========================================
@@ -287,54 +321,60 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
             // Column으로 수직 배치: 입력 박스 → gap 8px → 타입 선택기
             Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end, // Figma: 우측 끝 정렬
+              crossAxisAlignment: CrossAxisAlignment.start, // ✅ 좌측 정렬 (타입 선택기)
               children: [
-                // ✅ 1. 입력 박스 (Figma: Frame 701)
-                SizedBox(
-                  width: QuickAddDimensions.frameWidth, // 365px
-                  height: _heightAnimation
-                      .value, // ✅ 동적 높이 (기본 132px, 일정 196px, 할일 192px)
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        width: QuickAddDimensions.frameWidth, // 365px
-                        height: _heightAnimation.value, // 동적 높이
-                        decoration: QuickAddWidgets.frame701Decoration,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            // ✅ 상단: 텍스트 입력만 (Frame 700)
-                            _buildTextInputArea(),
+                // ✅ 1. 입력 박스 (Figma: Frame 701) - 중앙 배치
+                Align(
+                  alignment: Alignment.center,
+                  child: SizedBox(
+                    width: QuickAddDimensions.frameWidth, // 365px
+                    height: _heightAnimation
+                        .value, // ✅ 동적 높이 (기본 132px, 일정 196px, 할일 192px)
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          width: QuickAddDimensions.frameWidth, // 365px
+                          height: _heightAnimation.value, // 동적 높이
+                          decoration: QuickAddWidgets.frame701Decoration,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              // ✅ 상단: 텍스트 입력만 (Frame 700)
+                              _buildTextInputArea(),
 
-                            // ✅ 중단: QuickDetail 옵션 (일정/할일 선택 시 표시)
-                            if (_selectedType != null) _buildQuickDetails(),
+                              // ✅ 중단: QuickDetail 옵션 (일정/할일 선택 시 표시)
+                              if (_selectedType != null) _buildQuickDetails(),
 
-                            const Spacer(),
-                          ],
+                              const Spacer(),
+                            ],
+                          ),
                         ),
-                      ),
 
-                      // ✅ Figma: Frame 702 - 우측 하단 절대 위치
-                      Positioned(
-                        right: QuickAddSpacing
-                            .addButtonContainerPadding
-                            .right, // 18px
-                        bottom: QuickAddSpacing
-                            .addButtonContainerPadding
-                            .bottom, // 18px
-                        child: _buildAddButton(),
-                      ),
-                    ],
+                        // ✅ Figma: Frame 702 - 우측 하단 절대 위치
+                        Positioned(
+                          right: QuickAddSpacing
+                              .addButtonContainerPadding
+                              .right, // 18px
+                          bottom: QuickAddSpacing
+                              .addButtonContainerPadding
+                              .bottom, // 18px
+                          child: _buildAddButton(),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
 
                 const SizedBox(height: 8), // Figma: gap 8px
                 // ✅ 2. 타입 선택기 또는 타입 선택 팝업 (Frame 704 ↔ Frame 705)
                 // 追加 버튼 클릭 시 같은 위치에서 Frame 704 → Frame 705로 자연스럽게 전환
-                _showDetailPopup && _selectedType == null
-                    ? _buildTypePopup() // Frame 705: 타입 선택 팝업
-                    : _buildTypeSelector(), // Frame 704: 타입 선택기
+                Align(
+                  alignment: Alignment.centerRight, // 📍 둘 다 우측 정렬
+                  child: _showDetailPopup && _selectedType == null
+                      ? _buildTypePopup() // Frame 705: 타입 선택 팝업
+                      : _buildTypeSelector(), // Frame 704: 타입 선택기
+                ),
               ],
             ),
           ],
@@ -416,7 +456,15 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
         padding: QuickAddSpacing.textAreaPadding, // 좌우 26px
         child: TextField(
           controller: _textController,
-          autofocus: true, // ✅ 바텀시트 열릴 때 자동으로 키보드 표시
+          autofocus: true, // 처음에만 키보드 표시
+          onTap: () {
+            // ✅ 입력박스 탭 시 팝업 닫고 키보드 올림
+            if (_showDetailPopup) {
+              setState(() {
+                _showDetailPopup = false;
+              });
+            }
+          },
           onChanged: (text) {
             setState(() {
               _isAddButtonActive = text.isNotEmpty;
@@ -646,17 +694,17 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
       return;
     }
 
+    // ✅ 키보드만 내리기 (팝업/입력박스는 그 자리 고정)
+    FocusScope.of(context).unfocus();
+
     // ✅ Figma: 追加 버튼 클릭 시 타입 선택 팝업 표시
     // Frame 704 (타입 선택기) 위치에 Frame 705 (타입 선택 팝업) 표시
     setState(() {
       _showDetailPopup = true; // 팝업 표시
     });
 
-    print('✅ [Quick Add] 타입 선택 팝업 표시');
+    print('✅ [Quick Add] 타입 선택 팝업 표시 (키보드만 내림)');
     print('========================================\n');
-
-    // 햅틱 피드백
-    HapticFeedback.mediumImpact();
   }
 
   // ========================================

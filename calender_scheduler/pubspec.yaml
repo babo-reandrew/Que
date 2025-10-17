@@ -36,7 +36,6 @@ dependencies:  #이건 실제로 배포할 때만 패키징
   cupertino_icons: ^1.0.8
   table_calendar: ^3.2.0
   intl: ^0.20.2
-  tabler_icons_next: ^3.35.0
   drift: ^2.28.2
   drift_flutter: ^0.2.7
   path_provider: ^2.1.5
@@ -46,6 +45,8 @@ dependencies:  #이건 실제로 배포할 때만 패키징
   shared_preferences: ^2.5.3
   wolt_modal_sheet: ^0.11.0
   provider: ^6.1.5+1
+  figma_squircle: ^0.6.3  # Figma Squircle (Smooth Corners 60%) - 최신 버전
+  keyboard_attachable: ^2.2.0  # iOS inputAccessoryView 구현
 
 dev_dependencies: #이건 개발을 할 때에만 패키징
   flutter_test:
