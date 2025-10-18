@@ -6,6 +6,7 @@ import 'quick_add/quick_add_control_box.dart';
 /// **iOS inputAccessoryView 완벽 구현:**
 /// - 키보드에 정확히 붙어서 올라옴
 /// - 키보드 내려가도 위치 고정 (추가 버튼 클릭 시)
+/// - Apple Spring Animation 적용 (고급스러운 등장/퇴장)
 class InputAccessoryWithBlur extends StatefulWidget {
   final DateTime selectedDate;
   final VoidCallback? onSaveComplete;
@@ -22,8 +23,66 @@ class InputAccessoryWithBlur extends StatefulWidget {
   State<InputAccessoryWithBlur> createState() => _InputAccessoryWithBlurState();
 }
 
-class _InputAccessoryWithBlurState extends State<InputAccessoryWithBlur> {
+class _InputAccessoryWithBlurState extends State<InputAccessoryWithBlur>
+    with SingleTickerProviderStateMixin {
   double _savedKeyboardHeight = 0.0; // 저장된 키보드 높이
+  late AnimationController _springController;
+  late Animation<double> _slideAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // 🍎 Apple Spring Animation 컨트롤러
+    // iOS 17+ Safari/SwiftUI 스타일 Spring
+    _springController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600), // 0.6초 (쫀득한 느낌)
+    );
+
+    // 🎯 Y축 슬라이드: 80px 아래에서 시작 → 0으로
+    // Spring 시뮬레이션: mass=1.0, stiffness=180, damping=20
+    _slideAnimation =
+        Tween<double>(
+          begin: 80.0, // 더 아래에서 시작 (극적인 등장)
+          end: 0.0,
+        ).animate(
+          CurvedAnimation(
+            parent: _springController,
+            // 🍎 Apple Emphasized Decelerate (쫀득한 감속)
+            curve: const Cubic(0.05, 0.7, 0.1, 1.0),
+            reverseCurve: const Cubic(0.3, 0.0, 0.8, 0.15), // 퇴장: 빠른 가속 → 급정거
+          ),
+        );
+
+    // 🎨 투명도: 0 → 1
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _springController,
+        // 초반 50%에 페이드 완료 (슬라이드보다 빠르게)
+        curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
+        reverseCurve: const Interval(
+          0.5,
+          1.0,
+          curve: Curves.easeIn,
+        ), // 퇴장: 늦게 페이드 아웃
+      ),
+    );
+
+    // 애니메이션 시작 (약간의 딜레이로 자연스럽게)
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        _springController.forward();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _springController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,45 +99,66 @@ class _InputAccessoryWithBlurState extends State<InputAccessoryWithBlur> {
         ? _savedKeyboardHeight
         : 0.0;
 
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Padding(
-        padding: EdgeInsets.only(bottom: keyboardHeight), // 키보드 높이만큼 올림
-        child: ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          child: Container(
-            width: screenWidth,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  const Color(0xFFFFFFFF).withOpacity(0.0),
-                  const Color(0xFFF0F0F0).withOpacity(0.95),
-                ],
-                stops: const [0.0, 0.5],
+    // 🍎 Apple Spring Animation 적용
+    return AnimatedBuilder(
+      animation: _springController,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, _slideAnimation.value), // Y축 슬라이드
+          child: Opacity(
+            opacity: _fadeAnimation.value, // 페이드 인
+            child: child,
+          ),
+        );
+      },
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: keyboardHeight), // 키보드 높이만큼 올림
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            child: Container(
+              width: screenWidth,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    const Color(0xFFFFFFFF).withOpacity(0.0),
+                    const Color(0xFFF0F0F0).withOpacity(0.95),
+                  ],
+                  stops: const [0.0, 0.5],
+                ),
               ),
-            ),
-            // ✅ 그라데이션 박스의 하단 패딩만 늘림
-            padding: EdgeInsets.only(
-              left: 14,
-              right: 14,
-              bottom: 6 + extraBottomPadding, // 키보드 내려가면 패딩 증가!
-            ),
-            child: SafeArea(
-              top: false,
-              child: QuickAddControlBox(
-                selectedDate: widget.selectedDate,
-                onSave: (data) {
-                  widget.onSaveComplete?.call();
-                  Navigator.pop(context);
-                },
+              // ✅ 그라데이션 박스의 하단 패딩만 늘림
+              padding: EdgeInsets.only(
+                left: 14,
+                right: 14,
+                bottom: 6 + extraBottomPadding, // 키보드 내려가면 패딩 증가!
+              ),
+              child: SafeArea(
+                top: false,
+                child: QuickAddControlBox(
+                  selectedDate: widget.selectedDate,
+                  onSave: (data) {
+                    _animateOut(() {
+                      widget.onSaveComplete?.call();
+                      Navigator.pop(context);
+                    });
+                  },
+                ),
               ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// 🍎 퇴장 애니메이션 (Dismiss with Spring)
+  Future<void> _animateOut(VoidCallback onComplete) async {
+    await _springController.reverse(); // 역재생 (1.0 → 0.0)
+    onComplete();
   }
 }
 
@@ -112,11 +192,11 @@ class InputAccessoryHelper {
       enableDrag: true,
       isDismissible: true,
       useRootNavigator: false,
-      // ⚡ 초고속 애니메이션: 200ms → 100ms
-      sheetAnimationStyle: AnimationStyle(
-        duration: const Duration(milliseconds: 100),
-        reverseDuration: const Duration(milliseconds: 150),
-      ),
+      // 🍎 Apple Spring Animation (iOS 스타일)
+      // - duration: 500ms (쫀득한 등장)
+      // - reverseDuration: 400ms (빠른 퇴장)
+      // - curve: easeOutCubic (부드러운 감속)
+      transitionAnimationController: null, // 커스텀 컨트롤러 사용 안 함 (내부에서 처리)
       builder: (context) => InputAccessoryWithBlur(
         selectedDate: selectedDate,
         onSaveComplete: onSaveComplete,

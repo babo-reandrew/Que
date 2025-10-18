@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../screen/home_screen.dart';
 import '../screen/date_detail_view.dart';
-import '../utils/apple_expansion_route.dart';
-import '../const/motion_config.dart';
+// ✅ OpenContainer 마이그레이션으로 AppleExpansionRoute 제거
 
 // ===================================================================
 // ⭐️ App Routes: 중앙화된 라우트 관리
@@ -43,19 +42,18 @@ class AppRoutes {
         );
 
       case dateDetail:
-        // 이거를 설정하고 → arguments에서 DateTime을 추출해서
-        // 이거를 해서 → DateDetailView에 선택된 날짜를 전달한다
-        // 이거는 이래서 → 날짜별 일정을 정확하게 표시할 수 있다
+        // ✅ OpenContainer 마이그레이션으로 이 라우트는 더 이상 사용되지 않음
+        // OpenContainer가 HomeScreen 셀에서 직접 DateDetailView를 열기 때문에
+        // Navigator.pushNamed가 아닌 OpenContainer의 내부 라우팅 사용
         final args = settings.arguments;
 
         if (args is DateTime) {
           print(
             '   → DateDetailView로 이동 (날짜: ${args.toString().split(' ')[0]})',
           );
-          return AppleExpansionRoute(
+          // ⚠️ 이 코드는 레거시 호환성을 위해 남겨둠 (직접 호출 시)
+          return MaterialPageRoute(
             builder: (_) => DateDetailView(selectedDate: args),
-            duration: MotionConfig.cellExpansion,
-            curve: MotionConfig.appleDefault,
             settings: settings,
           );
         } else {

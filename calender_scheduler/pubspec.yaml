@@ -48,6 +48,8 @@ dependencies:  #이건 실제로 배포할 때만 패키징
   figma_squircle: ^0.6.3  # Figma Squircle (Smooth Corners 60%) - 최신 버전
   keyboard_attachable: ^2.2.0  # iOS inputAccessoryView 구현
   keyboard_actions: ^4.1.0
+  animated_reorderable_list: ^1.3.0  # 드래그앤드롭 재정렬 + iOS 애니메이션
+  animations: ^2.0.11  # Material Motion: OpenContainer, SharedAxisTransition
 
 dev_dependencies: #이건 개발을 할 때에만 패키징
   flutter_test:

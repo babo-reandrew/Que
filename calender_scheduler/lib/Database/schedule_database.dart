@@ -16,8 +16,8 @@ import 'package:sqlite3/sqlite3.dart';
 part 'schedule_database.g.dart'; //g.을 붙이는 건 생성된 파일이라는 의미를 전달한다.
 //g.를 붙여주면 즉, 자동으로 설치가 되거나 실행이 될 때 자동으로 설치도도록 한다.
 
-// ✅ 3개 테이블 추가: Schedule, Task, Habit, HabitCompletion
-@DriftDatabase(tables: [Schedule, Task, Habit, HabitCompletion])
+// ✅ 5개 테이블: Schedule, Task, Habit, HabitCompletion, DailyCardOrder
+@DriftDatabase(tables: [Schedule, Task, Habit, HabitCompletion, DailyCardOrder])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
@@ -330,8 +330,235 @@ class AppDatabase extends _$AppDatabase {
     return result;
   }
 
+  // ==================== DailyCardOrder (날짜별 카드 순서) 함수 ====================
+
+  /// 특정 날짜의 카드 순서 조회 (실시간 스트림)
+  /// 이거를 설정하고 → date를 받아서 해당 날짜의 모든 카드 순서를 실시간으로 가져오고
+  /// 이거를 해서 → sortOrder 기준으로 정렬된 DailyCardOrderData를 반환한다
+  /// 이거는 이래서 → 사용자가 설정한 커스텀 순서를 복원할 수 있다
+  Stream<List<DailyCardOrderData>> watchDailyCardOrder(DateTime date) {
+    // 이거를 설정하고 → 날짜를 00:00:00으로 정규화해서
+    // 이거를 해서 → 시간 상관없이 같은 날짜로 인식되도록 한다
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    print(
+      '👀 [DB] watchDailyCardOrder 스트림 시작: ${normalizedDate.toString().split(' ')[0]}',
+    );
+
+    // 이거를 설정하고 → dailyCardOrder 테이블에서 해당 날짜 필터링해서
+    // 이거를 해서 → sortOrder 오름차순으로 정렬하고
+    // 이거는 이래서 → 실시간으로 순서 변경을 감지한다
+    return (select(dailyCardOrder)
+          ..where((tbl) => tbl.date.equals(normalizedDate))
+          ..orderBy([
+            (tbl) =>
+                OrderingTerm(expression: tbl.sortOrder, mode: OrderingMode.asc),
+          ]))
+        .watch();
+  }
+
+  /// 날짜별 카드 순서 저장 (전체 교체)
+  /// 이거를 설정하고 → 날짜와 UnifiedListItem 리스트를 받아서
+  /// 이거를 해서 → 기존 순서를 삭제하고 새로운 순서로 저장한다
+  /// 이거는 이래서 → 드래그앤드롭 재정렬 시 호출된다
+  /// 이거라면 → 트랜잭션으로 원자성을 보장한다
+  Future<void> saveDailyCardOrder(
+    DateTime date,
+    List<Map<String, dynamic>> items,
+  ) async {
+    // 이거를 설정하고 → 날짜를 00:00:00으로 정규화해서
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    print(
+      '💾 [DB] saveDailyCardOrder 시작: ${normalizedDate.toString().split(' ')[0]}',
+    );
+
+    // 이거를 설정하고 → transaction()으로 묶어서
+    // 이거를 해서 → 삭제와 삽입이 하나의 단위로 실행되고
+    // 이거는 이래서 → 에러 발생 시 자동 롤백된다
+    await transaction(() async {
+      // 1️⃣ 기존 순서 삭제
+      // 이거를 설정하고 → 해당 날짜의 모든 순서 데이터를 삭제해서
+      // 이거를 해서 → 깨끗한 상태에서 새로 저장한다
+      final deleteCount = await (delete(
+        dailyCardOrder,
+      )..where((tbl) => tbl.date.equals(normalizedDate))).go();
+      print('  → [1/2] 기존 순서 삭제 완료: ${deleteCount}개 레코드');
+
+      // 2️⃣ 새로운 순서 삽입
+      // 이거를 설정하고 → items를 순회하면서
+      // 이거를 해서 → 각 카드의 순서 정보를 DB에 저장한다
+      int insertCount = 0;
+      for (int i = 0; i < items.length; i++) {
+        final item = items[i];
+        final type = item['type'] as String;
+        final id = item['id'] as int?;
+
+        // 이거를 설정하고 → divider, completed는 제외해서
+        // 이거를 해서 → 실제 카드 데이터만 저장한다
+        // 이거는 이래서 → 점선이나 완료 섹션은 동적으로 삽입되기 때문
+        if (type == 'divider' || type == 'completed' || id == null) {
+          continue;
+        }
+
+        // 이거를 설정하고 → DailyCardOrderCompanion을 생성해서
+        // 이거를 해서 → 날짜, 타입, ID, 순서를 DB에 저장한다
+        await into(dailyCardOrder).insert(
+          DailyCardOrderCompanion(
+            date: Value(normalizedDate),
+            cardType: Value(type),
+            cardId: Value(id),
+            sortOrder: Value(i),
+            updatedAt: Value(DateTime.now().toUtc()),
+          ),
+        );
+        insertCount++;
+      }
+
+      print('  → [2/2] 새로운 순서 저장 완료: ${insertCount}개 카드');
+      print('✅ [DB] saveDailyCardOrder 완료');
+    });
+  }
+
+  /// 특정 카드의 순서만 업데이트 (단일 업데이트)
+  /// 이거를 설정하고 → 하나의 카드만 순서를 변경할 때 사용해서
+  /// 이거를 해서 → 전체 삭제/삽입 없이 효율적으로 업데이트한다
+  /// 이거는 이래서 → 미세 조정 시 성능이 좋다
+  Future<void> updateCardOrder(
+    DateTime date,
+    String cardType,
+    int cardId,
+    int newOrder,
+  ) async {
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    print(
+      '🔄 [DB] updateCardOrder: $cardType-$cardId → order=$newOrder (날짜: ${normalizedDate.toString().split(' ')[0]})',
+    );
+
+    // 이거를 설정하고 → update로 특정 카드만 찾아서
+    // 이거를 해서 → sortOrder와 updatedAt만 업데이트한다
+    final count =
+        await (update(dailyCardOrder)..where(
+              (tbl) =>
+                  tbl.date.equals(normalizedDate) &
+                  tbl.cardType.equals(cardType) &
+                  tbl.cardId.equals(cardId),
+            ))
+            .write(
+              DailyCardOrderCompanion(
+                sortOrder: Value(newOrder),
+                updatedAt: Value(DateTime.now().toUtc()),
+              ),
+            );
+
+    print('✅ [DB] updateCardOrder 완료: ${count}개 행 업데이트됨');
+  }
+
+  /// 특정 날짜의 카드 순서 초기화 (삭제)
+  /// 이거를 설정하고 → 날짜별 커스텀 순서를 리셋할 때 사용해서
+  /// 이거를 해서 → 해당 날짜의 모든 순서 데이터를 삭제하고
+  /// 이거는 이래서 → 기본 순서(createdAt)로 돌아간다
+  Future<int> resetDailyCardOrder(DateTime date) async {
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    print(
+      '🔄 [DB] resetDailyCardOrder: ${normalizedDate.toString().split(' ')[0]}',
+    );
+
+    // 이거를 설정하고 → delete로 해당 날짜의 모든 순서를 삭제해서
+    // 이거를 해서 → 커스텀 순서를 제거한다
+    final count = await (delete(
+      dailyCardOrder,
+    )..where((tbl) => tbl.date.equals(normalizedDate))).go();
+
+    print('✅ [DB] resetDailyCardOrder 완료: ${count}개 순서 리셋됨');
+    return count;
+  }
+
+  /// 특정 카드 삭제 시 모든 날짜의 순서에서 제거
+  /// 이거를 설정하고 → Schedule/Task/Habit 삭제 시 함께 호출해서
+  /// 이거를 해서 → 모든 날짜의 DailyCardOrder에서 해당 카드를 제거하고
+  /// 이거는 이래서 → 고아 레코드(orphan record)를 방지한다
+  Future<int> deleteCardFromAllOrders(String cardType, int cardId) async {
+    print('🗑️ [DB] deleteCardFromAllOrders: $cardType-$cardId (모든 날짜)');
+
+    // 이거를 설정하고 → cardType과 cardId로 필터링해서
+    // 이거를 해서 → 모든 날짜의 해당 카드 순서를 삭제한다
+    final count =
+        await (delete(dailyCardOrder)..where(
+              (tbl) =>
+                  tbl.cardType.equals(cardType) & tbl.cardId.equals(cardId),
+            ))
+            .go();
+
+    print('✅ [DB] deleteCardFromAllOrders 완료: ${count}개 레코드 삭제됨');
+    return count;
+  }
+
+  // ============================================================================
+  // 📄 페이지네이션 - 화면에 보이는 데이터만 로드
+  // ============================================================================
+
+  /// 📄 할일 페이지네이션 (화면에 보이는 것만 로드)
+  /// 이거를 설정하고 → limit과 offset으로 필요한 만큼만 가져와서
+  /// 이거를 해서 → 성능을 최적화하고
+  /// 이거는 이래서 → 대량의 할일이 있어도 빠르게 로드된다
+  Stream<List<TaskData>> watchTasksPaginated({
+    required int limit,
+    required int offset,
+  }) {
+    print('📄 [DB] watchTasksPaginated: limit=$limit, offset=$offset');
+    return (select(task)
+          ..orderBy([
+            (tbl) => OrderingTerm(expression: tbl.completed), // 미완료 먼저
+            (tbl) => OrderingTerm(expression: tbl.dueDate), // 마감일 순
+            (tbl) => OrderingTerm(expression: tbl.title), // 제목 순
+          ])
+          ..limit(limit, offset: offset))
+        .watch();
+  }
+
+  /// 📄 습관 페이지네이션 (화면에 보이는 것만 로드)
+  /// 이거를 설정하고 → limit과 offset으로 필요한 만큼만 가져와서
+  /// 이거를 해서 → 성능을 최적화하고
+  /// 이거는 이래서 → 대량의 습관이 있어도 빠르게 로드된다
+  Stream<List<HabitData>> watchHabitsPaginated({
+    required int limit,
+    required int offset,
+  }) {
+    print('📄 [DB] watchHabitsPaginated: limit=$limit, offset=$offset');
+    return (select(habit)
+          ..orderBy([
+            (tbl) => OrderingTerm(
+              expression: tbl.createdAt,
+              mode: OrderingMode.desc,
+            ),
+          ])
+          ..limit(limit, offset: offset))
+        .watch();
+  }
+
+  /// 📊 할일 총 개수 조회 (페이지네이션용)
+  /// 이거를 설정하고 → 전체 할일 개수를 세어서
+  /// 이거를 해서 → 페이지네이션 계산에 사용한다
+  Future<int> getTasksCount() async {
+    final query = selectOnly(task)..addColumns([task.id.count()]);
+    final result = await query.getSingle();
+    final count = result.read(task.id.count()) ?? 0;
+    print('📊 [DB] getTasksCount: $count개');
+    return count;
+  }
+
+  /// 📊 습관 총 개수 조회 (페이지네이션용)
+  /// 이거를 설정하고 → 전체 습관 개수를 세어서
+  /// 이거를 해서 → 페이지네이션 계산에 사용한다
+  Future<int> getHabitsCount() async {
+    final query = selectOnly(habit)..addColumns([habit.id.count()]);
+    final result = await query.getSingle();
+    final count = result.read(habit.id.count()) ?? 0;
+    print('📊 [DB] getHabitsCount: $count개');
+    return count;
+  }
+
   @override
-  int get schemaVersion => 3; // ✅ 스키마 버전 3으로 업데이트 (Task/Habit에 반복/리마인더 컬럼 추가)
+  int get schemaVersion => 4; // ✅ 스키마 버전 4로 업데이트 (DailyCardOrder 테이블 추가)
 
   // ✅ [마이그레이션 전략 추가]
   // 이거를 설정하고 → onCreate에서 테이블을 생성하고
@@ -355,6 +582,13 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(task, task.reminder);
         await m.addColumn(habit, habit.reminder);
         print('✅ [DB Migration] v2→v3 완료');
+      }
+
+      // v3 → v4: DailyCardOrder 테이블 추가 (날짜별 카드 순서 관리)
+      if (from == 3 && to == 4) {
+        print('📦 [DB Migration] v3→v4: DailyCardOrder 테이블 생성');
+        await m.createTable(dailyCardOrder);
+        print('✅ [DB Migration] v3→v4 완료 - 날짜별 카드 순서 관리 기능 추가');
       }
 
       print('✅ [DB Migration] 업그레이드 완료');

@@ -8,12 +8,13 @@
 
 ## 🎯 시스템 개요
 
-Calendar Scheduler는 **Drift ORM**을 기반으로 **4개의 핵심 테이블**을 운영합니다:
+Calendar Scheduler는 **Drift ORM**을 기반으로 **5개의 핵심 테이블**을 운영합니다:
 
 1. **Schedule** (일정) - 구글 캘린더 스타일의 이벤트
 2. **Task** (할일) - Things3/Todoist 스타일의 체크리스트
 3. **Habit** (습관) - Habitica 스타일의 반복 루틴
 4. **HabitCompletion** (습관 완료 기록) - 습관의 날짜별 완료 추적
+5. **DailyCardOrder** (날짜별 카드 순서) - 일정/할일/습관 드래그앤드롭 순서 저장 (NEW!)
 
 ---
 
@@ -142,6 +143,44 @@ lib/
 - 같은 습관도 날짜별로 별도 완료 기록 생성
 - 스트릭(연속 기록) 계산 시 이 테이블 조회
 - `habitId`로 `Habit` 테이블과 관계 설정
+
+---
+
+### **5️⃣ DailyCardOrder (날짜별 카드 순서)** ⭐ NEW!
+
+| 컬럼명 | 타입 | 필수 | 기본값 | 설명 |
+|--------|------|------|--------|------|
+| `id` | INT | ✅ | AUTO | Primary Key (자동 증가) |
+| `date` | DATETIME | ✅ | - | 대상 날짜 (자정으로 정규화) |
+| `cardType` | TEXT | ✅ | - | 카드 유형 ('schedule', 'task', 'habit') |
+| `cardId` | INT | ✅ | - | 해당 테이블의 ID (Schedule.id, Task.id, Habit.id) |
+| `sortOrder` | INT | ✅ | - | 정렬 순서 (0부터 시작) |
+| `updatedAt` | DATETIME | ✅ | NOW() | 순서 변경 시간 |
+
+**데이터 클래스:** `DailyCardOrderData`  
+**Companion 클래스:** `DailyCardOrderCompanion`
+
+**특징:**
+- **AnimatedReorderableListView 드래그앤드롭 순서 저장**
+- 날짜별로 독립적인 순서 관리 (2025-10-14의 순서 ≠ 2025-10-15의 순서)
+- `cardType` + `cardId`로 원본 데이터 조회 (Junction Table 패턴)
+- 드래그 완료 시 `sortOrder` 업데이트
+
+**예시 데이터:**
+```sql
+-- 2025-10-14 날짜의 카드 순서
+id | date       | cardType  | cardId | sortOrder | updatedAt
+---|------------|-----------|--------|-----------|-------------------
+1  | 2025-10-14 | schedule  | 3      | 0         | 2025-10-14 10:00
+2  | 2025-10-14 | task      | 12     | 1         | 2025-10-14 10:00
+3  | 2025-10-14 | habit     | 5      | 2         | 2025-10-14 10:00
+4  | 2025-10-14 | schedule  | 7      | 3         | 2025-10-14 10:00
+```
+
+**드래그앤드롭 제약:**
+- **일정(Schedule)은 Divider 아래로 이동 불가** (shake 애니메이션 + 햅틱)
+- 할일/습관은 자유롭게 이동 가능
+- Divider 위치: 마지막 일정 다음 (동적 계산)
 
 ---
 
@@ -346,6 +385,33 @@ database.deleteHabit(id)
 
 **정렬 순서:**
 - `createdAt` (내림차순 - 최신 것 우선)
+
+---
+
+### **DailyCardOrder (날짜별 순서)** ⭐ NEW!
+
+| 함수명 | 반환 타입 | 설명 |
+|--------|-----------|------|
+| `watchDailyCardOrders(DateTime)` | `Stream<List<DailyCardOrderData>>` | 날짜별 순서 구독 (실시간) |
+| `saveDailyCardOrder(DailyCardOrderCompanion)` | `Future<int>` | 새 순서 저장 → ID 반환 |
+| `updateDailyCardOrder(int, int)` | `Future<int>` | 순서 업데이트 (id, newOrder) |
+| `resetDailyCardOrders(DateTime)` | `Future<void>` | 해당 날짜 전체 순서 초기화 |
+| `deleteDailyCardOrder(int)` | `Future<int>` | 순서 기록 삭제 |
+
+**정렬 순서:**
+- `sortOrder` (오름차순 - 0, 1, 2, 3...)
+
+**사용 시나리오:**
+```dart
+// 1. 드래그 시작: 현재 순서 로드
+final orders = await database.watchDailyCardOrders(selectedDate).first;
+
+// 2. 드래그 완료: 새 순서 저장
+await database.updateDailyCardOrder(cardId, newSortOrder);
+
+// 3. UI 갱신: Stream이 자동으로 새 순서 emit
+// → AnimatedReorderableListView 자동 업데이트
+```
 
 ---
 
@@ -672,19 +738,155 @@ dart run build_runner build --delete-conflicting-outputs
 ## 🎓 학습 로드맵
 
 ### **초급 (현재 시스템 이해)**
-1. ✅ 4개 테이블 구조 파악
+1. ✅ 5개 테이블 구조 파악 (DailyCardOrder 포함)
 2. ✅ CRUD 함수 사용법 익히기
 3. ✅ StreamBuilder 동작 원리 이해
+4. ✅ AnimatedReorderableListView + DailyCardOrder 연동
 
 ### **중급 (기능 확장)**
-4. ⏳ `repeatRule` JSON 파싱 구현
-5. ⏳ `alertSetting` 푸시 알림 구현
-6. ⏳ Task `listId` 기반 폴더 시스템
+5. ⏳ `repeatRule` JSON 파싱 구현
+6. ⏳ `alertSetting` 푸시 알림 구현
+7. ⏳ Task `listId` 기반 폴더 시스템
+8. ⏳ Pagination 최적화 (현재 구현됨, 추가 개선 가능)
 
 ### **고급 (성능 최적화)**
-7. ⏳ 복합 인덱스 추가
-8. ⏳ 쿼리 최적화 (EXPLAIN 분석)
-9. ⏳ 백그라운드 동기화 (Isolate)
+9. ⏳ 복합 인덱스 추가
+10. ⏳ 쿼리 최적화 (EXPLAIN 분석)
+11. ⏳ 백그라운드 동기화 (Isolate)
+
+---
+
+## 🎨 AnimatedReorderableListView 통합
+
+### **개요**
+`date_detail_view.dart`에서 **드래그앤드롭 기능**을 제공하며, 순서는 `DailyCardOrder` 테이블에 저장됩니다.
+
+### **핵심 컴포넌트**
+
+#### **1. UnifiedListItem 모델**
+```dart
+enum UnifiedItemType { schedule, task, habit, divider, completed }
+
+class UnifiedListItem {
+  final String uniqueId;        // 'schedule_1', 'task_5', 'habit_3'
+  final UnifiedItemType type;
+  final dynamic data;           // ScheduleData | TaskData | HabitData
+  final int sortOrder;          // DailyCardOrder.sortOrder
+  final bool isDraggable;       // divider는 false
+}
+```
+
+#### **2. 리스트 구성 알고리즘**
+```dart
+List<UnifiedListItem> _buildUnifiedItemList() {
+  // 1. DailyCardOrder에서 날짜별 순서 로드
+  final orders = dailyCardOrders; // sortOrder로 정렬됨
+  
+  // 2. 순서대로 실제 데이터 조회
+  for (order in orders) {
+    if (order.cardType == 'schedule') {
+      // Schedule 데이터 조회 → UnifiedListItem.fromSchedule()
+    } else if (order.cardType == 'task') {
+      // Task 데이터 조회 → UnifiedListItem.fromTask()
+    } else if (order.cardType == 'habit') {
+      // Habit 데이터 조회 → UnifiedListItem.fromHabit()
+    }
+  }
+  
+  // 3. Divider 삽입 (마지막 일정 다음)
+  final dividerIndex = scheduleCount;
+  items.insert(dividerIndex, UnifiedListItem.divider());
+  
+  // 4. Completed 섹션 추가
+  if (hasCompletedTasks) {
+    items.add(UnifiedListItem.completed());
+    items.addAll(completedTasks);
+  }
+  
+  return items;
+}
+```
+
+#### **3. 드래그앤드롭 제약 시스템**
+```dart
+void _handleReorder(int oldIndex, int newIndex) {
+  final item = items[oldIndex];
+  
+  // 🚫 제약 1: Divider 위치보다 아래로 일정 이동 불가
+  if (item.type == UnifiedItemType.schedule && newIndex > dividerIndex) {
+    setState(() { _isReorderingScheduleBelowDivider = true; });
+    HapticFeedback.heavyImpact(); // 강한 햅틱
+    
+    // 100ms 후 원래대로 복구 (shake 애니메이션)
+    Future.delayed(100ms, () {
+      setState(() { _isReorderingScheduleBelowDivider = false; });
+    });
+    return; // DB 저장 중단
+  }
+  
+  // ✅ 제약 통과: sortOrder 업데이트
+  await database.updateDailyCardOrder(item.id, newIndex);
+}
+```
+
+### **데이터 흐름**
+```
+[사용자 드래그]
+      ↓
+[AnimatedReorderableListView.onReorder]
+      ↓
+[_handleReorder() 제약 검사]
+      ↓
+[database.updateDailyCardOrder()]
+      ↓
+[DailyCardOrder 테이블 UPDATE]
+      ↓
+[Stream 자동 갱신]
+      ↓
+[UI 자동 리렌더링]
+```
+
+### **애니메이션 설정**
+```dart
+AnimatedReorderableListView(
+  dragStartDelay: Duration(milliseconds: 500),  // 0.5초 후 드래그 시작
+  insertDuration: Duration(milliseconds: 300),  // 삽입 애니메이션 0.3초
+  proxyDecorator: (child, index, animation) {
+    return Transform.scale(
+      scale: 1.0 + (animation.value * 0.03),  // 3% 확대
+      child: Transform.rotate(
+        angle: animation.value * 0.05,        // 약간 회전
+        child: Container(
+          decoration: BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x14111111),     // #111111 8%
+                offset: Offset(0, 4),         // Y축 4px
+                blurRadius: 20,               // 블러 20px
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ),
+    );
+  },
+);
+```
+
+### **Divider Shake 애니메이션**
+```dart
+// date_detail_view.dart
+AnimatedContainer(
+  duration: Duration(milliseconds: 100),
+  decoration: BoxDecoration(
+    border: _isReorderingScheduleBelowDivider
+        ? Border.all(color: Colors.red, width: 2)  // 빨간 테두리
+        : null,
+  ),
+  child: DividerCard(),
+)
+```
 
 ---
 
@@ -702,9 +904,16 @@ dart run build_runner build --delete-conflicting-outputs
 
 ---
 
-**마지막 업데이트:** 2025-10-14  
+**마지막 업데이트:** 2025-10-18  
 **작성자:** Cursor AI + Junsung  
-**버전:** v2.0 (Task/Habit 추가)
+**버전:** v3.0 (DailyCardOrder + AnimatedReorderableListView 추가)
+
+**주요 변경사항:**
+- ✅ `DailyCardOrder` 테이블 추가 (날짜별 드래그앤드롭 순서 저장)
+- ✅ `AnimatedReorderableListView` 통합 (iOS 18 스타일 애니메이션)
+- ✅ `UnifiedListItem` 모델 도입 (schedule/task/habit 통합 관리)
+- ✅ Divider 제약 시스템 (일정은 아래로 이동 불가)
+- ✅ Pagination 구현 (20개씩 로드, 무한 스크롤)
 
 ---
 

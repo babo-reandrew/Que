@@ -365,13 +365,17 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              // ✅ 상단: 텍스트 입력만 (Frame 700)
+                              // ✅ 상단: 텍스트 입력 영역 (Frame 700)
                               _buildTextInputArea(),
 
-                              // ✅ 중단: QuickDetail 옵션 + 버튼 (일정/할일 선택 시 표시)
-                              if (_selectedType != null) _buildQuickDetails(),
+                              // ✅ 중단: QuickDetail 옵션 (일정/할일 선택 시만 표시)
+                              if (_selectedType != null)
+                                _buildQuickDetailOptions(),
 
                               const Spacer(),
+
+                              // ✅ 하단: 追加 버튼 (항상 표시, 우측 하단 고정)
+                              _buildAddButtonArea(),
                             ],
                           ),
                         ),
@@ -499,15 +503,15 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
     );
   }
 
-  /// QuickDetail 옵션 영역 (피그마: Frame 711)
-  /// ✅ Figma: 옵션 + 버튼을 같은 Row에 배치
-  Widget _buildQuickDetails() {
+  /// QuickDetail 옵션 영역만 (피그마: Frame 711 좌측 부분)
+  /// ✅ Figma: 타입 선택 시에만 표시되는 옵션들
+  Widget _buildQuickDetailOptions() {
     return Container(
       width: QuickAddDimensions.frameWidth, // 365px
       height: 80, // Figma: Frame 711 height
       padding: const EdgeInsets.symmetric(horizontal: 18), // 좌우 18px
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           // ✅ 좌측: 세부 옵션 버튼들
           Row(
@@ -516,11 +520,18 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
                 ? _buildScheduleDetails()
                 : _buildTaskDetails(),
           ),
-
-          // ✅ 우측: 추가 버튼
-          _buildAddButton(),
         ],
       ),
+    );
+  }
+
+  /// 追加 버튼 영역 (우측 하단 고정)
+  /// ✅ Figma: 항상 표시, 텍스트 입력 시 활성화
+  Widget _buildAddButtonArea() {
+    return Container(
+      width: QuickAddDimensions.frameWidth, // 365px
+      padding: const EdgeInsets.only(right: 18, bottom: 18), // 우측 하단 여백
+      child: Align(alignment: Alignment.centerRight, child: _buildAddButton()),
     );
   }
 

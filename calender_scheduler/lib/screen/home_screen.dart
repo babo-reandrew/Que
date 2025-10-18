@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:animations/animations.dart'; // ✅ OpenContainer import
 import '../const/color.dart';
 import '../const/calendar_config.dart';
 import '../const/motion_config.dart';
@@ -7,7 +8,6 @@ import '../component/create_entry_bottom_sheet.dart';
 import '../component/keyboard_attachable_input_view.dart'; // 🆕 KeyboardAttachable 추가
 import '../component/modal/settings_wolt_modal.dart'; // ✅ Settings Modal 추가
 import '../screen/date_detail_view.dart';
-import '../utils/apple_expansion_route.dart';
 import '../Database/schedule_database.dart';
 import '../widgets/bottom_navigation_bar.dart'; // ✅ 하단 네비게이션 바 추가
 import '../widgets/temp_input_box.dart'; // ✅ 임시 입력 박스 추가
@@ -31,6 +31,44 @@ class _HomeScreenState extends State<HomeScreen> {
   // ⭐️ 로컬 schedules Map 제거됨
   // 이거는 이래서 → 이제 모든 일정은 DB에서 관리하고
   // 이거라면 → StreamBuilder로 실시간으로 가져온다
+
+  @override
+  void initState() {
+    super.initState();
+    // 🚀 키보드 프리로딩: 앱 시작 시 키보드를 미리 초기화해서
+    // 사용자가 + 버튼을 눌렀을 때 바로 뜨도록 함 (첫 번째 딜레이 제거)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _preloadKeyboard();
+    });
+  }
+
+  /// 키보드 프리로딩: 보이지 않는 TextField를 만들어서 키보드 초기화
+  void _preloadKeyboard() {
+    final overlay = Overlay.of(context);
+    final overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        left: 0,
+        top: 0,
+        child: Opacity(
+          opacity: 0.0, // 완전히 투명
+          child: SizedBox(
+            width: 1,
+            height: 1,
+            child: TextField(
+              autofocus: true, // 자동으로 포커스해서 키보드 초기화
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // 1프레임만 표시하고 바로 제거
+    overlay.insert(overlayEntry);
+    Future.delayed(const Duration(milliseconds: 100), () {
+      overlayEntry.remove();
+      print('⌨️ [키보드] 프리로딩 완료');
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -220,10 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     final targetDate = selectedDay ?? DateTime.now();
                     showModalBottomSheet(
                       context: context,
-                      isScrollControlled: false, // 🔥 키보드 자동 패딩 비활성화!
-                      isDismissible: true,
-                      enableDrag: true,
-                      useSafeArea: false, // 🔥 SafeArea 비활성화!
+                      isScrollControlled: true, // ✅ 키보드 높이에 따라 동적으로 조절
                       backgroundColor: Colors.transparent, // ✅ 투명 배경
                       barrierColor: Colors.transparent, // ✅ 배경 터치 차단 없음
                       elevation: 0, // ✅ 그림자 제거
@@ -578,40 +613,20 @@ class _HomeScreenState extends State<HomeScreen> {
   /// 이거를 설정하고 → 선택된 날짜를 저장하고
   /// 이거를 해서 → DateDetailView로 화면 전환한다
   /// 이거는 이래서 → DB 기반이므로 별도 데이터 전달 불필요
-  void _onDaySelected(DateTime selectedDay, DateTime focusedDay) async {
+  void _onDaySelected(DateTime selectedDay, DateTime focusedDay) {
     print('\n========================================');
     print('📅 [홈] 날짜 선택 이벤트 발생');
     print('   → 선택된 날짜: $selectedDay');
     print('   → 포커스된 날짜: $focusedDay');
 
-    // 1. 먼저 상태를 업데이트해서 선택된 날짜를 화면에 반영한다
+    // ✅ OpenContainer가 자동으로 DateDetailView를 열므로
+    // Navigator.push 불필요! 상태 업데이트만 수행
     setState(() {
       this.focusedDay = selectedDay;
       this.selectedDay = selectedDay;
     });
     print('✅ [홈] 상태 업데이트 완료');
-
-    // 2. 선택된 날짜를 정규화한다
-    final normalizedDate = DateTime.utc(
-      selectedDay.year,
-      selectedDay.month,
-      selectedDay.day,
-    );
-    print('🔄 [홈] 날짜 정규화: $normalizedDate');
-
-    // 3. ⭐️ DateDetailView로 이동 - DB 기반이므로 일정 데이터를 전달하지 않음
-    // 이거는 이래서 → DateDetailView가 직접 DB에서 스트림으로 가져온다
-    // 이거라면 → 로컬 상태 관리가 불필요하다
-    print('🚀 [홈] DateDetailView로 이동 시작 (애플 스타일 애니메이션)');
-    await Navigator.push(
-      context,
-      AppleExpansionRoute(
-        builder: (context) => DateDetailView(selectedDate: normalizedDate),
-        duration: MotionConfig.cellExpansion,
-        curve: MotionConfig.appleDefault,
-      ),
-    );
-    print('⬅️ [홈] DateDetailView에서 돌아옴');
+    print('✅ [홈] OpenContainer가 자동으로 DateDetailView 전환 처리');
     print('========================================\n');
   }
 
@@ -750,161 +765,210 @@ class _HomeScreenState extends State<HomeScreen> {
     bool isCircular = false, // 원형인지 확인해서
     required Map<DateTime, List<ScheduleData>> daySchedules, // 일정 맵을 받아서
   }) {
-    // ⭐️ 수정된 구조:
-    // 1. 외부 Container (infinity) -> 터치 영역 전체 확장
-    // 2. Column으로 날짜 + 스케줄 영역 배치
-    // 3. LayoutBuilder로 동적 높이 계산하여 스케줄 개수 결정
+    // ⭐️ OpenContainer 구조:
+    // 1. OpenContainer가 전체를 감싸서 탭 시 자동으로 DateDetailView 열림
+    // 2. closedBuilder: 작은 셀 UI (날짜 + 일정 미리보기)
+    // 3. openBuilder: 전체 화면 DateDetailView
+    // 4. 자동으로 위치/크기 측정, 보간, 배경 scrim 처리
 
     // 이거를 설정하고 → 해당 날짜의 일정 리스트를 조회해서
-    // 이거를 해서 → 날짜 키로 Map에서 검색한다
     final dateKey = DateTime(day.year, day.month, day.day);
     final schedulesForDay = daySchedules[dateKey] ?? [];
 
-    // ⭐️ 오늘 날짜인지 확인한다 (Hero 애니메이션 태그 설정에 필요)
+    // ⭐️ 오늘 날짜인지 확인 (오늘 버튼 Hero는 별도 처리)
     final today = DateTime.now();
     final isToday =
-        day.year == today.year && // 연도가 같고
-        day.month == today.month && // 월이 같고
-        day.day == today.day; // 일이 같으면 오늘 날짜
+        day.year == today.year &&
+        day.month == today.month &&
+        day.day == today.day;
 
-    // 3. ⭐️ 포커스된 월이 오늘 날짜가 있는 월이 아닌지 확인한다
-    // - 이 값이 true이면 앱바에 "오늘로 돌아가기" 버튼이 표시된다
-    // - 이 값이 true이고 isToday가 true이면 Hero 애니메이션을 위해 버튼과 같은 tag를 사용한다
     final isNotCurrentMonth =
         focusedDay.month != today.month || focusedDay.year != today.year;
 
-    return Container(
-      width: double.infinity, // 가로를 무한대로 설정해서 셀의 가로 전체를 차지
-      height: double.infinity, // 세로를 무한대로 설정해서 셀의 세로 전체를 차지
-      // 외부 Container는 투명 배경으로 설정
-      color: Colors.transparent,
-
-      // 상단에 4px 패딩 추가
-      padding: const EdgeInsets.only(top: 4),
-
-      // ⭐️ 핵심 변경: Container → Column으로 변경해서 날짜와 스케줄을 세로로 배치
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start, // 좌측 정렬 (스케줄 박스와 +숫자용)
-        children: [
-          // 4. 날짜 영역 (22px 고정 크기, 중앙 정렬)
-          // ✅ 피그마: 선택된 날짜(20일)는 22×22px 검은 배경 + ExtraBold 10px 흰 텍스트
-          Center(
-            child: Hero(
-              tag: (isToday && isNotCurrentMonth)
-                  ? 'today-button-${today.year}-${today.month}-${today.day}' // 앱바 버튼과 같은 태그
-                  : 'calendar-cell-${day.year}-${day.month}-${day.day}', // DateDetailView와 정확히 같은 태그 형식
-              createRectTween: (begin, end) {
-                return AppleStyleRectTween(begin: begin, end: end);
-              },
-              flightShuttleBuilder: appleStyleHeroFlightShuttleBuilder,
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  width: size, // 가로 22px (고정 크기)
-                  height: size, // 세로 22px (고정 크기)
-                  decoration: BoxDecoration(
-                    color: backgroundColor,
-                    // ✅ Figma: 오늘 날짜는 radius 9px, 나머지는 8px
-                    borderRadius: BorderRadius.circular(isToday ? 9 : 8),
-                  ),
-                  alignment: Alignment.center, // 날짜 숫자 중앙 정렬
-                  child: Text(
-                    '${day.day}', // 날짜 숫자 표시 (예: "20")
-                    style: TextStyle(
-                      fontFamily: 'LINE Seed JP App_TTF',
-                      // ✅ Figma: 오늘 날짜만 ExtraBold 10px, 나머지는 Bold 10px
-                      fontSize: 10,
-                      fontWeight: isToday
-                          ? FontWeight.w800
-                          : FontWeight.w700, // 오늘만 ExtraBold
-                      color: textColor,
-                      letterSpacing: -0.05, // -0.005em → -0.05px (10px 기준)
-                      height: 0.9, // lineHeight 90%
+    // ✅ 오늘 날짜 + 다른 월 = Hero 유지 (OpenContainer 사용 안 함)
+    if (isToday && isNotCurrentMonth) {
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: Colors.transparent,
+        padding: const EdgeInsets.only(top: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Hero(
+                tag: 'today-button-${today.year}-${today.month}-${today.day}',
+                createRectTween: (begin, end) {
+                  return AppleStyleRectTween(begin: begin, end: end);
+                },
+                flightShuttleBuilder: appleStyleHeroFlightShuttleBuilder,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    width: size,
+                    height: size,
+                    decoration: BoxDecoration(
+                      color: backgroundColor,
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${day.day}',
+                      style: TextStyle(
+                        fontFamily: 'LINE Seed JP App_TTF',
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: textColor,
+                        letterSpacing: -0.05,
+                        height: 0.9,
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
+            _buildSchedulePreview(schedulesForDay),
+          ],
+        ),
+      );
+    }
 
-          // ⭐️ 스케줄 영역: 셀 높이에 따라 동적으로 표시
-          // 이거를 설정하고 → 셀의 실제 높이를 측정해서
-          // 이거를 해서 → 들어갈 수 있는 최대 일정 개수를 계산하고
-          // 이거는 이래서 → 화면 크기에 관계없이 최적의 개수만 표시한다
-          // 이거라면 → 남은 일정은 +숫자로 표시해서 깔끔하게 유지한다
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                // ✅ 동적 계산: 셀 높이 기반으로 최대 일정 개수 계산
-                // 공식: ((셀의 높이 - 24) / 18) - 2 = 최대 일정 수
-                final cellHeight =
-                    constraints.maxHeight + 26; // Expanded 영역 + 상단(4+22)
-                final maxDisplayCount = _calculateMaxScheduleCount(cellHeight);
-
-                // 일정 개수 검증 로그
-                print(
-                  '🔍 [셀 검증] ${day.toString().split(' ')[0]} → Expanded 높이: ${constraints.maxHeight.toStringAsFixed(1)}px, 전체 셀: ${cellHeight.toStringAsFixed(1)}px',
-                );
-
-                final displaySchedules = schedulesForDay
-                    .take(maxDisplayCount)
-                    .toList();
-                final remainingCount =
-                    schedulesForDay.length - displaySchedules.length;
-
-                print(
-                  '📅 [셀] ${day.toString().split(' ')[0]} → 전체: ${schedulesForDay.length}개, 표시: ${displaySchedules.length}개, 숨김: $remainingCount개',
-                );
-
-                // 표시 개수 유효성 검증
-                if (displaySchedules.length > maxDisplayCount) {
-                  print(
-                    '⚠️ [셀 검증] 경고! 표시 개수(${displaySchedules.length})가 최대값($maxDisplayCount)을 초과함',
-                  );
-                }
-                if (remainingCount < 0) {
-                  print('⚠️ [셀 검증] 경고! 남은 개수가 음수: $remainingCount');
-                }
-
-                // 일정이 없으면 빈 위젯 반환
-                if (schedulesForDay.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-
-                // 일정이 있으면 Column으로 스케줄 박스들과 +숫자를 배치
-                return Padding(
-                  padding: const EdgeInsets.only(left: 4, right: 4, top: 2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 표시할 스케줄 박스들 (최대 5개)
-                      ...displaySchedules.map(
-                        (schedule) => _buildScheduleBox(schedule),
-                      ),
-
-                      // ✅ 피그마: +숫자 표시 (Bold 9px, #999999)
-                      if (remainingCount > 0)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 4, top: 2),
-                          child: Text(
-                            '+$remainingCount',
-                            style: const TextStyle(
-                              fontFamily: 'LINE Seed JP App_TTF',
-                              fontSize: 9, // 피그마: Bold 9px
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF999999), // 피그마: #999999
-                              letterSpacing: 0,
-                              height: 1.1, // lineHeight 9.9 / fontSize 9
-                            ),
-                          ),
-                        ),
-                    ],
+    // ✅ OpenContainer로 감싸기
+    return OpenContainer(
+      // ========================================
+      // 애니메이션 설정
+      // ========================================
+      transitionDuration: MotionConfig.openContainerDuration, // 550ms
+      transitionType: ContainerTransitionType.fade, // ✅ fade: Stack 구조에 적합
+      // ========================================
+      // 닫힌 상태 (셀 UI) - #F7F7F7 배경
+      // ========================================
+      closedElevation: 0, // 그림자 없음
+      closedShape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.zero, // ✅ 라운드 0 (직각)
+      ),
+      closedColor: const Color(0xFFF7F7F7), // ✅ #F7F7F7 배경색
+      middleColor: MotionConfig.openContainerMiddleColor, // ✅ fadeThrough 중간 색상
+      closedBuilder: (context, action) {
+        return Container(
+          width: double.infinity,
+          height: double.infinity,
+          padding: const EdgeInsets.only(top: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ✅ 날짜 숫자 (Hero처럼 동기화됨)
+              Center(
+                child: Container(
+                  width: size,
+                  height: size,
+                  decoration: BoxDecoration(
+                    color: backgroundColor,
+                    borderRadius: BorderRadius.circular(isToday ? 9 : 8),
                   ),
-                );
-              },
-            ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '${day.day}',
+                    style: TextStyle(
+                      fontFamily: 'LINE Seed JP App_TTF',
+                      fontSize: 10,
+                      fontWeight: isToday ? FontWeight.w800 : FontWeight.w700,
+                      color: textColor,
+                      letterSpacing: -0.05,
+                      height: 0.9,
+                    ),
+                  ),
+                ),
+              ),
+              // 일정 미리보기
+              _buildSchedulePreview(schedulesForDay),
+            ],
           ),
-        ],
+        );
+      },
+
+      // ========================================
+      // 열린 상태 (DateDetailView 전체 화면) - #F7F7F7 배경
+      // ========================================
+      openElevation: 0, // 그림자 없음
+      openShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(36), // ✅ 라운드 36 (피그마 60% 스무싱)
+      ),
+      openColor: const Color(0xFFF7F7F7), // ✅ #F7F7F7 배경색
+      openBuilder: (context, action) {
+        // 🚀 혁신적 구조: Stack으로 월뷰를 배경에 깔고 디테일뷰를 위에 겹침
+        // Pull-to-dismiss 시 디테일뷰가 작아지면서 아래 월뷰가 보이는 효과!
+        return Stack(
+          children: [
+            // 1️⃣ 배경: 월뷰 전체 (고정)
+            // OpenContainer가 열렸을 때 뒤에 깔리는 월뷰
+            Positioned.fill(child: _buildMonthViewBackground()),
+
+            // 2️⃣ 전면: 디테일뷰 (pull-to-dismiss 가능)
+            // onClose 콜백으로 OpenContainer의 action() 연결
+            DateDetailView(
+              selectedDate: dateKey,
+              onClose: action, // ✅ Pull-to-dismiss 완료 시 OpenContainer 닫기
+            ),
+          ],
+        );
+      },
+
+      // ========================================
+      // 기타 설정
+      // ========================================
+      useRootNavigator: false,
+      clipBehavior: Clip.antiAlias,
+    );
+  }
+
+  // ========================================
+  // 일정 미리보기 위젯 (Expanded 영역)
+  // ========================================
+  Widget _buildSchedulePreview(List<ScheduleData> schedulesForDay) {
+    return Expanded(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final cellHeight = constraints.maxHeight + 26;
+          final maxDisplayCount = _calculateMaxScheduleCount(cellHeight);
+
+          if (schedulesForDay.isEmpty) {
+            return const SizedBox.shrink();
+          }
+
+          final displaySchedules = schedulesForDay
+              .take(maxDisplayCount)
+              .toList();
+          final remainingCount =
+              schedulesForDay.length - displaySchedules.length;
+
+          return Padding(
+            padding: const EdgeInsets.only(left: 4, right: 4, top: 2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...displaySchedules.map(
+                  (schedule) => _buildScheduleBox(schedule),
+                ),
+                if (remainingCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, top: 2),
+                    child: Text(
+                      '+$remainingCount',
+                      style: const TextStyle(
+                        fontFamily: 'LINE Seed JP App_TTF',
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF999999),
+                        letterSpacing: 0,
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -1020,19 +1084,167 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
     print('➕ [KeyboardAttachable] 더하기 버튼 클릭 → 날짜: $targetDate');
   }
 
-  /// 🆕 디버그: 5가지 Figma 상태 테스트
-  void _testKeyboardAttachableStates() {
-    // TODO: 임포트 추가 필요
-    // import '../component/keyboard_attachable_input_view.dart';
+  // ========================================
+  // 🚀 혁신적 구조: OpenContainer openBuilder 배경용 월뷰
+  // ========================================
+  /// Pull-to-dismiss 시 뒤에 보일 월뷰 전체를 반환한다
+  /// OpenContainer의 openBuilder에서 Stack 배경으로 사용
+  Widget _buildMonthViewBackground() {
+    return StreamBuilder<List<ScheduleData>>(
+      stream: GetIt.I<AppDatabase>().watchSchedules(),
+      builder: (context, snapshot) {
+        final schedules = snapshot.data ?? [];
 
-    // InputAccessoryHelper.testAllStates(context);
+        return Scaffold(
+          backgroundColor: const Color(0xFFF7F7F7),
+          bottomNavigationBar: CustomBottomNavigationBar(
+            onInboxTap: () {},
+            onStarTap: () {},
+            onAddTap: () {},
+            isStarSelected: false,
+          ),
+          body: SafeArea(
+            child: Column(
+              children: [
+                _buildCustomHeader(),
+                Expanded(
+                  child: TableCalendar(
+                    locale: 'ko_KR',
+                    firstDay: DateTime.utc(1800, 1, 1),
+                    lastDay: DateTime.utc(3000, 12, 30),
+                    focusedDay: focusedDay,
+                    shouldFillViewport: true,
+                    headerVisible: false,
+                    daysOfWeekStyle: DaysOfWeekStyle(
+                      dowTextFormatter: (date, locale) {
+                        const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
+                        return weekdays[date.weekday - 1];
+                      },
+                      weekdayStyle: const TextStyle(
+                        fontFamily: 'LINE Seed JP App_TTF',
+                        fontSize: 9,
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFF454545),
+                        letterSpacing: -0.045,
+                        height: 0.9,
+                      ),
+                      weekendStyle: const TextStyle(
+                        fontFamily: 'LINE Seed JP App_TTF',
+                        fontSize: 9,
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFF454545),
+                        letterSpacing: -0.045,
+                        height: 0.9,
+                      ),
+                    ),
+                    calendarStyle: _buildCalendarStyle(),
+                    onDaySelected: (_, __) {}, // 배경이므로 상호작용 없음
+                    onPageChanged: (_) {}, // 배경이므로 상호작용 없음
+                    selectedDayPredicate: _selectedDayPredicate,
+                    calendarBuilders: CalendarBuilders(
+                      // 배경 월뷰는 OpenContainer 없이 단순 표시만
+                      defaultBuilder: (context, day, focusedDay) {
+                        return _buildSimpleDayCell(day, schedules);
+                      },
+                      todayBuilder: (context, day, focusedDay) {
+                        return _buildSimpleDayCell(
+                          day,
+                          schedules,
+                          isToday: true,
+                        );
+                      },
+                      selectedBuilder: (context, day, focusedDay) {
+                        return _buildSimpleDayCell(
+                          day,
+                          schedules,
+                          isSelected: true,
+                        );
+                      },
+                      outsideBuilder: (context, day, focusedDay) {
+                        return _buildSimpleDayCell(
+                          day,
+                          schedules,
+                          isOutside: true,
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 40),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
-    print('🧪 [KeyboardAttachable] 5가지 상태 테스트 실행');
-    print('  1. Anything (기본)');
-    print('  2. Variant5 (버튼만)');
-    print('  3. Touched_Anything (확장)');
-    print('  4. Task');
-    print('  5. Schedule');
+  /// 배경 월뷰용 단순 날짜 셀 (OpenContainer 없음)
+  Widget _buildSimpleDayCell(
+    DateTime day,
+    List<ScheduleData> allSchedules, {
+    bool isToday = false,
+    bool isSelected = false,
+    bool isOutside = false,
+  }) {
+    // ScheduleData의 start (DateTime)를 사용하여 해당 날짜의 일정 필터링
+    final schedulesForDay = allSchedules.where((s) {
+      final scheduleDate = s.start;
+      return scheduleDate.year == day.year &&
+          scheduleDate.month == day.month &&
+          scheduleDate.day == day.day;
+    }).toList();
+
+    // 배경색 결정
+    Color backgroundColor;
+    Color textColor;
+    double size = 16;
+
+    if (isToday) {
+      backgroundColor = const Color(0xFF000000);
+      textColor = const Color(0xFFF7F7F7);
+      size = 18;
+    } else if (isSelected) {
+      backgroundColor = const Color(0xFFE0E0E0);
+      textColor = const Color(0xFF000000);
+    } else {
+      backgroundColor = Colors.transparent;
+      textColor = isOutside ? const Color(0xFFB0B0B0) : const Color(0xFF000000);
+    }
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: BorderRadius.circular(isToday ? 9 : 8),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                '${day.day}',
+                style: TextStyle(
+                  fontFamily: 'LINE Seed JP App_TTF',
+                  fontSize: 10,
+                  fontWeight: isToday ? FontWeight.w800 : FontWeight.w700,
+                  color: textColor,
+                  letterSpacing: -0.05,
+                  height: 0.9,
+                ),
+              ),
+            ),
+          ),
+          _buildSchedulePreview(schedulesForDay),
+        ],
+      ),
+    );
   }
 }
 

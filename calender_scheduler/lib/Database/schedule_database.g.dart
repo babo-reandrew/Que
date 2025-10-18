@@ -1996,6 +1996,401 @@ class HabitCompletionCompanion extends UpdateCompanion<HabitCompletionData> {
   }
 }
 
+class $DailyCardOrderTable extends DailyCardOrder
+    with TableInfo<$DailyCardOrderTable, DailyCardOrderData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DailyCardOrderTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _dateMeta = const VerificationMeta('date');
+  @override
+  late final GeneratedColumn<DateTime> date = GeneratedColumn<DateTime>(
+    'date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cardTypeMeta = const VerificationMeta(
+    'cardType',
+  );
+  @override
+  late final GeneratedColumn<String> cardType = GeneratedColumn<String>(
+    'card_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cardIdMeta = const VerificationMeta('cardId');
+  @override
+  late final GeneratedColumn<int> cardId = GeneratedColumn<int>(
+    'card_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: () => DateTime.now().toUtc(),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    date,
+    cardType,
+    cardId,
+    sortOrder,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'daily_card_order';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DailyCardOrderData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('date')) {
+      context.handle(
+        _dateMeta,
+        date.isAcceptableOrUnknown(data['date']!, _dateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dateMeta);
+    }
+    if (data.containsKey('card_type')) {
+      context.handle(
+        _cardTypeMeta,
+        cardType.isAcceptableOrUnknown(data['card_type']!, _cardTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cardTypeMeta);
+    }
+    if (data.containsKey('card_id')) {
+      context.handle(
+        _cardIdMeta,
+        cardId.isAcceptableOrUnknown(data['card_id']!, _cardIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cardIdMeta);
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sortOrderMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DailyCardOrderData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DailyCardOrderData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      date: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}date'],
+      )!,
+      cardType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}card_type'],
+      )!,
+      cardId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}card_id'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DailyCardOrderTable createAlias(String alias) {
+    return $DailyCardOrderTable(attachedDatabase, alias);
+  }
+}
+
+class DailyCardOrderData extends DataClass
+    implements Insertable<DailyCardOrderData> {
+  final int id;
+  final DateTime date;
+  final String cardType;
+  final int cardId;
+  final int sortOrder;
+  final DateTime updatedAt;
+  const DailyCardOrderData({
+    required this.id,
+    required this.date,
+    required this.cardType,
+    required this.cardId,
+    required this.sortOrder,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['date'] = Variable<DateTime>(date);
+    map['card_type'] = Variable<String>(cardType);
+    map['card_id'] = Variable<int>(cardId);
+    map['sort_order'] = Variable<int>(sortOrder);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  DailyCardOrderCompanion toCompanion(bool nullToAbsent) {
+    return DailyCardOrderCompanion(
+      id: Value(id),
+      date: Value(date),
+      cardType: Value(cardType),
+      cardId: Value(cardId),
+      sortOrder: Value(sortOrder),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory DailyCardOrderData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DailyCardOrderData(
+      id: serializer.fromJson<int>(json['id']),
+      date: serializer.fromJson<DateTime>(json['date']),
+      cardType: serializer.fromJson<String>(json['cardType']),
+      cardId: serializer.fromJson<int>(json['cardId']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'date': serializer.toJson<DateTime>(date),
+      'cardType': serializer.toJson<String>(cardType),
+      'cardId': serializer.toJson<int>(cardId),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  DailyCardOrderData copyWith({
+    int? id,
+    DateTime? date,
+    String? cardType,
+    int? cardId,
+    int? sortOrder,
+    DateTime? updatedAt,
+  }) => DailyCardOrderData(
+    id: id ?? this.id,
+    date: date ?? this.date,
+    cardType: cardType ?? this.cardType,
+    cardId: cardId ?? this.cardId,
+    sortOrder: sortOrder ?? this.sortOrder,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  DailyCardOrderData copyWithCompanion(DailyCardOrderCompanion data) {
+    return DailyCardOrderData(
+      id: data.id.present ? data.id.value : this.id,
+      date: data.date.present ? data.date.value : this.date,
+      cardType: data.cardType.present ? data.cardType.value : this.cardType,
+      cardId: data.cardId.present ? data.cardId.value : this.cardId,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailyCardOrderData(')
+          ..write('id: $id, ')
+          ..write('date: $date, ')
+          ..write('cardType: $cardType, ')
+          ..write('cardId: $cardId, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, date, cardType, cardId, sortOrder, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DailyCardOrderData &&
+          other.id == this.id &&
+          other.date == this.date &&
+          other.cardType == this.cardType &&
+          other.cardId == this.cardId &&
+          other.sortOrder == this.sortOrder &&
+          other.updatedAt == this.updatedAt);
+}
+
+class DailyCardOrderCompanion extends UpdateCompanion<DailyCardOrderData> {
+  final Value<int> id;
+  final Value<DateTime> date;
+  final Value<String> cardType;
+  final Value<int> cardId;
+  final Value<int> sortOrder;
+  final Value<DateTime> updatedAt;
+  const DailyCardOrderCompanion({
+    this.id = const Value.absent(),
+    this.date = const Value.absent(),
+    this.cardType = const Value.absent(),
+    this.cardId = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  DailyCardOrderCompanion.insert({
+    this.id = const Value.absent(),
+    required DateTime date,
+    required String cardType,
+    required int cardId,
+    required int sortOrder,
+    this.updatedAt = const Value.absent(),
+  }) : date = Value(date),
+       cardType = Value(cardType),
+       cardId = Value(cardId),
+       sortOrder = Value(sortOrder);
+  static Insertable<DailyCardOrderData> custom({
+    Expression<int>? id,
+    Expression<DateTime>? date,
+    Expression<String>? cardType,
+    Expression<int>? cardId,
+    Expression<int>? sortOrder,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (date != null) 'date': date,
+      if (cardType != null) 'card_type': cardType,
+      if (cardId != null) 'card_id': cardId,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  DailyCardOrderCompanion copyWith({
+    Value<int>? id,
+    Value<DateTime>? date,
+    Value<String>? cardType,
+    Value<int>? cardId,
+    Value<int>? sortOrder,
+    Value<DateTime>? updatedAt,
+  }) {
+    return DailyCardOrderCompanion(
+      id: id ?? this.id,
+      date: date ?? this.date,
+      cardType: cardType ?? this.cardType,
+      cardId: cardId ?? this.cardId,
+      sortOrder: sortOrder ?? this.sortOrder,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (date.present) {
+      map['date'] = Variable<DateTime>(date.value);
+    }
+    if (cardType.present) {
+      map['card_type'] = Variable<String>(cardType.value);
+    }
+    if (cardId.present) {
+      map['card_id'] = Variable<int>(cardId.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailyCardOrderCompanion(')
+          ..write('id: $id, ')
+          ..write('date: $date, ')
+          ..write('cardType: $cardType, ')
+          ..write('cardId: $cardId, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2005,6 +2400,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $HabitCompletionTable habitCompletion = $HabitCompletionTable(
     this,
   );
+  late final $DailyCardOrderTable dailyCardOrder = $DailyCardOrderTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2014,6 +2410,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     task,
     habit,
     habitCompletion,
+    dailyCardOrder,
   ];
 }
 
@@ -3032,6 +3429,225 @@ typedef $$HabitCompletionTableProcessedTableManager =
       HabitCompletionData,
       PrefetchHooks Function()
     >;
+typedef $$DailyCardOrderTableCreateCompanionBuilder =
+    DailyCardOrderCompanion Function({
+      Value<int> id,
+      required DateTime date,
+      required String cardType,
+      required int cardId,
+      required int sortOrder,
+      Value<DateTime> updatedAt,
+    });
+typedef $$DailyCardOrderTableUpdateCompanionBuilder =
+    DailyCardOrderCompanion Function({
+      Value<int> id,
+      Value<DateTime> date,
+      Value<String> cardType,
+      Value<int> cardId,
+      Value<int> sortOrder,
+      Value<DateTime> updatedAt,
+    });
+
+class $$DailyCardOrderTableFilterComposer
+    extends Composer<_$AppDatabase, $DailyCardOrderTable> {
+  $$DailyCardOrderTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cardType => $composableBuilder(
+    column: $table.cardType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cardId => $composableBuilder(
+    column: $table.cardId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DailyCardOrderTableOrderingComposer
+    extends Composer<_$AppDatabase, $DailyCardOrderTable> {
+  $$DailyCardOrderTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cardType => $composableBuilder(
+    column: $table.cardType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cardId => $composableBuilder(
+    column: $table.cardId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DailyCardOrderTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DailyCardOrderTable> {
+  $$DailyCardOrderTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get date =>
+      $composableBuilder(column: $table.date, builder: (column) => column);
+
+  GeneratedColumn<String> get cardType =>
+      $composableBuilder(column: $table.cardType, builder: (column) => column);
+
+  GeneratedColumn<int> get cardId =>
+      $composableBuilder(column: $table.cardId, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$DailyCardOrderTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DailyCardOrderTable,
+          DailyCardOrderData,
+          $$DailyCardOrderTableFilterComposer,
+          $$DailyCardOrderTableOrderingComposer,
+          $$DailyCardOrderTableAnnotationComposer,
+          $$DailyCardOrderTableCreateCompanionBuilder,
+          $$DailyCardOrderTableUpdateCompanionBuilder,
+          (
+            DailyCardOrderData,
+            BaseReferences<
+              _$AppDatabase,
+              $DailyCardOrderTable,
+              DailyCardOrderData
+            >,
+          ),
+          DailyCardOrderData,
+          PrefetchHooks Function()
+        > {
+  $$DailyCardOrderTableTableManager(
+    _$AppDatabase db,
+    $DailyCardOrderTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DailyCardOrderTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DailyCardOrderTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DailyCardOrderTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<DateTime> date = const Value.absent(),
+                Value<String> cardType = const Value.absent(),
+                Value<int> cardId = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => DailyCardOrderCompanion(
+                id: id,
+                date: date,
+                cardType: cardType,
+                cardId: cardId,
+                sortOrder: sortOrder,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required DateTime date,
+                required String cardType,
+                required int cardId,
+                required int sortOrder,
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => DailyCardOrderCompanion.insert(
+                id: id,
+                date: date,
+                cardType: cardType,
+                cardId: cardId,
+                sortOrder: sortOrder,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DailyCardOrderTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DailyCardOrderTable,
+      DailyCardOrderData,
+      $$DailyCardOrderTableFilterComposer,
+      $$DailyCardOrderTableOrderingComposer,
+      $$DailyCardOrderTableAnnotationComposer,
+      $$DailyCardOrderTableCreateCompanionBuilder,
+      $$DailyCardOrderTableUpdateCompanionBuilder,
+      (
+        DailyCardOrderData,
+        BaseReferences<_$AppDatabase, $DailyCardOrderTable, DailyCardOrderData>,
+      ),
+      DailyCardOrderData,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3043,4 +3659,6 @@ class $AppDatabaseManager {
       $$HabitTableTableManager(_db, _db.habit);
   $$HabitCompletionTableTableManager get habitCompletion =>
       $$HabitCompletionTableTableManager(_db, _db.habitCompletion);
+  $$DailyCardOrderTableTableManager get dailyCardOrder =>
+      $$DailyCardOrderTableTableManager(_db, _db.dailyCardOrder);
 }

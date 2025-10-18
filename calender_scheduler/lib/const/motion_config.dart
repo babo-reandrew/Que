@@ -103,4 +103,74 @@ class MotionConfig {
   /// 셀 크기: 22px → 버튼 크기: 36px
   /// 애니메이션 중 부드러운 스케일 전환을 위한 커브
   static const Cubic todayButtonScaleCurve = Cubic(0.25, 0.1, 0.25, 1.0);
+
+  // ─── OpenContainer 애니메이션 설정 (Apple 쫀득한 스타일) ─────────────
+
+  /// OpenContainer 전환 애니메이션 지속 시간
+  /// Apple Maps/Safari: 약 500-550ms (실제 측정값)
+  /// Material Design 3: 500ms (card expansion 권장)
+  /// 최적값: 520ms - 쫀득하면서도 적당한 속도감
+  static const Duration openContainerDuration = Duration(milliseconds: 520);
+
+  /// OpenContainer 닫힘 애니메이션 지속 시간
+  /// 닫힐 때는 약간 더 빠르게 (480ms)
+  /// Apple 철학: 닫히는 것은 열리는 것보다 살짝 빠른 게 자연스러움
+  static const Duration openContainerCloseDuration = Duration(
+    milliseconds: 480,
+  );
+
+  /// OpenContainer 전환 커브 (Apple 스타일)
+  /// cubic-bezier(0.05, 0.7, 0.1, 1.0) - Material Design 3 "Emphasized Decelerate"
+  /// 특징: 천천히 시작 → 급격한 가속 → 매우 부드러운 감속
+  /// "쫀득한" Apple 느낌의 핵심: 끝부분의 긴 감속 구간
+  static const Cubic openContainerCurve = Cubic(0.05, 0.7, 0.1, 1.0);
+
+  /// OpenContainer 역방향 전환 커브 (닫힐 때)
+  /// cubic-bezier(0.05, 0.7, 0.1, 1.0) - 동일한 커브 사용
+  /// Apple iOS: 열리기/닫히기 동일한 느낌으로 일관성 유지
+  static const Cubic openContainerReverseCurve = Cubic(0.05, 0.7, 0.1, 1.0);
+
+  /// OpenContainer Scrim 색상 (배경 오버레이)
+  /// iOS 스타일과 유사한 반투명 검은색
+  /// 40 = 약 25% 불투명도 (0x40 = 64/255 ≈ 25%)
+  static const Color openContainerScrimColor = Color(0x40000000);
+
+  /// OpenContainer 닫힌 상태 Elevation (그림자 높이)
+  /// 0dp로 설정하여 그림자 애니메이션으로 인한 부자연스러움 제거
+  static const double openContainerClosedElevation = 0.0;
+
+  /// OpenContainer 열린 상태 Elevation
+  /// Material Design: 0dp (전체 화면이므로 그림자 불필요)
+  static const double openContainerOpenElevation = 0.0;
+
+  /// OpenContainer Middle Color (fadeThrough 전환 중간 색상)
+  /// fadeThrough 타입 사용 시 완전히 페이드 아웃되는 중간 단계의 배경색
+  /// #F7F7F7로 통일하여 자연스러운 전환
+  static const Color openContainerMiddleColor = Color(0xFFF7F7F7);
+
+  /// OpenContainer Shape 보간 타입
+  /// ContainerTransitionType.fade: 내용이 크로스페이드
+  /// ContainerTransitionType.fadeThrough: 중간에 빈 상태 존재 (역방향 더 부드러움)
+  static const bool useOpenContainerFade =
+      false; // true: fade, false: fadeThrough
+
+  // ─── Safari 스타일 스프링 애니메이션 (Pull-to-dismiss) ─────────────
+
+  /// Pull-to-dismiss 임계값: 진행률 (0.0 ~ 1.0)
+  /// 30% 이상 드래그 시 dismiss 실행
+  static const double dismissThresholdProgress = 0.3;
+
+  /// Pull-to-dismiss 임계값: 속도 (px/s)
+  /// 500px/s 이상 속도로 스와이프 시 dismiss 실행
+  static const double dismissThresholdVelocity = 500.0;
+
+  /// 참고: Safari 스프링 파라미터는 기존 spring* 값 재사용
+  /// - springMass = 1.0
+  /// - springStiffness = 180.0 (Safari Standard)
+  /// - springDamping = 20.0 (dampingRatio ≈ 0.745)
+  ///
+  /// Safari 스프링 프리셋:
+  /// - Standard: stiffness=180, damping=20 (현재 사용 중) ✓
+  /// - Subtle: stiffness=250, damping=25 (빠르고 섬세)
+  /// - Playful: stiffness=150, damping=18 (느리고 바운스)
 }
