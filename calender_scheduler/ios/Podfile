@@ -64,12 +64,24 @@ post_install do |installer|
       # ✅ Valid Architectures 설정
       config.build_settings['VALID_ARCHS'] = 'arm64 arm64e'
       
+      # ✅ Deprecated API 경고를 오류로 처리하지 않음
+      config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+      config.build_settings['CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS'] = 'NO'
+      config.build_settings['GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS'] = 'NO'
+      config.build_settings['CLANG_WARN_DEPRECATED'] = 'NO'
+      config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
+      
       # ✅ sqlite3 경고 무시 (매크로 충돌 해결)
       if target.name == 'sqlite3'
         config.build_settings['GCC_WARN_AMBIGUOUS_MACRO'] = 'NO'
         config.build_settings['GCC_WARN_64_TO_32_BIT_CONVERSION'] = 'NO'
         config.build_settings['CLANG_WARN_COMMA'] = 'NO'
         config.build_settings['CLANG_ANALYZER_DEADCODE_DEADSTORES'] = 'NO'
+      end
+      
+      # ✅ audio 관련 패키지 경고 무시 (deprecated API)
+      if ['audio_session', 'audioplayers_darwin', 'just_audio'].include?(target.name)
+        config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
       end
     end
   end

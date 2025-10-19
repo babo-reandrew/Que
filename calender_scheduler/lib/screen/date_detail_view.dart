@@ -485,12 +485,7 @@ class _DateDetailViewState extends State<DateDetailView>
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: DateDetailHeader(
             selectedDate: date,
-            onSettingsTap: () {
-              showOptionSettingWoltModal(context);
-              debugPrint(
-                '⚙️ [DateDetailView] 설정 버튼 클릭 → OptionSetting Wolt Modal (Detached) 표시',
-              );
-            },
+            // onSettingsTap은 제거 - DateDetailHeader에서 직접 처리
           ),
         ),
 
@@ -973,27 +968,31 @@ class _DateDetailViewState extends State<DateDetailView>
                             index,
                           ) {
                             final schedule = schedules[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: GestureDetector(
-                                onTap: () => _openScheduleDetail(schedule),
-                                child: SlidableScheduleCard(
-                                  groupTag: 'unified_list',
-                                  scheduleId: schedule.id,
-                                  onComplete: () async {
-                                    await GetIt.I<AppDatabase>()
-                                        .completeSchedule(schedule.id);
-                                  },
-                                  onDelete: () async {
-                                    await GetIt.I<AppDatabase>().deleteSchedule(
-                                      schedule.id,
-                                    );
-                                  },
-                                  child: ScheduleCard(
-                                    start: schedule.start,
-                                    end: schedule.end,
-                                    summary: schedule.summary,
-                                    colorId: schedule.colorId,
+                            // ✅ RepaintBoundary + ValueKey로 성능 최적화
+                            return RepaintBoundary(
+                              key: ValueKey('schedule_${schedule.id}'),
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: GestureDetector(
+                                  onTap: () => _openScheduleDetail(schedule),
+                                  child: SlidableScheduleCard(
+                                    groupTag: 'unified_list',
+                                    scheduleId: schedule.id,
+                                    onComplete: () async {
+                                      await GetIt.I<AppDatabase>()
+                                          .completeSchedule(schedule.id);
+                                    },
+                                    onDelete: () async {
+                                      await GetIt.I<AppDatabase>().deleteSchedule(
+                                        schedule.id,
+                                      );
+                                    },
+                                    child: ScheduleCard(
+                                      start: schedule.start,
+                                      end: schedule.end,
+                                      summary: schedule.summary,
+                                      colorId: schedule.colorId,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1029,38 +1028,42 @@ class _DateDetailViewState extends State<DateDetailView>
                             index,
                           ) {
                             final task = incompleteTasks[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: SlidableTaskCard(
-                                groupTag: 'unified_list',
-                                taskId: task.id,
-                                onTap: () =>
-                                    _openTaskDetail(task), // ✅ onTap 추가!
-                                onComplete: () async {
-                                  // 이거를 설정하고 → 완료 토글
-                                  await GetIt.I<AppDatabase>().completeTask(
-                                    task.id,
-                                  );
-                                  print('✅ [TaskCard] 완료 토글: ${task.title}');
-                                },
-                                onDelete: () async {
-                                  // 이거를 해서 → 할일 삭제 (나중에 Inbox로 이동 기능 추가 예정)
-                                  await GetIt.I<AppDatabase>().deleteTask(
-                                    task.id,
-                                  );
-                                  print('🗑️ [TaskCard] 삭제: ${task.title}');
-                                },
-                                child: TaskCard(
-                                  task: task,
-                                  onToggle: () async {
-                                    // 이거를 설정하고 → 체크박스 클릭 시에도 완료 토글
+                            // ✅ RepaintBoundary + ValueKey로 성능 최적화
+                            return RepaintBoundary(
+                              key: ValueKey('task_${task.id}'),
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: SlidableTaskCard(
+                                  groupTag: 'unified_list',
+                                  taskId: task.id,
+                                  onTap: () =>
+                                      _openTaskDetail(task), // ✅ onTap 추가!
+                                  onComplete: () async {
+                                    // 이거를 설정하고 → 완료 토글
                                     await GetIt.I<AppDatabase>().completeTask(
                                       task.id,
                                     );
-                                    print(
-                                      '✅ [TaskCard] 체크박스 완료 토글: ${task.title}',
-                                    );
+                                    print('✅ [TaskCard] 완료 토글: ${task.title}');
                                   },
+                                  onDelete: () async {
+                                    // 이거를 해서 → 할일 삭제 (나중에 Inbox로 이동 기능 추가 예정)
+                                    await GetIt.I<AppDatabase>().deleteTask(
+                                      task.id,
+                                    );
+                                    print('🗑️ [TaskCard] 삭제: ${task.title}');
+                                  },
+                                  child: TaskCard(
+                                    task: task,
+                                    onToggle: () async {
+                                      // 이거를 설정하고 → 체크박스 클릭 시에도 완료 토글
+                                      await GetIt.I<AppDatabase>().completeTask(
+                                        task.id,
+                                      );
+                                      print(
+                                        '✅ [TaskCard] 체크박스 완료 토글: ${task.title}',
+                                      );
+                                    },
+                                  ),
                                 ),
                               ),
                             );
@@ -1080,29 +1083,32 @@ class _DateDetailViewState extends State<DateDetailView>
                             index,
                           ) {
                             final habit = habits[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: GestureDetector(
-                                onTap: () => _showHabitDetailModal(habit, date),
-                                child: SlidableHabitCard(
-                                  groupTag: 'unified_list',
-                                  habitId: habit.id,
-                                  onComplete: () async {
-                                    // 이거를 해서 → 오늘 날짜로 완료 기록
-                                    await GetIt.I<AppDatabase>()
-                                        .recordHabitCompletion(habit.id, date);
-                                    print(
-                                      '✅ [HabitCard] 완료 기록: ${habit.title}',
-                                    );
-                                  },
-                                  onDelete: () async {
-                                    // 이거라면 → 습관 삭제
-                                    await GetIt.I<AppDatabase>().deleteHabit(
-                                      habit.id,
-                                    );
-                                    print('🗑️ [HabitCard] 삭제: ${habit.title}');
-                                  },
-                                  child: HabitCard(
+                            // ✅ RepaintBoundary + ValueKey로 성능 최적화
+                            return RepaintBoundary(
+                              key: ValueKey('habit_${habit.id}'),
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: GestureDetector(
+                                  onTap: () => _showHabitDetailModal(habit, date),
+                                  child: SlidableHabitCard(
+                                    groupTag: 'unified_list',
+                                    habitId: habit.id,
+                                    onComplete: () async {
+                                      // 이거를 해서 → 오늘 날짜로 완료 기록
+                                      await GetIt.I<AppDatabase>()
+                                          .recordHabitCompletion(habit.id, date);
+                                      print(
+                                        '✅ [HabitCard] 완료 기록: ${habit.title}',
+                                      );
+                                    },
+                                    onDelete: () async {
+                                      // 이거라면 → 습관 삭제
+                                      await GetIt.I<AppDatabase>().deleteHabit(
+                                        habit.id,
+                                      );
+                                      print('🗑️ [HabitCard] 삭제: ${habit.title}');
+                                    },
+                                    child: HabitCard(
                                     habit: habit,
                                     isCompleted:
                                         false, // TODO: HabitCompletion 확인

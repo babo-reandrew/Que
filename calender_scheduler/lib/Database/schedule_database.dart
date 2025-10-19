@@ -16,8 +16,19 @@ import 'package:sqlite3/sqlite3.dart';
 part 'schedule_database.g.dart'; //g.을 붙이는 건 생성된 파일이라는 의미를 전달한다.
 //g.를 붙여주면 즉, 자동으로 설치가 되거나 실행이 될 때 자동으로 설치도도록 한다.
 
-// ✅ 5개 테이블: Schedule, Task, Habit, HabitCompletion, DailyCardOrder
-@DriftDatabase(tables: [Schedule, Task, Habit, HabitCompletion, DailyCardOrder])
+// ✅ 7개 테이블: Schedule, Task, Habit, HabitCompletion, DailyCardOrder, AudioContents, TranscriptLines
+// ⚠️ AudioProgress 제거됨 → AudioContents에 재생 상태 통합
+@DriftDatabase(
+  tables: [
+    Schedule,
+    Task,
+    Habit,
+    HabitCompletion,
+    DailyCardOrder,
+    AudioContents,
+    TranscriptLines,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
@@ -557,8 +568,212 @@ class AppDatabase extends _$AppDatabase {
     return count;
   }
 
+  // ==================== 🎵 Insight Player 함수 (Phase 1) ====================
+
+  /// 특정 날짜의 인사이트 조회
+  /// 이거를 설정하고 → targetDate로 정확한 날짜 매칭해서
+  /// 이거를 해서 → 해당 날짜에 연결된 오디오 콘텐츠를 반환한다
+  Future<AudioContentData?> getInsightForDate(DateTime date) async {
+    // 날짜 정규화 (시간 부분 제거)
+    final normalized = DateTime(date.year, date.month, date.day);
+
+    print('🎵 [DB] getInsightForDate: ${normalized.toString().split(' ')[0]}');
+
+    final result = await (select(
+      audioContents,
+    )..where((t) => t.targetDate.equals(normalized))).getSingleOrNull();
+
+    if (result != null) {
+      print('✅ [DB] 인사이트 발견: ${result.title}');
+    } else {
+      print('⚠️ [DB] 해당 날짜의 인사이트 없음');
+    }
+
+    return result;
+  }
+
+  /// 인사이트의 스크립트 라인 조회 (실시간 스트림)
+  /// 이거를 설정하고 → audioContentId로 필터링해서
+  /// 이거를 해서 → sequence 순서대로 정렬된 스크립트를 watch한다
+  Stream<List<TranscriptLineData>> watchTranscriptLines(int audioContentId) {
+    print('📜 [DB] watchTranscriptLines: audioContentId=$audioContentId');
+
+    return (select(transcriptLines)
+          ..where((t) => t.audioContentId.equals(audioContentId))
+          ..orderBy([(t) => OrderingTerm(expression: t.sequence)]))
+        .watch();
+  }
+
+  /// 현재 재생 위치에 해당하는 스크립트 라인 찾기 (성능 최적화)
+  /// 이거를 설정하고 → startTimeMs <= positionMs 조건으로 필터링해서
+  /// 이거를 해서 → 가장 최근 startTime을 가진 라인을 반환한다
+  Future<TranscriptLineData?> getCurrentLine(
+    int audioContentId,
+    int positionMs,
+  ) async {
+    return await (select(transcriptLines)
+          ..where(
+            (t) =>
+                t.audioContentId.equals(audioContentId) &
+                t.startTimeMs.isSmallerOrEqualValue(positionMs),
+          )
+          ..orderBy([
+            (t) => OrderingTerm(
+              expression: t.startTimeMs,
+              mode: OrderingMode.desc,
+            ),
+          ])
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  /// 재생 진행 상태 업데이트
+  /// 이거를 설정하고 → AudioContents의 lastPositionMs와 lastPlayedAt을 업데이트해서
+  /// 이거를 해서 → 사용자가 어디까지 들었는지 기록한다
+  Future<void> updateAudioProgress(int audioContentId, int positionMs) async {
+    print('💾 [DB] updateAudioProgress: $positionMs ms');
+
+    await (update(
+      audioContents,
+    )..where((t) => t.id.equals(audioContentId))).write(
+      AudioContentsCompanion(
+        lastPositionMs: Value(positionMs),
+        lastPlayedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// 인사이트 완료 처리
+  /// 이거를 설정하고 → isCompleted를 true로 설정하고
+  /// 이거를 해서 → completedAt 타임스탬프를 기록한다
+  Future<void> markInsightAsCompleted(int audioContentId) async {
+    print('✅ [DB] markInsightAsCompleted: audioContentId=$audioContentId');
+
+    await (update(
+      audioContents,
+    )..where((t) => t.id.equals(audioContentId))).write(
+      AudioContentsCompanion(
+        isCompleted: const Value(true),
+        completedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// 재생 횟수 증가
+  /// 이거를 설정하고 → playCount를 +1 증가시켜서
+  /// 이거를 해서 → 몇 번 재생했는지 추적한다
+  Future<void> incrementPlayCount(int audioContentId) async {
+    print('📊 [DB] incrementPlayCount: audioContentId=$audioContentId');
+
+    final current = await (select(
+      audioContents,
+    )..where((t) => t.id.equals(audioContentId))).getSingle();
+
+    await (update(
+      audioContents,
+    )..where((t) => t.id.equals(audioContentId))).write(
+      AudioContentsCompanion(playCount: Value((current.playCount ?? 0) + 1)),
+    );
+  }
+
+  /// 샘플 인사이트 데이터 삽입 (초기화 시 자동 실행)
+  /// 이거를 설정하고 → Figma 텍스트 기반 LRC 데이터를 생성해서
+  /// 이거를 해서 → 2025-10-18 날짜에 샘플 인사이트를 추가한다
+  Future<void> seedInsightData() async {
+    print('🌱 [DB] seedInsightData 시작');
+
+    // 이미 데이터가 있는지 확인
+    final existing = await getInsightForDate(DateTime(2025, 10, 18));
+    if (existing != null) {
+      print('⚠️ [DB] 이미 샘플 데이터가 존재함. 스킵.');
+      return;
+    }
+
+    // 1. 오디오 콘텐츠 생성
+    final audioId = await into(audioContents).insert(
+      AudioContentsCompanion.insert(
+        title: '過去データから見える自分可能性',
+        subtitle: 'インサイト',
+        audioPath: 'asset/audio/insight_001.mp3', // Flutter asset 경로
+        durationSeconds: 84, // 1분 24초
+        targetDate: DateTime(2025, 10, 18),
+        // 재생 상태는 기본값 사용 (lastPositionMs=0, isCompleted=false, playCount=0)
+      ),
+    );
+    print('✅ [DB] 오디오 콘텐츠 생성 완료 (id=$audioId)');
+
+    // 2. 스크립트 라인 삽입 (Figma 텍스트 기반)
+    final lines = [
+      (0, 5500, 'こんにちは。あなたの週訪時間にインサイトをお届けする「脳の賢者たち」です。'),
+      (5500, 12000, 'こんにちは。脳科学と心理学であなたの今日を応援するWです。'),
+      (
+        12000,
+        18500,
+        'Wさん、今日とても興味深いのToDoリストを見たんです。旅行の準備、部屋の掃除、メモの整理みたいに、明確で小さな目標はさらんと終わらせていました。',
+      ),
+      (
+        18500,
+        28000,
+        'でも「価値観を整理する」とか、大事な「業務テスト」みたいな大きくて抽象的なことは全然手をつけられていなかったんです。…これ、すごく見覚えがありませんか？',
+      ),
+      (
+        28000,
+        33500,
+        'あー、ありますね。それは私たちの脳にとって、とても自然を特徴なんです。脳は課題をひとつずつ終わらせるために、「ドーハミン」という興奮ホルモンをくれるんですよ。',
+      ),
+      (
+        33500,
+        43500,
+        'これが私たちが感じる達成感の正体です。小さくて具体的な作業は、このドーハミンを早く、簡単に得られるとても良い方法なんです。だから、ToDoリストにチェックを入れて快感を味わうのは、脳の正常な機能そのものなんですね。',
+      ),
+      (
+        43500,
+        50000,
+        'そうですよね。心理学では「スモール・ウィンズ（小さな成功）」戦略の力が大く強調されますよね。でも問題は、終わっていない大きな課題が、心のどこかでずっと引っかかってしまうことです。',
+      ),
+      (
+        50000,
+        60000,
+        'これを心理学ルーン効果といいまして、未完了の課題が脳のメモリーを占有し続けて、他のことに集中するのを邪魔したり、無意識のストレスを与えてしまうんです。',
+      ),
+      (
+        60000,
+        68000,
+        'そんなときは、脳にちょっとしたトリックが必要です。「価値観を整理する」という大きな目標が重く感じるなら、「今日は大事だと思った価値を1つだけ書いてみる」といったらどうでできる小さな第一歩にかけるんですね。',
+      ),
+      (
+        68000,
+        76000,
+        '「業務テスト」がハードル高く感じる場合も、「まずはテストの第一項目だけ決める」から始めるんですね。一度エンジンがかかれば、脳は慣性の法則によって、そのまま続けたくなる傾向があります から。',
+      ),
+      (
+        76000,
+        84000,
+        '本当にいい方法ですね。大きな岩を小石に砕くしたですね。この方のリストを見たら、韓国旅行の準備、外国語の勉強、マラソンの申し込みまで計画していて、未来に向けずはらしい計画を立て、ちゃんと実行しているあなたたどうかがります。',
+      ),
+    ];
+
+    for (var i = 0; i < lines.length; i++) {
+      await into(transcriptLines).insert(
+        TranscriptLinesCompanion.insert(
+          audioContentId: audioId,
+          sequence: i,
+          startTimeMs: lines[i].$1,
+          endTimeMs: lines[i].$2,
+          content: lines[i].$3,
+        ),
+      );
+    }
+    print('✅ [DB] 스크립트 라인 ${lines.length}개 삽입 완료');
+
+    // ⚠️ AudioProgress 제거: 재생 상태는 AudioContents에 통합됨
+    // 기본값으로 lastPositionMs=0, isCompleted=false, playCount=0 자동 설정
+
+    print('🎉 [DB] seedInsightData 완료!');
+  }
+
   @override
-  int get schemaVersion => 4; // ✅ 스키마 버전 4로 업데이트 (DailyCardOrder 테이블 추가)
+  int get schemaVersion => 5; // ✅ 스키마 버전 5: Insight Player (AudioContents + TranscriptLines, 재생 상태 통합)
 
   // ✅ [마이그레이션 전략 추가]
   // 이거를 설정하고 → onCreate에서 테이블을 생성하고
@@ -589,6 +804,14 @@ class AppDatabase extends _$AppDatabase {
         print('📦 [DB Migration] v3→v4: DailyCardOrder 테이블 생성');
         await m.createTable(dailyCardOrder);
         print('✅ [DB Migration] v3→v4 완료 - 날짜별 카드 순서 관리 기능 추가');
+      }
+
+      // v4 → v5: Insight Player 테이블 추가 (AudioContents만, 재생 상태 통합)
+      if (from == 4 && to >= 5) {
+        print('📦 [DB Migration] v4→v5+: Insight Player 테이블 생성');
+        await m.createTable(audioContents);
+        await m.createTable(transcriptLines);
+        print('✅ [DB Migration] v4→v5+ 완료 - Insight Player 기능 추가 (재생 상태 통합)');
       }
 
       print('✅ [DB Migration] 업그레이드 완료');

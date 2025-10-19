@@ -167,3 +167,142 @@ class DailyCardOrder extends Table {
   DateTimeColumn get updatedAt =>
       dateTime().clientDefault(() => DateTime.now().toUtc())();
 }
+
+// ============================================================================
+// 🎵 Insight Player 관련 테이블 (Phase 1)
+// ============================================================================
+
+/// AudioContents (인사이트 오디오 - 메타데이터 + 재생 상태 통합)
+/// 이거를 설정하고 → 오디오 정보와 재생 상태를 하나의 테이블에서 관리해서
+/// 이거를 해서 → JOIN 없이 한 번의 쿼리로 모든 정보를 가져온다
+/// 이거는 이래서 → amlv LyricViewer 재생 중 모든 상태를 완벽하게 추적할 수 있다
+///
+/// **재생 시나리오별 데이터 흐름:**
+/// 1. 첫 재생: playCount++, lastPlayedAt=now, lastPositionMs=0
+/// 2. 재생 중: onLyricChanged → lastPositionMs 업데이트
+/// 3. 일시정지/종료: 마지막 위치 자동 저장 → 이어듣기 가능
+/// 4. 완료(90%+): isCompleted=true, completedAt=now
+/// 5. 재시작: lastPositionMs=0, playCount++
+@DataClassName('AudioContentData')
+class AudioContents extends Table {
+  // ========== � 메타데이터 (불변 정보) ==========
+
+  // �🔑 고유 ID
+  IntColumn get id => integer().autoIncrement()();
+
+  // 📝 제목 (예: "過去データから見える自分可能性")
+  TextColumn get title => text()();
+
+  // 📝 부제목 (예: "インサイト")
+  TextColumn get subtitle => text()();
+
+  // 🎵 오디오 파일 경로 (audio/insight_001.mp3)
+  // ⚠️ 주의: amlv의 AssetSource가 "assets/" 자동 추가하므로
+  //    "audio/..."로 저장 (O), "asset/audio/..."로 저장 (X)
+  TextColumn get audioPath => text()();
+
+  // ⏱️ 총 재생 시간 (초 단위)
+  IntColumn get durationSeconds => integer()();
+
+  // 📅 대상 날짜 (정규화: YYYY-MM-DD 00:00:00)
+  // 이거를 설정하고 → 날짜를 정규화해서 저장해서
+  // 이거를 해서 → WHERE targetDate = DATE('2025-10-18') 로 조회한다
+  DateTimeColumn get targetDate => dateTime()();
+
+  // ⏰ 생성 시간
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  // ========== 🎬 재생 상태 (가변 정보) ==========
+
+  // 🎯 마지막 재생 위치 (밀리초)
+  // 이거를 설정하고 → amlv onLyricChanged에서 실시간 업데이트해서
+  // 이거를 해서 → 앱 재시작 시 이어듣기를 지원한다
+  // 이거는 이래서 → 완료 후 재시작하면 0으로 리셋된다
+  IntColumn get lastPositionMs => integer().withDefault(const Constant(0))();
+
+  // ✅ 완료 여부 (90% 이상 재생 시 true)
+  // 이거를 설정하고 → amlv onCompleted 콜백에서 true로 설정해서
+  // 이거를 해서 → 완료된 인사이트를 구분한다
+  // 이거는 이래서 → 재시작해도 유지됨 (통계용)
+  BoolColumn get isCompleted => boolean().withDefault(const Constant(false))();
+
+  // ⏰ 마지막 재생 시각 (null = 한 번도 안 들음)
+  // 이거를 설정하고 → 재생 시작할 때마다 DateTime.now()로 업데이트해서
+  // 이거를 해서 → "최근 들은 인사이트" 목록을 만들 수 있다
+  // 이거는 이래서 → nullable이므로 미재생 상태도 표현 가능
+  DateTimeColumn get lastPlayedAt => dateTime().nullable()();
+
+  // 🎉 완료 시각 (null = 미완료)
+  // 이거를 설정하고 → isCompleted=true 될 때 DateTime.now()로 설정해서
+  // 이거를 해서 → 언제 완료했는지 기록한다
+  // 이거는 이래서 → 완료 후 재시작해도 기록은 유지됨
+  DateTimeColumn get completedAt => dateTime().nullable()();
+
+  // 📊 총 재생 횟수 (통계용)
+  // 이거를 설정하고 → 재생 시작할 때마다 +1 증가시켜서
+  // 이거를 해서 → 몇 번 들었는지 추적한다
+  // 이거는 이래서 → 인기 인사이트 분석에 사용 가능
+  IntColumn get playCount => integer().withDefault(const Constant(0))();
+
+  // � 성능 최적화: targetDate UNIQUE 제약
+  // → 하루에 하나의 인사이트만 (중복 방지)
+  // → WHERE targetDate = '2025-10-18' 쿼리 최적화 (인덱스 스캔)
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {targetDate}, // 하나의 날짜에는 하나의 인사이트만
+  ];
+}
+
+/// TranscriptLines (스크립트 라인 - amlv LyricViewer 호환)
+/// 이거를 설정하고 → LRC 파싱 결과를 타임스탬프와 함께 저장해서
+/// 이거를 해서 → amlv가 오디오 재생 중 자동으로 스크롤하며 표시한다
+/// 이거는 이래서 → startTimeMs 기반으로 현재 라인을 O(log n)에 찾을 수 있다
+///
+/// **amlv 통합 방식:**
+/// ```dart
+/// final lyricLines = transcriptLines.map((line) => LyricLine(
+///   time: Duration(milliseconds: line.startTimeMs),
+///   content: line.content,
+/// )).toList();
+/// ```
+@DataClassName('TranscriptLineData')
+class TranscriptLines extends Table {
+  // 🔑 고유 ID
+  IntColumn get id => integer().autoIncrement()();
+
+  // 🔗 오디오 콘텐츠 참조 (CASCADE DELETE)
+  // 이거를 설정하고 → AudioContents가 삭제되면 자동 삭제되도록 해서
+  // 이거를 해서 → 고아 레코드(orphan record)를 방지한다
+  IntColumn get audioContentId =>
+      integer().references(AudioContents, #id, onDelete: KeyAction.cascade)();
+
+  // 📊 순서 번호 (0부터 시작)
+  // 이거를 설정하고 → 스크립트의 순서를 명시적으로 저장해서
+  // 이거를 해서 → ORDER BY sequence로 정렬한다
+  // 이거는 이래서 → "3번째 라인" 같은 위치 기반 쿼리 가능
+  IntColumn get sequence => integer()();
+
+  // ⏱️ 시작 시간 (밀리초)
+  // 이거를 설정하고 → 이 라인이 표시될 타임스탬프를 저장해서
+  // 이거를 해서 → amlv가 오디오 위치와 비교하여 현재 라인을 결정한다
+  IntColumn get startTimeMs => integer()();
+
+  // ⏱️ 종료 시간 (밀리초)
+  // 이거를 설정하고 → 다음 라인으로 넘어갈 타임스탬프를 저장해서
+  // 이거를 해서 → 라인 지속 시간을 계산할 수 있다
+  // 이거는 이래서 → duration = endTimeMs - startTimeMs
+  IntColumn get endTimeMs => integer()();
+
+  // 📝 스크립트 텍스트 내용
+  // 이거를 설정하고 → 실제 표시될 텍스트를 저장해서
+  // 이거를 해서 → amlv LyricViewer에 렌더링한다
+  TextColumn get content => text()();
+
+  // � 성능 최적화: {audioContentId, sequence} 복합 UNIQUE 제약
+  // → 같은 오디오에서 순서 중복 방지 (데이터 무결성)
+  // → WHERE audioContentId=X AND sequence=Y 쿼리 최적화 (복합 인덱스)
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {audioContentId, sequence}, // 같은 오디오에서 순서는 중복 불가
+  ];
+}

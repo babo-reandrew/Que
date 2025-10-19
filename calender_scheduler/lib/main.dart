@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:provider/provider.dart' as provider; // ✅ prefix 추가
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // ✅ Riverpod 추가
 import 'package:calender_scheduler/config/app_routes.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:calender_scheduler/Database/schedule_database.dart';
@@ -47,13 +48,21 @@ void main() async {
   print('🗄️ [main.dart] 데이터베이스 초기화 및 GetIt 등록 완료');
 
   // ===================================================================
-  // 4. 초기 데이터 로드 (앱 시작 시 오늘 일정 확인)
+  // 4. 🎵 Insight Player 샘플 데이터 초기화 (Phase 1)
+  // ===================================================================
+  // 이거를 설정하고 → 앱 시작 시 샘플 인사이트 데이터를 자동 삽입해서
+  // 이거를 해서 → 2025-10-18 날짜에 테스트용 인사이트를 제공한다
+  await database.seedInsightData();
+  print('🎵 [main.dart] Insight Player 샘플 데이터 초기화 완료');
+
+  // ===================================================================
+  // 5. 초기 데이터 로드 (앱 시작 시 오늘 일정 확인)
   // ===================================================================
   final resp = await database.getSchedulesByDate(DateTime.now());
   print('📊 [main.dart] 오늘 일정 조회 완료: ${resp.length}개');
 
   // ===================================================================
-  // 5. ✅ 샘플 데이터 생성 (Task, Habit 테스트용)
+  // 6. ✅ 샘플 데이터 생성 (Task, Habit 테스트용)
   // ===================================================================
   // 이거를 설정하고 → 앱 첫 실행 시 샘플 데이터를 생성해서
   // 이거를 해서 → TaskCard와 HabitCard UI를 바로 테스트할 수 있다
@@ -94,44 +103,51 @@ class CalendarSchedulerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => BottomSheetController()),
-        ChangeNotifierProvider(create: (_) => ScheduleFormController()),
-        ChangeNotifierProvider(create: (_) => TaskFormController()),
-        ChangeNotifierProvider(create: (_) => HabitFormController()),
-      ],
-      child: MaterialApp(
-        // ===================================================================
-        // 앱 기본 설정
-        // ===================================================================
-        title: 'Calendar Scheduler',
-        theme: ThemeData(
-          fontFamily: 'Gmarket Sans',
+    // ✅ Riverpod ProviderScope로 전체 앱 감싸기
+    return ProviderScope(
+      child: provider.MultiProvider(
+        providers: [
+          provider.ChangeNotifierProvider(
+            create: (_) => BottomSheetController(),
+          ),
+          provider.ChangeNotifierProvider(
+            create: (_) => ScheduleFormController(),
+          ),
+          provider.ChangeNotifierProvider(create: (_) => TaskFormController()),
+          provider.ChangeNotifierProvider(create: (_) => HabitFormController()),
+        ],
+        child: MaterialApp(
           // ===================================================================
-          // ⭐️ Wolt Modal Sheet 테마 적용
+          // 앱 기본 설정
           // ===================================================================
-          extensions: [WoltAppTheme.theme],
-          // 이거를 설정하고 → WoltModalSheetThemeData를 ThemeData extension에 추가해서
-          // 이거를 해서 → 모든 WoltModalSheet가 일관된 디자인 스타일을 사용한다
-          // 이거는 이래서 → Figma 디자인 토큰이 전역적으로 적용된다
-          // 이거라면 → 바텀시트 스타일 변경 시 wolt_theme.dart만 수정하면 된다
+          title: 'Calendar Scheduler',
+          theme: ThemeData(
+            fontFamily: 'Gmarket Sans',
+            // ===================================================================
+            // ⭐️ Wolt Modal Sheet 테마 적용
+            // ===================================================================
+            extensions: [WoltAppTheme.theme],
+            // 이거를 설정하고 → WoltModalSheetThemeData를 ThemeData extension에 추가해서
+            // 이거를 해서 → 모든 WoltModalSheet가 일관된 디자인 스타일을 사용한다
+            // 이거는 이래서 → Figma 디자인 토큰이 전역적으로 적용된다
+            // 이거라면 → 바텀시트 스타일 변경 시 wolt_theme.dart만 수정하면 된다
+          ),
+
+          // ===================================================================
+          // ⭐️ 라우트 중앙화: 모든 화면 전환을 한 곳에서 관리
+          // ===================================================================
+          initialRoute: AppRoutes.home,
+          onGenerateRoute: AppRoutes.onGenerateRoute,
+          // 이거를 설정하고 → AppRoutes의 onGenerateRoute를 사용해서
+          // 이거를 해서 → 라우트 이름으로 화면을 생성하고 애니메이션을 적용한다
+          // 이거는 이래서 → Navigator.pushNamed()만으로 모든 화면 전환이 가능하다
+          // 이거라면 → 라우트 경로를 수정할 때 app_routes.dart만 변경하면 된다
+
+          // ===================================================================
+          // 디버그 배너 제거 (릴리즈 빌드 시)
+          // ===================================================================
+          debugShowCheckedModeBanner: false,
         ),
-
-        // ===================================================================
-        // ⭐️ 라우트 중앙화: 모든 화면 전환을 한 곳에서 관리
-        // ===================================================================
-        initialRoute: AppRoutes.home,
-        onGenerateRoute: AppRoutes.onGenerateRoute,
-        // 이거를 설정하고 → AppRoutes의 onGenerateRoute를 사용해서
-        // 이거를 해서 → 라우트 이름으로 화면을 생성하고 애니메이션을 적용한다
-        // 이거는 이래서 → Navigator.pushNamed()만으로 모든 화면 전환이 가능하다
-        // 이거라면 → 라우트 경로를 수정할 때 app_routes.dart만 변경하면 된다
-
-        // ===================================================================
-        // 디버그 배너 제거 (릴리즈 빌드 시)
-        // ===================================================================
-        debugShowCheckedModeBanner: false,
       ),
     );
   }

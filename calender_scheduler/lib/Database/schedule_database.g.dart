@@ -2391,6 +2391,1169 @@ class DailyCardOrderCompanion extends UpdateCompanion<DailyCardOrderData> {
   }
 }
 
+class $AudioContentsTable extends AudioContents
+    with TableInfo<$AudioContentsTable, AudioContentData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AudioContentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _subtitleMeta = const VerificationMeta(
+    'subtitle',
+  );
+  @override
+  late final GeneratedColumn<String> subtitle = GeneratedColumn<String>(
+    'subtitle',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _audioPathMeta = const VerificationMeta(
+    'audioPath',
+  );
+  @override
+  late final GeneratedColumn<String> audioPath = GeneratedColumn<String>(
+    'audio_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _durationSecondsMeta = const VerificationMeta(
+    'durationSeconds',
+  );
+  @override
+  late final GeneratedColumn<int> durationSeconds = GeneratedColumn<int>(
+    'duration_seconds',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetDateMeta = const VerificationMeta(
+    'targetDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> targetDate = GeneratedColumn<DateTime>(
+    'target_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _lastPositionMsMeta = const VerificationMeta(
+    'lastPositionMs',
+  );
+  @override
+  late final GeneratedColumn<int> lastPositionMs = GeneratedColumn<int>(
+    'last_position_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _isCompletedMeta = const VerificationMeta(
+    'isCompleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isCompleted = GeneratedColumn<bool>(
+    'is_completed',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_completed" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _lastPlayedAtMeta = const VerificationMeta(
+    'lastPlayedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastPlayedAt = GeneratedColumn<DateTime>(
+    'last_played_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _completedAtMeta = const VerificationMeta(
+    'completedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
+    'completed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _playCountMeta = const VerificationMeta(
+    'playCount',
+  );
+  @override
+  late final GeneratedColumn<int> playCount = GeneratedColumn<int>(
+    'play_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    title,
+    subtitle,
+    audioPath,
+    durationSeconds,
+    targetDate,
+    createdAt,
+    lastPositionMs,
+    isCompleted,
+    lastPlayedAt,
+    completedAt,
+    playCount,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'audio_contents';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AudioContentData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('subtitle')) {
+      context.handle(
+        _subtitleMeta,
+        subtitle.isAcceptableOrUnknown(data['subtitle']!, _subtitleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_subtitleMeta);
+    }
+    if (data.containsKey('audio_path')) {
+      context.handle(
+        _audioPathMeta,
+        audioPath.isAcceptableOrUnknown(data['audio_path']!, _audioPathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_audioPathMeta);
+    }
+    if (data.containsKey('duration_seconds')) {
+      context.handle(
+        _durationSecondsMeta,
+        durationSeconds.isAcceptableOrUnknown(
+          data['duration_seconds']!,
+          _durationSecondsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_durationSecondsMeta);
+    }
+    if (data.containsKey('target_date')) {
+      context.handle(
+        _targetDateMeta,
+        targetDate.isAcceptableOrUnknown(data['target_date']!, _targetDateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_targetDateMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('last_position_ms')) {
+      context.handle(
+        _lastPositionMsMeta,
+        lastPositionMs.isAcceptableOrUnknown(
+          data['last_position_ms']!,
+          _lastPositionMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_completed')) {
+      context.handle(
+        _isCompletedMeta,
+        isCompleted.isAcceptableOrUnknown(
+          data['is_completed']!,
+          _isCompletedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_played_at')) {
+      context.handle(
+        _lastPlayedAtMeta,
+        lastPlayedAt.isAcceptableOrUnknown(
+          data['last_played_at']!,
+          _lastPlayedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+        _completedAtMeta,
+        completedAt.isAcceptableOrUnknown(
+          data['completed_at']!,
+          _completedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('play_count')) {
+      context.handle(
+        _playCountMeta,
+        playCount.isAcceptableOrUnknown(data['play_count']!, _playCountMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {targetDate},
+  ];
+  @override
+  AudioContentData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AudioContentData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      subtitle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subtitle'],
+      )!,
+      audioPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}audio_path'],
+      )!,
+      durationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_seconds'],
+      )!,
+      targetDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}target_date'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      ),
+      lastPositionMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_position_ms'],
+      ),
+      isCompleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_completed'],
+      ),
+      lastPlayedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_played_at'],
+      ),
+      completedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}completed_at'],
+      ),
+      playCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}play_count'],
+      ),
+    );
+  }
+
+  @override
+  $AudioContentsTable createAlias(String alias) {
+    return $AudioContentsTable(attachedDatabase, alias);
+  }
+}
+
+class AudioContentData extends DataClass
+    implements Insertable<AudioContentData> {
+  final int id;
+  final String title;
+  final String subtitle;
+  final String audioPath;
+  final int durationSeconds;
+  final DateTime targetDate;
+  final DateTime? createdAt;
+  final int? lastPositionMs;
+  final bool? isCompleted;
+  final DateTime? lastPlayedAt;
+  final DateTime? completedAt;
+  final int? playCount;
+  const AudioContentData({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.audioPath,
+    required this.durationSeconds,
+    required this.targetDate,
+    this.createdAt,
+    this.lastPositionMs,
+    this.isCompleted,
+    this.lastPlayedAt,
+    this.completedAt,
+    this.playCount,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['title'] = Variable<String>(title);
+    map['subtitle'] = Variable<String>(subtitle);
+    map['audio_path'] = Variable<String>(audioPath);
+    map['duration_seconds'] = Variable<int>(durationSeconds);
+    map['target_date'] = Variable<DateTime>(targetDate);
+    if (!nullToAbsent || createdAt != null) {
+      map['created_at'] = Variable<DateTime>(createdAt);
+    }
+    if (!nullToAbsent || lastPositionMs != null) {
+      map['last_position_ms'] = Variable<int>(lastPositionMs);
+    }
+    if (!nullToAbsent || isCompleted != null) {
+      map['is_completed'] = Variable<bool>(isCompleted);
+    }
+    if (!nullToAbsent || lastPlayedAt != null) {
+      map['last_played_at'] = Variable<DateTime>(lastPlayedAt);
+    }
+    if (!nullToAbsent || completedAt != null) {
+      map['completed_at'] = Variable<DateTime>(completedAt);
+    }
+    if (!nullToAbsent || playCount != null) {
+      map['play_count'] = Variable<int>(playCount);
+    }
+    return map;
+  }
+
+  AudioContentsCompanion toCompanion(bool nullToAbsent) {
+    return AudioContentsCompanion(
+      id: Value(id),
+      title: Value(title),
+      subtitle: Value(subtitle),
+      audioPath: Value(audioPath),
+      durationSeconds: Value(durationSeconds),
+      targetDate: Value(targetDate),
+      createdAt: createdAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdAt),
+      lastPositionMs: lastPositionMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPositionMs),
+      isCompleted: isCompleted == null && nullToAbsent
+          ? const Value.absent()
+          : Value(isCompleted),
+      lastPlayedAt: lastPlayedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPlayedAt),
+      completedAt: completedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(completedAt),
+      playCount: playCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(playCount),
+    );
+  }
+
+  factory AudioContentData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AudioContentData(
+      id: serializer.fromJson<int>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      subtitle: serializer.fromJson<String>(json['subtitle']),
+      audioPath: serializer.fromJson<String>(json['audioPath']),
+      durationSeconds: serializer.fromJson<int>(json['durationSeconds']),
+      targetDate: serializer.fromJson<DateTime>(json['targetDate']),
+      createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
+      lastPositionMs: serializer.fromJson<int?>(json['lastPositionMs']),
+      isCompleted: serializer.fromJson<bool?>(json['isCompleted']),
+      lastPlayedAt: serializer.fromJson<DateTime?>(json['lastPlayedAt']),
+      completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
+      playCount: serializer.fromJson<int?>(json['playCount']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'title': serializer.toJson<String>(title),
+      'subtitle': serializer.toJson<String>(subtitle),
+      'audioPath': serializer.toJson<String>(audioPath),
+      'durationSeconds': serializer.toJson<int>(durationSeconds),
+      'targetDate': serializer.toJson<DateTime>(targetDate),
+      'createdAt': serializer.toJson<DateTime?>(createdAt),
+      'lastPositionMs': serializer.toJson<int?>(lastPositionMs),
+      'isCompleted': serializer.toJson<bool?>(isCompleted),
+      'lastPlayedAt': serializer.toJson<DateTime?>(lastPlayedAt),
+      'completedAt': serializer.toJson<DateTime?>(completedAt),
+      'playCount': serializer.toJson<int?>(playCount),
+    };
+  }
+
+  AudioContentData copyWith({
+    int? id,
+    String? title,
+    String? subtitle,
+    String? audioPath,
+    int? durationSeconds,
+    DateTime? targetDate,
+    Value<DateTime?> createdAt = const Value.absent(),
+    Value<int?> lastPositionMs = const Value.absent(),
+    Value<bool?> isCompleted = const Value.absent(),
+    Value<DateTime?> lastPlayedAt = const Value.absent(),
+    Value<DateTime?> completedAt = const Value.absent(),
+    Value<int?> playCount = const Value.absent(),
+  }) => AudioContentData(
+    id: id ?? this.id,
+    title: title ?? this.title,
+    subtitle: subtitle ?? this.subtitle,
+    audioPath: audioPath ?? this.audioPath,
+    durationSeconds: durationSeconds ?? this.durationSeconds,
+    targetDate: targetDate ?? this.targetDate,
+    createdAt: createdAt.present ? createdAt.value : this.createdAt,
+    lastPositionMs: lastPositionMs.present
+        ? lastPositionMs.value
+        : this.lastPositionMs,
+    isCompleted: isCompleted.present ? isCompleted.value : this.isCompleted,
+    lastPlayedAt: lastPlayedAt.present ? lastPlayedAt.value : this.lastPlayedAt,
+    completedAt: completedAt.present ? completedAt.value : this.completedAt,
+    playCount: playCount.present ? playCount.value : this.playCount,
+  );
+  AudioContentData copyWithCompanion(AudioContentsCompanion data) {
+    return AudioContentData(
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      subtitle: data.subtitle.present ? data.subtitle.value : this.subtitle,
+      audioPath: data.audioPath.present ? data.audioPath.value : this.audioPath,
+      durationSeconds: data.durationSeconds.present
+          ? data.durationSeconds.value
+          : this.durationSeconds,
+      targetDate: data.targetDate.present
+          ? data.targetDate.value
+          : this.targetDate,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      lastPositionMs: data.lastPositionMs.present
+          ? data.lastPositionMs.value
+          : this.lastPositionMs,
+      isCompleted: data.isCompleted.present
+          ? data.isCompleted.value
+          : this.isCompleted,
+      lastPlayedAt: data.lastPlayedAt.present
+          ? data.lastPlayedAt.value
+          : this.lastPlayedAt,
+      completedAt: data.completedAt.present
+          ? data.completedAt.value
+          : this.completedAt,
+      playCount: data.playCount.present ? data.playCount.value : this.playCount,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AudioContentData(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('subtitle: $subtitle, ')
+          ..write('audioPath: $audioPath, ')
+          ..write('durationSeconds: $durationSeconds, ')
+          ..write('targetDate: $targetDate, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('lastPositionMs: $lastPositionMs, ')
+          ..write('isCompleted: $isCompleted, ')
+          ..write('lastPlayedAt: $lastPlayedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('playCount: $playCount')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    title,
+    subtitle,
+    audioPath,
+    durationSeconds,
+    targetDate,
+    createdAt,
+    lastPositionMs,
+    isCompleted,
+    lastPlayedAt,
+    completedAt,
+    playCount,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AudioContentData &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.subtitle == this.subtitle &&
+          other.audioPath == this.audioPath &&
+          other.durationSeconds == this.durationSeconds &&
+          other.targetDate == this.targetDate &&
+          other.createdAt == this.createdAt &&
+          other.lastPositionMs == this.lastPositionMs &&
+          other.isCompleted == this.isCompleted &&
+          other.lastPlayedAt == this.lastPlayedAt &&
+          other.completedAt == this.completedAt &&
+          other.playCount == this.playCount);
+}
+
+class AudioContentsCompanion extends UpdateCompanion<AudioContentData> {
+  final Value<int> id;
+  final Value<String> title;
+  final Value<String> subtitle;
+  final Value<String> audioPath;
+  final Value<int> durationSeconds;
+  final Value<DateTime> targetDate;
+  final Value<DateTime?> createdAt;
+  final Value<int?> lastPositionMs;
+  final Value<bool?> isCompleted;
+  final Value<DateTime?> lastPlayedAt;
+  final Value<DateTime?> completedAt;
+  final Value<int?> playCount;
+  const AudioContentsCompanion({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.subtitle = const Value.absent(),
+    this.audioPath = const Value.absent(),
+    this.durationSeconds = const Value.absent(),
+    this.targetDate = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.lastPositionMs = const Value.absent(),
+    this.isCompleted = const Value.absent(),
+    this.lastPlayedAt = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.playCount = const Value.absent(),
+  });
+  AudioContentsCompanion.insert({
+    this.id = const Value.absent(),
+    required String title,
+    required String subtitle,
+    required String audioPath,
+    required int durationSeconds,
+    required DateTime targetDate,
+    this.createdAt = const Value.absent(),
+    this.lastPositionMs = const Value.absent(),
+    this.isCompleted = const Value.absent(),
+    this.lastPlayedAt = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.playCount = const Value.absent(),
+  }) : title = Value(title),
+       subtitle = Value(subtitle),
+       audioPath = Value(audioPath),
+       durationSeconds = Value(durationSeconds),
+       targetDate = Value(targetDate);
+  static Insertable<AudioContentData> custom({
+    Expression<int>? id,
+    Expression<String>? title,
+    Expression<String>? subtitle,
+    Expression<String>? audioPath,
+    Expression<int>? durationSeconds,
+    Expression<DateTime>? targetDate,
+    Expression<DateTime>? createdAt,
+    Expression<int>? lastPositionMs,
+    Expression<bool>? isCompleted,
+    Expression<DateTime>? lastPlayedAt,
+    Expression<DateTime>? completedAt,
+    Expression<int>? playCount,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (subtitle != null) 'subtitle': subtitle,
+      if (audioPath != null) 'audio_path': audioPath,
+      if (durationSeconds != null) 'duration_seconds': durationSeconds,
+      if (targetDate != null) 'target_date': targetDate,
+      if (createdAt != null) 'created_at': createdAt,
+      if (lastPositionMs != null) 'last_position_ms': lastPositionMs,
+      if (isCompleted != null) 'is_completed': isCompleted,
+      if (lastPlayedAt != null) 'last_played_at': lastPlayedAt,
+      if (completedAt != null) 'completed_at': completedAt,
+      if (playCount != null) 'play_count': playCount,
+    });
+  }
+
+  AudioContentsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? title,
+    Value<String>? subtitle,
+    Value<String>? audioPath,
+    Value<int>? durationSeconds,
+    Value<DateTime>? targetDate,
+    Value<DateTime?>? createdAt,
+    Value<int?>? lastPositionMs,
+    Value<bool?>? isCompleted,
+    Value<DateTime?>? lastPlayedAt,
+    Value<DateTime?>? completedAt,
+    Value<int?>? playCount,
+  }) {
+    return AudioContentsCompanion(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      subtitle: subtitle ?? this.subtitle,
+      audioPath: audioPath ?? this.audioPath,
+      durationSeconds: durationSeconds ?? this.durationSeconds,
+      targetDate: targetDate ?? this.targetDate,
+      createdAt: createdAt ?? this.createdAt,
+      lastPositionMs: lastPositionMs ?? this.lastPositionMs,
+      isCompleted: isCompleted ?? this.isCompleted,
+      lastPlayedAt: lastPlayedAt ?? this.lastPlayedAt,
+      completedAt: completedAt ?? this.completedAt,
+      playCount: playCount ?? this.playCount,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (subtitle.present) {
+      map['subtitle'] = Variable<String>(subtitle.value);
+    }
+    if (audioPath.present) {
+      map['audio_path'] = Variable<String>(audioPath.value);
+    }
+    if (durationSeconds.present) {
+      map['duration_seconds'] = Variable<int>(durationSeconds.value);
+    }
+    if (targetDate.present) {
+      map['target_date'] = Variable<DateTime>(targetDate.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (lastPositionMs.present) {
+      map['last_position_ms'] = Variable<int>(lastPositionMs.value);
+    }
+    if (isCompleted.present) {
+      map['is_completed'] = Variable<bool>(isCompleted.value);
+    }
+    if (lastPlayedAt.present) {
+      map['last_played_at'] = Variable<DateTime>(lastPlayedAt.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<DateTime>(completedAt.value);
+    }
+    if (playCount.present) {
+      map['play_count'] = Variable<int>(playCount.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AudioContentsCompanion(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('subtitle: $subtitle, ')
+          ..write('audioPath: $audioPath, ')
+          ..write('durationSeconds: $durationSeconds, ')
+          ..write('targetDate: $targetDate, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('lastPositionMs: $lastPositionMs, ')
+          ..write('isCompleted: $isCompleted, ')
+          ..write('lastPlayedAt: $lastPlayedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('playCount: $playCount')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TranscriptLinesTable extends TranscriptLines
+    with TableInfo<$TranscriptLinesTable, TranscriptLineData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TranscriptLinesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _audioContentIdMeta = const VerificationMeta(
+    'audioContentId',
+  );
+  @override
+  late final GeneratedColumn<int> audioContentId = GeneratedColumn<int>(
+    'audio_content_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES audio_contents (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _sequenceMeta = const VerificationMeta(
+    'sequence',
+  );
+  @override
+  late final GeneratedColumn<int> sequence = GeneratedColumn<int>(
+    'sequence',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startTimeMsMeta = const VerificationMeta(
+    'startTimeMs',
+  );
+  @override
+  late final GeneratedColumn<int> startTimeMs = GeneratedColumn<int>(
+    'start_time_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endTimeMsMeta = const VerificationMeta(
+    'endTimeMs',
+  );
+  @override
+  late final GeneratedColumn<int> endTimeMs = GeneratedColumn<int>(
+    'end_time_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    audioContentId,
+    sequence,
+    startTimeMs,
+    endTimeMs,
+    content,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'transcript_lines';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TranscriptLineData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('audio_content_id')) {
+      context.handle(
+        _audioContentIdMeta,
+        audioContentId.isAcceptableOrUnknown(
+          data['audio_content_id']!,
+          _audioContentIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_audioContentIdMeta);
+    }
+    if (data.containsKey('sequence')) {
+      context.handle(
+        _sequenceMeta,
+        sequence.isAcceptableOrUnknown(data['sequence']!, _sequenceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sequenceMeta);
+    }
+    if (data.containsKey('start_time_ms')) {
+      context.handle(
+        _startTimeMsMeta,
+        startTimeMs.isAcceptableOrUnknown(
+          data['start_time_ms']!,
+          _startTimeMsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_startTimeMsMeta);
+    }
+    if (data.containsKey('end_time_ms')) {
+      context.handle(
+        _endTimeMsMeta,
+        endTimeMs.isAcceptableOrUnknown(data['end_time_ms']!, _endTimeMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endTimeMsMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {audioContentId, sequence},
+  ];
+  @override
+  TranscriptLineData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TranscriptLineData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      audioContentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}audio_content_id'],
+      )!,
+      sequence: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sequence'],
+      )!,
+      startTimeMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_time_ms'],
+      )!,
+      endTimeMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_time_ms'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+    );
+  }
+
+  @override
+  $TranscriptLinesTable createAlias(String alias) {
+    return $TranscriptLinesTable(attachedDatabase, alias);
+  }
+}
+
+class TranscriptLineData extends DataClass
+    implements Insertable<TranscriptLineData> {
+  final int id;
+  final int audioContentId;
+  final int sequence;
+  final int startTimeMs;
+  final int endTimeMs;
+  final String content;
+  const TranscriptLineData({
+    required this.id,
+    required this.audioContentId,
+    required this.sequence,
+    required this.startTimeMs,
+    required this.endTimeMs,
+    required this.content,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['audio_content_id'] = Variable<int>(audioContentId);
+    map['sequence'] = Variable<int>(sequence);
+    map['start_time_ms'] = Variable<int>(startTimeMs);
+    map['end_time_ms'] = Variable<int>(endTimeMs);
+    map['content'] = Variable<String>(content);
+    return map;
+  }
+
+  TranscriptLinesCompanion toCompanion(bool nullToAbsent) {
+    return TranscriptLinesCompanion(
+      id: Value(id),
+      audioContentId: Value(audioContentId),
+      sequence: Value(sequence),
+      startTimeMs: Value(startTimeMs),
+      endTimeMs: Value(endTimeMs),
+      content: Value(content),
+    );
+  }
+
+  factory TranscriptLineData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TranscriptLineData(
+      id: serializer.fromJson<int>(json['id']),
+      audioContentId: serializer.fromJson<int>(json['audioContentId']),
+      sequence: serializer.fromJson<int>(json['sequence']),
+      startTimeMs: serializer.fromJson<int>(json['startTimeMs']),
+      endTimeMs: serializer.fromJson<int>(json['endTimeMs']),
+      content: serializer.fromJson<String>(json['content']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'audioContentId': serializer.toJson<int>(audioContentId),
+      'sequence': serializer.toJson<int>(sequence),
+      'startTimeMs': serializer.toJson<int>(startTimeMs),
+      'endTimeMs': serializer.toJson<int>(endTimeMs),
+      'content': serializer.toJson<String>(content),
+    };
+  }
+
+  TranscriptLineData copyWith({
+    int? id,
+    int? audioContentId,
+    int? sequence,
+    int? startTimeMs,
+    int? endTimeMs,
+    String? content,
+  }) => TranscriptLineData(
+    id: id ?? this.id,
+    audioContentId: audioContentId ?? this.audioContentId,
+    sequence: sequence ?? this.sequence,
+    startTimeMs: startTimeMs ?? this.startTimeMs,
+    endTimeMs: endTimeMs ?? this.endTimeMs,
+    content: content ?? this.content,
+  );
+  TranscriptLineData copyWithCompanion(TranscriptLinesCompanion data) {
+    return TranscriptLineData(
+      id: data.id.present ? data.id.value : this.id,
+      audioContentId: data.audioContentId.present
+          ? data.audioContentId.value
+          : this.audioContentId,
+      sequence: data.sequence.present ? data.sequence.value : this.sequence,
+      startTimeMs: data.startTimeMs.present
+          ? data.startTimeMs.value
+          : this.startTimeMs,
+      endTimeMs: data.endTimeMs.present ? data.endTimeMs.value : this.endTimeMs,
+      content: data.content.present ? data.content.value : this.content,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TranscriptLineData(')
+          ..write('id: $id, ')
+          ..write('audioContentId: $audioContentId, ')
+          ..write('sequence: $sequence, ')
+          ..write('startTimeMs: $startTimeMs, ')
+          ..write('endTimeMs: $endTimeMs, ')
+          ..write('content: $content')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    audioContentId,
+    sequence,
+    startTimeMs,
+    endTimeMs,
+    content,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TranscriptLineData &&
+          other.id == this.id &&
+          other.audioContentId == this.audioContentId &&
+          other.sequence == this.sequence &&
+          other.startTimeMs == this.startTimeMs &&
+          other.endTimeMs == this.endTimeMs &&
+          other.content == this.content);
+}
+
+class TranscriptLinesCompanion extends UpdateCompanion<TranscriptLineData> {
+  final Value<int> id;
+  final Value<int> audioContentId;
+  final Value<int> sequence;
+  final Value<int> startTimeMs;
+  final Value<int> endTimeMs;
+  final Value<String> content;
+  const TranscriptLinesCompanion({
+    this.id = const Value.absent(),
+    this.audioContentId = const Value.absent(),
+    this.sequence = const Value.absent(),
+    this.startTimeMs = const Value.absent(),
+    this.endTimeMs = const Value.absent(),
+    this.content = const Value.absent(),
+  });
+  TranscriptLinesCompanion.insert({
+    this.id = const Value.absent(),
+    required int audioContentId,
+    required int sequence,
+    required int startTimeMs,
+    required int endTimeMs,
+    required String content,
+  }) : audioContentId = Value(audioContentId),
+       sequence = Value(sequence),
+       startTimeMs = Value(startTimeMs),
+       endTimeMs = Value(endTimeMs),
+       content = Value(content);
+  static Insertable<TranscriptLineData> custom({
+    Expression<int>? id,
+    Expression<int>? audioContentId,
+    Expression<int>? sequence,
+    Expression<int>? startTimeMs,
+    Expression<int>? endTimeMs,
+    Expression<String>? content,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (audioContentId != null) 'audio_content_id': audioContentId,
+      if (sequence != null) 'sequence': sequence,
+      if (startTimeMs != null) 'start_time_ms': startTimeMs,
+      if (endTimeMs != null) 'end_time_ms': endTimeMs,
+      if (content != null) 'content': content,
+    });
+  }
+
+  TranscriptLinesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? audioContentId,
+    Value<int>? sequence,
+    Value<int>? startTimeMs,
+    Value<int>? endTimeMs,
+    Value<String>? content,
+  }) {
+    return TranscriptLinesCompanion(
+      id: id ?? this.id,
+      audioContentId: audioContentId ?? this.audioContentId,
+      sequence: sequence ?? this.sequence,
+      startTimeMs: startTimeMs ?? this.startTimeMs,
+      endTimeMs: endTimeMs ?? this.endTimeMs,
+      content: content ?? this.content,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (audioContentId.present) {
+      map['audio_content_id'] = Variable<int>(audioContentId.value);
+    }
+    if (sequence.present) {
+      map['sequence'] = Variable<int>(sequence.value);
+    }
+    if (startTimeMs.present) {
+      map['start_time_ms'] = Variable<int>(startTimeMs.value);
+    }
+    if (endTimeMs.present) {
+      map['end_time_ms'] = Variable<int>(endTimeMs.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TranscriptLinesCompanion(')
+          ..write('id: $id, ')
+          ..write('audioContentId: $audioContentId, ')
+          ..write('sequence: $sequence, ')
+          ..write('startTimeMs: $startTimeMs, ')
+          ..write('endTimeMs: $endTimeMs, ')
+          ..write('content: $content')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2401,6 +3564,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $DailyCardOrderTable dailyCardOrder = $DailyCardOrderTable(this);
+  late final $AudioContentsTable audioContents = $AudioContentsTable(this);
+  late final $TranscriptLinesTable transcriptLines = $TranscriptLinesTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2411,7 +3578,19 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     habit,
     habitCompletion,
     dailyCardOrder,
+    audioContents,
+    transcriptLines,
   ];
+  @override
+  StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'audio_contents',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('transcript_lines', kind: UpdateKind.delete)],
+    ),
+  ]);
 }
 
 typedef $$ScheduleTableCreateCompanionBuilder =
@@ -3648,6 +4827,810 @@ typedef $$DailyCardOrderTableProcessedTableManager =
       DailyCardOrderData,
       PrefetchHooks Function()
     >;
+typedef $$AudioContentsTableCreateCompanionBuilder =
+    AudioContentsCompanion Function({
+      Value<int> id,
+      required String title,
+      required String subtitle,
+      required String audioPath,
+      required int durationSeconds,
+      required DateTime targetDate,
+      Value<DateTime?> createdAt,
+      Value<int?> lastPositionMs,
+      Value<bool?> isCompleted,
+      Value<DateTime?> lastPlayedAt,
+      Value<DateTime?> completedAt,
+      Value<int?> playCount,
+    });
+typedef $$AudioContentsTableUpdateCompanionBuilder =
+    AudioContentsCompanion Function({
+      Value<int> id,
+      Value<String> title,
+      Value<String> subtitle,
+      Value<String> audioPath,
+      Value<int> durationSeconds,
+      Value<DateTime> targetDate,
+      Value<DateTime?> createdAt,
+      Value<int?> lastPositionMs,
+      Value<bool?> isCompleted,
+      Value<DateTime?> lastPlayedAt,
+      Value<DateTime?> completedAt,
+      Value<int?> playCount,
+    });
+
+final class $$AudioContentsTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $AudioContentsTable, AudioContentData> {
+  $$AudioContentsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static MultiTypedResultKey<$TranscriptLinesTable, List<TranscriptLineData>>
+  _transcriptLinesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.transcriptLines,
+    aliasName: $_aliasNameGenerator(
+      db.audioContents.id,
+      db.transcriptLines.audioContentId,
+    ),
+  );
+
+  $$TranscriptLinesTableProcessedTableManager get transcriptLinesRefs {
+    final manager = $$TranscriptLinesTableTableManager(
+      $_db,
+      $_db.transcriptLines,
+    ).filter((f) => f.audioContentId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _transcriptLinesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$AudioContentsTableFilterComposer
+    extends Composer<_$AppDatabase, $AudioContentsTable> {
+  $$AudioContentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subtitle => $composableBuilder(
+    column: $table.subtitle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get audioPath => $composableBuilder(
+    column: $table.audioPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get targetDate => $composableBuilder(
+    column: $table.targetDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastPositionMs => $composableBuilder(
+    column: $table.lastPositionMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isCompleted => $composableBuilder(
+    column: $table.isCompleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastPlayedAt => $composableBuilder(
+    column: $table.lastPlayedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get playCount => $composableBuilder(
+    column: $table.playCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> transcriptLinesRefs(
+    Expression<bool> Function($$TranscriptLinesTableFilterComposer f) f,
+  ) {
+    final $$TranscriptLinesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.transcriptLines,
+      getReferencedColumn: (t) => t.audioContentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscriptLinesTableFilterComposer(
+            $db: $db,
+            $table: $db.transcriptLines,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$AudioContentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AudioContentsTable> {
+  $$AudioContentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get subtitle => $composableBuilder(
+    column: $table.subtitle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get audioPath => $composableBuilder(
+    column: $table.audioPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get targetDate => $composableBuilder(
+    column: $table.targetDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastPositionMs => $composableBuilder(
+    column: $table.lastPositionMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isCompleted => $composableBuilder(
+    column: $table.isCompleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastPlayedAt => $composableBuilder(
+    column: $table.lastPlayedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get playCount => $composableBuilder(
+    column: $table.playCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AudioContentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AudioContentsTable> {
+  $$AudioContentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get subtitle =>
+      $composableBuilder(column: $table.subtitle, builder: (column) => column);
+
+  GeneratedColumn<String> get audioPath =>
+      $composableBuilder(column: $table.audioPath, builder: (column) => column);
+
+  GeneratedColumn<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get targetDate => $composableBuilder(
+    column: $table.targetDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get lastPositionMs => $composableBuilder(
+    column: $table.lastPositionMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isCompleted => $composableBuilder(
+    column: $table.isCompleted,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastPlayedAt => $composableBuilder(
+    column: $table.lastPlayedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get playCount =>
+      $composableBuilder(column: $table.playCount, builder: (column) => column);
+
+  Expression<T> transcriptLinesRefs<T extends Object>(
+    Expression<T> Function($$TranscriptLinesTableAnnotationComposer a) f,
+  ) {
+    final $$TranscriptLinesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.transcriptLines,
+      getReferencedColumn: (t) => t.audioContentId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscriptLinesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.transcriptLines,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$AudioContentsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AudioContentsTable,
+          AudioContentData,
+          $$AudioContentsTableFilterComposer,
+          $$AudioContentsTableOrderingComposer,
+          $$AudioContentsTableAnnotationComposer,
+          $$AudioContentsTableCreateCompanionBuilder,
+          $$AudioContentsTableUpdateCompanionBuilder,
+          (AudioContentData, $$AudioContentsTableReferences),
+          AudioContentData,
+          PrefetchHooks Function({bool transcriptLinesRefs})
+        > {
+  $$AudioContentsTableTableManager(_$AppDatabase db, $AudioContentsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AudioContentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AudioContentsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AudioContentsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> subtitle = const Value.absent(),
+                Value<String> audioPath = const Value.absent(),
+                Value<int> durationSeconds = const Value.absent(),
+                Value<DateTime> targetDate = const Value.absent(),
+                Value<DateTime?> createdAt = const Value.absent(),
+                Value<int?> lastPositionMs = const Value.absent(),
+                Value<bool?> isCompleted = const Value.absent(),
+                Value<DateTime?> lastPlayedAt = const Value.absent(),
+                Value<DateTime?> completedAt = const Value.absent(),
+                Value<int?> playCount = const Value.absent(),
+              }) => AudioContentsCompanion(
+                id: id,
+                title: title,
+                subtitle: subtitle,
+                audioPath: audioPath,
+                durationSeconds: durationSeconds,
+                targetDate: targetDate,
+                createdAt: createdAt,
+                lastPositionMs: lastPositionMs,
+                isCompleted: isCompleted,
+                lastPlayedAt: lastPlayedAt,
+                completedAt: completedAt,
+                playCount: playCount,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String title,
+                required String subtitle,
+                required String audioPath,
+                required int durationSeconds,
+                required DateTime targetDate,
+                Value<DateTime?> createdAt = const Value.absent(),
+                Value<int?> lastPositionMs = const Value.absent(),
+                Value<bool?> isCompleted = const Value.absent(),
+                Value<DateTime?> lastPlayedAt = const Value.absent(),
+                Value<DateTime?> completedAt = const Value.absent(),
+                Value<int?> playCount = const Value.absent(),
+              }) => AudioContentsCompanion.insert(
+                id: id,
+                title: title,
+                subtitle: subtitle,
+                audioPath: audioPath,
+                durationSeconds: durationSeconds,
+                targetDate: targetDate,
+                createdAt: createdAt,
+                lastPositionMs: lastPositionMs,
+                isCompleted: isCompleted,
+                lastPlayedAt: lastPlayedAt,
+                completedAt: completedAt,
+                playCount: playCount,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$AudioContentsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({transcriptLinesRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (transcriptLinesRefs) db.transcriptLines,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (transcriptLinesRefs)
+                    await $_getPrefetchedData<
+                      AudioContentData,
+                      $AudioContentsTable,
+                      TranscriptLineData
+                    >(
+                      currentTable: table,
+                      referencedTable: $$AudioContentsTableReferences
+                          ._transcriptLinesRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$AudioContentsTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).transcriptLinesRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where(
+                            (e) => e.audioContentId == item.id,
+                          ),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$AudioContentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AudioContentsTable,
+      AudioContentData,
+      $$AudioContentsTableFilterComposer,
+      $$AudioContentsTableOrderingComposer,
+      $$AudioContentsTableAnnotationComposer,
+      $$AudioContentsTableCreateCompanionBuilder,
+      $$AudioContentsTableUpdateCompanionBuilder,
+      (AudioContentData, $$AudioContentsTableReferences),
+      AudioContentData,
+      PrefetchHooks Function({bool transcriptLinesRefs})
+    >;
+typedef $$TranscriptLinesTableCreateCompanionBuilder =
+    TranscriptLinesCompanion Function({
+      Value<int> id,
+      required int audioContentId,
+      required int sequence,
+      required int startTimeMs,
+      required int endTimeMs,
+      required String content,
+    });
+typedef $$TranscriptLinesTableUpdateCompanionBuilder =
+    TranscriptLinesCompanion Function({
+      Value<int> id,
+      Value<int> audioContentId,
+      Value<int> sequence,
+      Value<int> startTimeMs,
+      Value<int> endTimeMs,
+      Value<String> content,
+    });
+
+final class $$TranscriptLinesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $TranscriptLinesTable,
+          TranscriptLineData
+        > {
+  $$TranscriptLinesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AudioContentsTable _audioContentIdTable(_$AppDatabase db) =>
+      db.audioContents.createAlias(
+        $_aliasNameGenerator(
+          db.transcriptLines.audioContentId,
+          db.audioContents.id,
+        ),
+      );
+
+  $$AudioContentsTableProcessedTableManager get audioContentId {
+    final $_column = $_itemColumn<int>('audio_content_id')!;
+
+    final manager = $$AudioContentsTableTableManager(
+      $_db,
+      $_db.audioContents,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_audioContentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$TranscriptLinesTableFilterComposer
+    extends Composer<_$AppDatabase, $TranscriptLinesTable> {
+  $$TranscriptLinesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sequence => $composableBuilder(
+    column: $table.sequence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startTimeMs => $composableBuilder(
+    column: $table.startTimeMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endTimeMs => $composableBuilder(
+    column: $table.endTimeMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AudioContentsTableFilterComposer get audioContentId {
+    final $$AudioContentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.audioContentId,
+      referencedTable: $db.audioContents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AudioContentsTableFilterComposer(
+            $db: $db,
+            $table: $db.audioContents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TranscriptLinesTableOrderingComposer
+    extends Composer<_$AppDatabase, $TranscriptLinesTable> {
+  $$TranscriptLinesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sequence => $composableBuilder(
+    column: $table.sequence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startTimeMs => $composableBuilder(
+    column: $table.startTimeMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endTimeMs => $composableBuilder(
+    column: $table.endTimeMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AudioContentsTableOrderingComposer get audioContentId {
+    final $$AudioContentsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.audioContentId,
+      referencedTable: $db.audioContents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AudioContentsTableOrderingComposer(
+            $db: $db,
+            $table: $db.audioContents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TranscriptLinesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TranscriptLinesTable> {
+  $$TranscriptLinesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get sequence =>
+      $composableBuilder(column: $table.sequence, builder: (column) => column);
+
+  GeneratedColumn<int> get startTimeMs => $composableBuilder(
+    column: $table.startTimeMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get endTimeMs =>
+      $composableBuilder(column: $table.endTimeMs, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  $$AudioContentsTableAnnotationComposer get audioContentId {
+    final $$AudioContentsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.audioContentId,
+      referencedTable: $db.audioContents,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AudioContentsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.audioContents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TranscriptLinesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TranscriptLinesTable,
+          TranscriptLineData,
+          $$TranscriptLinesTableFilterComposer,
+          $$TranscriptLinesTableOrderingComposer,
+          $$TranscriptLinesTableAnnotationComposer,
+          $$TranscriptLinesTableCreateCompanionBuilder,
+          $$TranscriptLinesTableUpdateCompanionBuilder,
+          (TranscriptLineData, $$TranscriptLinesTableReferences),
+          TranscriptLineData,
+          PrefetchHooks Function({bool audioContentId})
+        > {
+  $$TranscriptLinesTableTableManager(
+    _$AppDatabase db,
+    $TranscriptLinesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TranscriptLinesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TranscriptLinesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TranscriptLinesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> audioContentId = const Value.absent(),
+                Value<int> sequence = const Value.absent(),
+                Value<int> startTimeMs = const Value.absent(),
+                Value<int> endTimeMs = const Value.absent(),
+                Value<String> content = const Value.absent(),
+              }) => TranscriptLinesCompanion(
+                id: id,
+                audioContentId: audioContentId,
+                sequence: sequence,
+                startTimeMs: startTimeMs,
+                endTimeMs: endTimeMs,
+                content: content,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int audioContentId,
+                required int sequence,
+                required int startTimeMs,
+                required int endTimeMs,
+                required String content,
+              }) => TranscriptLinesCompanion.insert(
+                id: id,
+                audioContentId: audioContentId,
+                sequence: sequence,
+                startTimeMs: startTimeMs,
+                endTimeMs: endTimeMs,
+                content: content,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$TranscriptLinesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({audioContentId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (audioContentId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.audioContentId,
+                                referencedTable:
+                                    $$TranscriptLinesTableReferences
+                                        ._audioContentIdTable(db),
+                                referencedColumn:
+                                    $$TranscriptLinesTableReferences
+                                        ._audioContentIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$TranscriptLinesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TranscriptLinesTable,
+      TranscriptLineData,
+      $$TranscriptLinesTableFilterComposer,
+      $$TranscriptLinesTableOrderingComposer,
+      $$TranscriptLinesTableAnnotationComposer,
+      $$TranscriptLinesTableCreateCompanionBuilder,
+      $$TranscriptLinesTableUpdateCompanionBuilder,
+      (TranscriptLineData, $$TranscriptLinesTableReferences),
+      TranscriptLineData,
+      PrefetchHooks Function({bool audioContentId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3661,4 +5644,8 @@ class $AppDatabaseManager {
       $$HabitCompletionTableTableManager(_db, _db.habitCompletion);
   $$DailyCardOrderTableTableManager get dailyCardOrder =>
       $$DailyCardOrderTableTableManager(_db, _db.dailyCardOrder);
+  $$AudioContentsTableTableManager get audioContents =>
+      $$AudioContentsTableTableManager(_db, _db.audioContents);
+  $$TranscriptLinesTableTableManager get transcriptLines =>
+      $$TranscriptLinesTableTableManager(_db, _db.transcriptLines);
 }
