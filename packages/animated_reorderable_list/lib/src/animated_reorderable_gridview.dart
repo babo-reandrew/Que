@@ -349,18 +349,19 @@ class AnimatedReorderableGridView<E extends Object> extends StatefulWidget {
 
   /// 🎯 A callback to determine how many columns an item should span.
   ///
-  /// This is useful for implementing features like 2-column layouts where some items
-  /// (e.g., all-day events) should span across the full width.
+  /// Returns the number of columns (crossAxisCells) that this item should occupy.
+  /// If null, all items will occupy 1 column by default.
   ///
-  /// If null, all items will span 1 column (default behavior).
+  /// **Use case**: 
+  /// - All-day events span 2 columns (full width)
+  /// - Normal events span 1 column
+  /// - When only 1 item exists, it can span 2 columns (full width)
   ///
-  /// Example:
+  /// **Example**:
   /// ```dart
-  /// getCrossAxisCellCount: (item) {
-  ///   if (item.type == ItemType.schedule) {
-  ///     return item.isAllDay ? 2 : 1; // All-day: 2 columns, Normal: 1 column
-  ///   }
-  ///   return 1;
+  /// getCrossAxisCellCount: (schedule) {
+  ///   if (items.length == 1) return 2; // Single item = full width
+  ///   return schedule.isAllDay ? 2 : 1; // All-day = 2 cols, Normal = 1 col
   /// }
   /// ```
   final int Function(E item)? getCrossAxisCellCount;
@@ -492,6 +493,7 @@ class AnimatedReorderableGridViewState<E extends Object>
               nonDraggableItems: widget.nonDraggableItems,
               lockedItems: widget.lockedItems,
               enableSwap: widget.enableSwap,
+              getCrossAxisCellCount: widget.getCrossAxisCellCount, // 🎯 전달
             ),
           ),
         ]);

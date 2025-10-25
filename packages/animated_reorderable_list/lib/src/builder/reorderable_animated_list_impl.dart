@@ -28,7 +28,7 @@ class ReorderableAnimatedListImpl<E extends Object>
     List<E> nonDraggableItems = const [],
     List<E> lockedItems = const [],
     bool enableSwap = true,
-    bool Function(E item)? isSpecialItem, // 🎯 추가
+    int Function(E item)? getCrossAxisCellCount, // 🎯 수정 (bool → int)
   }) : super(
             key: key,
             items: items,
@@ -51,7 +51,7 @@ class ReorderableAnimatedListImpl<E extends Object>
             nonDraggableItems: nonDraggableItems,
             lockedItems: lockedItems,
             enableSwap: enableSwap,
-            isSpecialItem: isSpecialItem); // 🎯 전달
+            getCrossAxisCellCount: getCrossAxisCellCount); // 🎯 수정
 
   const ReorderableAnimatedListImpl.grid({
     Key? key,
@@ -76,7 +76,7 @@ class ReorderableAnimatedListImpl<E extends Object>
     List<E> nonDraggableItems = const [],
     List<E> lockedItems = const [],
     bool enableSwap = true,
-    bool Function(E item)? isSpecialItem, // 🎯 추가
+    int Function(E item)? getCrossAxisCellCount, // 🎯 수정 (bool → int)
   }) : super(
             key: key,
             items: items,
@@ -100,7 +100,7 @@ class ReorderableAnimatedListImpl<E extends Object>
             nonDraggableItems: nonDraggableItems,
             lockedItems: lockedItems,
             enableSwap: enableSwap,
-            isSpecialItem: isSpecialItem); // 🎯 전달
+            getCrossAxisCellCount: getCrossAxisCellCount); // 🎯 수정
 
   @override
   ReorderableAnimatedListImplState<E> createState() =>
