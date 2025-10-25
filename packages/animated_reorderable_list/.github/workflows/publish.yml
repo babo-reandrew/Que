@@ -1,0 +1,39 @@
+name: Publish to pub.dev
+
+on:
+  push:
+    tags:
+    - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+jobs:
+  publish:
+    permissions:
+      id-token: write # Required for authentication using OIDC
+    environment: pub.dev
+    runs-on: ubuntu-latest
+    steps:
+
+      - uses: actions/checkout@v3
+
+      - uses: subosito/flutter-action@v2.12.0
+        name: Set up Flutter SDK
+        with:
+          channel: 'stable'
+          cache: true
+      - name: Install dependencies
+        run: |
+          cd lib
+          flutter pub get
+
+      - name: Format
+        run: dart format --set-exit-if-changed .
+        working-directory: lib
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          environment: 'pub.dev'
+          working-directory: lib
+
+      - name: Publish
+        run: |
+          dart pub publish --force
