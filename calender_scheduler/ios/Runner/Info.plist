@@ -47,5 +47,11 @@
 	<true/>
 	<key>FLTEnableImpeller</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>写真を選択して画像で追加するために、フォトライブラリへのアクセスが必要です。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>選択した写真を保存するために、フォトライブラリへのアクセスが必要です。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>写真を撮影して画像で追加するために、カメラへのアクセスが必要です。</string>
 </dict>
 </plist>

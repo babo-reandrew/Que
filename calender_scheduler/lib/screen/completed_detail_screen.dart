@@ -116,6 +116,8 @@ class CompletedDetailScreen extends StatelessWidget {
                 end: schedule.end,
                 summary: schedule.summary,
                 colorId: schedule.colorId,
+                repeatRule: schedule.repeatRule,
+                alertSetting: schedule.alertSetting,
               ),
             ),
           ),

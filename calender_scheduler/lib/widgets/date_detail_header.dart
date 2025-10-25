@@ -114,7 +114,17 @@ class _DateDetailHeaderState extends State<DateDetailHeader> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     // 이거를 설정하고 → 큰 숫자(48px)로 날짜를 표시
-                    Text(dayNumber, style: WoltTypography.dateNumberLarge),
+                    // 📋 Hero 애니메이션으로 앱바로 이동
+                    Hero(
+                      tag: 'date_number_${widget.selectedDate.day}',
+                      child: Material(
+                        color: Colors.transparent,
+                        child: Text(
+                          dayNumber,
+                          style: WoltTypography.dateNumberLarge,
+                        ),
+                      ),
+                    ),
 
                     const SizedBox(width: 4), // gap: 4px
                     // -----------------------------------------------

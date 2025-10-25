@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // ✅ HapticFeedback 추가
+import 'package:flutter_svg/flutter_svg.dart'; // ✅ SVG 아이콘 사용
+import 'package:figma_squircle/figma_squircle.dart'; // ✅ Figma 스무싱 적용
 import 'package:table_calendar/table_calendar.dart';
 import 'package:animations/animations.dart'; // ✅ OpenContainer import
+import 'package:smooth_sheets/smooth_sheets.dart'; // 📱 smooth_sheets 애니메이션
 import '../const/color.dart';
 import '../const/calendar_config.dart';
 import '../const/motion_config.dart';
 import '../component/create_entry_bottom_sheet.dart';
-import '../component/keyboard_attachable_input_view.dart'; // 🆕 KeyboardAttachable 추가
 import '../component/modal/settings_wolt_modal.dart'; // ✅ Settings Modal 추가
+import '../component/modal/image_picker_smooth_sheet.dart'; // 📸 이미지 선택 Smooth Sheet + PickedImage
+import '../component/modal/task_inbox_bottom_sheet.dart'; // 📋 Task Inbox 3-Stage Bottom Sheet 추가
 import '../screen/date_detail_view.dart';
 import '../Database/schedule_database.dart';
 import '../widgets/bottom_navigation_bar.dart'; // ✅ 하단 네비게이션 바 추가
 import '../widgets/temp_input_box.dart'; // ✅ 임시 입력 박스 추가
+import '../widgets/task_inbox_top_bar.dart'; // 🆕 Task Inbox 탑바 추가
+import '../widgets/drawer_icons_overlay.dart'; // 🆕 서랍 아이콘 오버레이 추가
 import 'package:get_it/get_it.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -31,6 +38,21 @@ class _HomeScreenState extends State<HomeScreen> {
   // ⭐️ 로컬 schedules Map 제거됨
   // 이거는 이래서 → 이제 모든 일정은 DB에서 관리하고
   // 이거라면 → StreamBuilder로 실시간으로 가져온다
+
+  // 🆕 Inbox 모드 상태 관리
+  // 이거를 설정하고 → Inbox 모드 여부를 추적해서
+  // 이거를 해서 → UI를 조건부로 렌더링하고
+  // 이거는 이래서 → seamless한 전환을 만든다
+  bool _isInboxMode = false;
+
+  // 🎯 바텀시트 표시 상태 (Stack에서 직접 렌더링하기 위함)
+  bool _showTaskInboxSheet = false;
+
+  //  서랍 아이콘 표시 여부
+  // 이거를 설정하고 → 아이콘 표시 타이밍을 제어해서
+  // 이거를 해서 → 네비게이션 바 전환 후 아이콘을 표시하고
+  // 이거는 이래서 → 순차적인 애니메이션을 만든다
+  bool _showDrawerIcons = false;
 
   @override
   void initState() {
@@ -72,11 +94,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 이거를 설정하고 → watchSchedules()로 전체 일정을 실시간 스트림으로 가져와서
+    // 📅 캘린더에 보이는 날짜 범위 계산 (현재 달 + 이전/다음 달 일부)
+    final firstDayOfMonth = DateTime(focusedDay.year, focusedDay.month, 1);
+    final lastDayOfMonth = DateTime(focusedDay.year, focusedDay.month + 1, 0);
+
+    // 캘린더는 이전 달 마지막 주 ~ 다음 달 첫 주까지 보여주므로 여유있게 ±7일
+    final rangeStart = firstDayOfMonth.subtract(const Duration(days: 7));
+    final rangeEnd = lastDayOfMonth.add(
+      const Duration(days: 8),
+    ); // +1일 (23:59:59까지)
+
+    // 이거를 설정하고 → watchSchedulesInRange()로 보이는 범위의 일정만 실시간 스트림으로 가져와서
     // 이거를 해서 → Map<DateTime, List<ScheduleData>>로 변환한 다음
     // 이거는 이래서 → TableCalendar가 해당 날짜별 일정 개수를 표시할 수 있다
     return StreamBuilder<List<ScheduleData>>(
-      stream: GetIt.I<AppDatabase>().watchSchedules(),
+      stream: GetIt.I<AppDatabase>().watchSchedulesInRange(
+        rangeStart,
+        rangeEnd,
+      ),
       builder: (context, snapshot) {
         // 로딩 중이거나 에러 처리
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -107,141 +142,359 @@ class _HomeScreenState extends State<HomeScreen> {
           print('📊 [HomeScreen] 날짜별 일정 그룹화 완료: ${schedules.length}개 날짜');
         }
 
+        // ✅ 데이터가 없을 때 메시지 표시
+        final hasNoData = !snapshot.hasData || snapshot.data!.isEmpty;
+
         return Scaffold(
           backgroundColor: const Color(0xFFF7F7F7), // ✅ 월뷰 배경색
           resizeToAvoidBottomInset: false, // ✅ KeyboardAttachable 필수 설정!
-          // ✅ FloatingActionButton 제거 → 하단 네비게이션 바로 대체
-          // ✅ 하단 네비게이션 바 추가 (피그마: Frame 822)
-          bottomNavigationBar: CustomBottomNavigationBar(
-            onInboxTap: () {
-              print('📥 [하단 네비] Inbox 버튼 클릭');
-              // TODO: Inbox 화면으로 이동
-            },
-            onStarTap: () {
-              print('⭐ [하단 네비] 별 버튼 클릭');
-              // TODO: 즐겨찾기 화면으로 이동
-            },
-            onAddTap: () {
-              // 🆕 KeyboardAttachable 방식으로 변경!
-              _showKeyboardAttachableQuickAdd();
-
-              // ⚠️ 기존 방식 (테스트 완료 후 제거 예정)
-              // final targetDate = selectedDay ?? DateTime.now();
-              // showModalBottomSheet(
-              //   context: context,
-              //   isScrollControlled: true,
-              //   backgroundColor: Colors.transparent,
-              //   barrierColor: Colors.transparent,
-              //   elevation: 0,
-              //   builder: (context) =>
-              //       CreateEntryBottomSheet(selectedDate: targetDate),
-              // );
-              // print('➕ [하단 네비] 더하기 버튼 클릭 → 날짜: $targetDate');
-            },
-            isStarSelected: false, // TODO: 상태 관리
-          ),
+          extendBody: true, // ✅ body가 하단까지 확장
           body: Stack(
             children: [
-              // 메인 컨텐츠
-              SafeArea(
+              // ✅ 데이터 없음 메시지 (배경)
+              if (hasNoData)
+                Center(
+                  child: Text(
+                    '現在データがありません',
+                    style: TextStyle(
+                      fontFamily: 'LINE Seed JP App_TTF',
+                      fontSize: 15,
+                      fontWeight: FontWeight.w400,
+                      color: Color(0xFF999999),
+                      letterSpacing: -0.075,
+                    ),
+                  ),
+                ),
+              // 🆕 메인 뷰 (탑바는 고정, 캘린더만 축소)
+              Positioned.fill(
                 child: Column(
-                  // Column으로 감싸서 세로로 배치
                   children: [
-                    // ⭐️ 커스텀 헤더 추가: 햄버거 메뉴 + 날짜 표시
-                    _buildCustomHeader(),
+                    // ✅ 상단 여백 52px (4px 위로 올림)
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 800),
+                      curve: Curves.easeInOutQuart, // ✅ 부드럽게 가속/감속
+                      height: 52,
+                    ),
 
-                    // TableCalendar를 Expanded로 감싸서 전체 화면을 차지하도록 만든다
-                    // 이렇게 하면 네이버 캘린더처럼 캘린더가 화면을 가득 채운다
-                    Expanded(
-                      child: TableCalendar(
-                        // 1. 기본 설정: 언어를 한국어로 설정하고 날짜 범위를 지정한다
-                        locale: 'ko_KR', // 한국어로 설정해서 월/요일이 한글로 표시되도록 한다
-                        firstDay: DateTime.utc(
-                          1800,
-                          1,
-                          1,
-                        ), // 캘린더의 최초 시작 날짜를 설정한다
-                        lastDay: DateTime.utc(
-                          3000,
-                          12,
-                          30,
-                        ), // 캘린더의 마지막 선택 가능 날짜를 설정한다
-                        focusedDay: focusedDay, // 현재 화면에 보이는 달을 설정한다
-                        // 2. 전체 화면 설정: shouldFillViewport를 true로 설정해서 뷰포트를 완전히 채운다
-                        shouldFillViewport:
-                            true, // 캘린더가 사용 가능한 모든 공간을 채우도록 설정한다
-                        // 3. ⭐️ 헤더 숨김: TableCalendar의 기본 헤더를 숨기고 커스텀 헤더를 사용한다
-                        headerVisible: false, // TableCalendar의 기본 헤더를 숨긴다
-                        // 4. ✅ 피그마 디자인: 요일 헤더 스타일 (CalenderViewWeek)
-                        // 일요일: #FF0000 (빨강), 토요일: #0000FF (파랑), 평일: #454545 (회색)
-                        // Regular 9px, 90% lineHeight, -0.005em letterSpacing
-                        daysOfWeekStyle: DaysOfWeekStyle(
-                          dowTextFormatter: (date, locale) {
-                            // 요일을 일본어로 표시 (月, 火, 水, 木, 金, 土, 日)
-                            const weekdays = [
-                              '月',
-                              '火',
-                              '水',
-                              '木',
-                              '金',
-                              '土',
-                              '日',
-                            ];
-                            return weekdays[date.weekday - 1];
-                          },
-                          weekdayStyle: const TextStyle(
-                            fontFamily: 'LINE Seed JP App_TTF',
-                            fontSize: 9, // Regular 9px
-                            fontWeight: FontWeight.w400, // Regular
-                            color: Color(0xFF454545), // 평일: #454545
-                            letterSpacing: -0.045, // -0.005em → -0.045px
-                            height: 0.9, // 90% lineHeight
-                          ),
-                          weekendStyle: const TextStyle(
-                            fontFamily: 'LINE Seed JP App_TTF',
-                            fontSize: 9,
-                            fontWeight: FontWeight.w400,
-                            color: Color(
-                              0xFF454545,
-                            ), // 기본값 (아래 builder에서 개별 설정)
-                            letterSpacing: -0.045,
-                            height: 0.9,
-                          ),
-                        ),
+                    // ✅ 탑바 컨테이너 - "변신!" 외치는 순간
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 800),
+                      curve: Curves.easeInOutQuart,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Stack(
+                        children: [
+                          // 월 텍스트만 애니메이션 적용
+                          AnimatedSwitcher(
+                            duration: const Duration(
+                              milliseconds: 850,
+                            ), // ✅ 더 긴 지속시간
+                            switchInCurve: const Interval(
+                              0.0,
+                              1.0,
+                              curve: Curves.easeInOutCubicEmphasized,
+                            ),
+                            switchOutCurve: const Interval(
+                              0.0,
+                              0.6, // ✅ 빠르게 사라짐
+                              curve: Curves.easeInCubic,
+                            ),
+                            transitionBuilder: (child, animation) {
+                              // Scene 1: 웅크린 상태로 시작
+                              final scaleAnimation = TweenSequence<double>([
+                                TweenSequenceItem(
+                                  tween:
+                                      Tween<double>(
+                                            begin: 0.8,
+                                            end: 0.85,
+                                          ) // ✅ 살짝 준비
+                                          .chain(
+                                            CurveTween(curve: Curves.easeIn),
+                                          ),
+                                  weight: 20,
+                                ),
+                                TweenSequenceItem(
+                                  tween:
+                                      Tween<double>(
+                                            begin: 0.85,
+                                            end: 1.05,
+                                          ) // ✅ 빠르게 커짐
+                                          .chain(
+                                            CurveTween(
+                                              curve: Curves.easeOutCubic,
+                                            ),
+                                          ),
+                                  weight: 50,
+                                ),
+                                TweenSequenceItem(
+                                  tween:
+                                      Tween<double>(
+                                            begin: 1.05,
+                                            end: 1.0,
+                                          ) // ✅ 살짝 되돌림
+                                          .chain(
+                                            CurveTween(curve: Curves.easeInOut),
+                                          ),
+                                  weight: 30,
+                                ),
+                              ]).animate(animation);
 
-                        // 5. 캘린더 스타일: 날짜들의 모양과 색상을 설정한다
-                        calendarStyle:
-                            _buildCalendarStyle(), // 캘린더 전체 스타일을 적용해서 날짜들의 모양을 설정한다
-                        // 6. 날짜 선택 처리: 사용자가 날짜를 클릭하면 선택된 날짜로 이동한다
-                        onDaySelected:
-                            _onDaySelected, // 날짜를 클릭하면 선택된 날짜로 이동하고 상태를 업데이트한다
-                        // 7. ⭐️ 페이지(월) 변경 처리: 사용자가 좌우로 스와이프하여 월을 변경하면 헤더 업데이트
-                        onPageChanged: (focusedDay) {
-                          // focusedDay를 업데이트해서 헤더의 월 표시를 동적으로 변경한다
-                          // setState를 호출해서 UI를 다시 그리고 "오늘로 돌아가기" 버튼도 조건부로 표시한다
-                          setState(() {
-                            this.focusedDay =
-                                focusedDay; // 포커스된 날짜를 새로운 월의 날짜로 업데이트
-                          });
-                        },
-                        // 8. 선택된 날짜 판단: 어떤 날짜가 선택된 상태인지 확인한다
-                        selectedDayPredicate:
-                            _selectedDayPredicate, // 선택된 날짜인지 확인해서 선택된 날짜만 강조 표시한다
-                        // 9. 날짜 셀 빌더: 각 날짜 셀의 모양을 커스터마이징한다
-                        calendarBuilders: _buildCalendarBuilders(
-                          schedules,
-                        ), // 각 날짜 셀의 모양을 설정해서 기본/선택/오늘/이전달 날짜를 다르게 표시한다
+                              final slideAnimation = TweenSequence<Offset>([
+                                TweenSequenceItem(
+                                  tween: Tween<Offset>(
+                                    begin: const Offset(0, 0.4), // ✅ 아래에 웅크림
+                                    end: const Offset(0, 0.2),
+                                  ).chain(CurveTween(curve: Curves.easeOut)),
+                                  weight: 30,
+                                ),
+                                TweenSequenceItem(
+                                  tween:
+                                      Tween<Offset>(
+                                        begin: const Offset(0, 0.2),
+                                        end: const Offset(
+                                          0,
+                                          -0.02,
+                                        ), // ✅ 살짝 위로 튕김
+                                      ).chain(
+                                        CurveTween(curve: Curves.easeOutCubic),
+                                      ),
+                                  weight: 40,
+                                ),
+                                TweenSequenceItem(
+                                  tween: Tween<Offset>(
+                                    begin: const Offset(0, -0.02),
+                                    end: Offset.zero, // ✅ 정확한 위치에 안착
+                                  ).chain(CurveTween(curve: Curves.easeInOut)),
+                                  weight: 30,
+                                ),
+                              ]).animate(animation);
+
+                              final fadeAnimation = TweenSequence<double>([
+                                TweenSequenceItem(
+                                  tween:
+                                      Tween<double>(
+                                            begin: 0.0,
+                                            end: 0.3,
+                                          ) // ✅ 천천히 나타남
+                                          .chain(
+                                            CurveTween(curve: Curves.easeIn),
+                                          ),
+                                  weight: 20,
+                                ),
+                                TweenSequenceItem(
+                                  tween:
+                                      Tween<double>(
+                                            begin: 0.3,
+                                            end: 1.0,
+                                          ) // ✅ 빠르게 선명
+                                          .chain(
+                                            CurveTween(curve: Curves.easeOut),
+                                          ),
+                                  weight: 80,
+                                ),
+                              ]).animate(animation);
+
+                              return FadeTransition(
+                                opacity: fadeAnimation,
+                                child: SlideTransition(
+                                  position: slideAnimation,
+                                  child: ScaleTransition(
+                                    scale: scaleAnimation,
+                                    child: child,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: _isInboxMode
+                                ? TaskInboxTopBar(
+                                    key: ValueKey(
+                                      'inbox_top_bar_${focusedDay.month}',
+                                    ),
+                                    title: '${focusedDay.month}月',
+                                    onSwipeLeft: () {
+                                      setState(() {
+                                        focusedDay = DateTime(
+                                          focusedDay.year,
+                                          focusedDay.month + 1,
+                                        );
+                                      });
+                                    },
+                                    onSwipeRight: () {
+                                      setState(() {
+                                        focusedDay = DateTime(
+                                          focusedDay.year,
+                                          focusedDay.month - 1,
+                                        );
+                                      });
+                                    },
+                                  )
+                                : _buildCustomHeader(),
+                          ),
+                          // 체크 버튼은 애니메이션 없이 고정
+                          if (_isInboxMode)
+                            Positioned(
+                              right: 24,
+                              top: 0,
+                              bottom: 0,
+                              child: Center(
+                                child: TaskInboxCheckButton(
+                                  onClose: () {
+                                    setState(() {
+                                      _isInboxMode = false;
+                                      _showTaskInboxSheet = false;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                    // 하단 ListView는 제거 - 스케줄 표시는 DateDetailView에서 처리한다
-                    // 이제 날짜를 클릭하면 바로 DateDetailView로 이동해서 상세 정보를 볼 수 있다ㄱ
-                    // 하단 40px 여백 추가 - 이미지 레이아웃과 동일하게 하단에 빈 공간을 만든다
-                    SizedBox(
-                      height: 40,
-                    ), // 화면 최하단에 40픽셀의 여백을 추가해서 캘린더와 화면 끝 사이에 공간을 만든다
+
+                    // ✅ 캘린더 - 천천히 공간을 양보하며 축소 (숨 쉬는 느낌)
+                    Expanded(
+                      child: AnimatedContainer(
+                        duration: const Duration(
+                          milliseconds: 900,
+                        ), // ✅ 가장 긴 지속시간
+                        curve: const Cubic(
+                          0.4,
+                          0.0,
+                          0.2,
+                          1.0,
+                        ), // ✅ Material Emphasized curve
+                        transform: _isInboxMode
+                            ? (Matrix4.identity()
+                                ..scale(0.84, 0.84)) // ✅ 가로 84%, 세로 84%
+                            : Matrix4.identity(),
+                        transformAlignment: Alignment.topCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.only(
+                            left: 2, // 좌측 2px
+                            right: 2, // 우측 2px
+                            bottom: 74, // 고정 74px 패딩
+                          ),
+                          child: TableCalendar(
+                            // 1. 기본 설정: 언어를 한국어로 설정하고 날짜 범위를 지정한다
+                            locale: 'ko_KR', // 한국어로 설정해서 월/요일이 한글로 표시되도록 한다
+                            firstDay: DateTime.utc(
+                              1800,
+                              1,
+                              1,
+                            ), // 캘린더의 최초 시작 날짜를 설정한다
+                            lastDay: DateTime.utc(
+                              3000,
+                              12,
+                              30,
+                            ), // 캘린더의 마지막 선택 가능 날짜를 설정한다
+                            focusedDay: focusedDay, // 현재 화면에 보이는 달을 설정한다
+                            // 2. 전체 화면 설정: shouldFillViewport를 true로 설정해서 뷰포트를 완전히 채운다
+                            shouldFillViewport:
+                                true, // 캘린더가 사용 가능한 모든 공간을 채우도록 설정한다
+                            // 3. ⭐️ 헤더 숨김: TableCalendar의 기본 헤더를 숨기고 커스텀 헤더를 사용한다
+                            headerVisible: false, // TableCalendar의 기본 헤더를 숨긴다
+                            // 4. ✅ 피그마 디자인: 요일 헤더 스타일 (CalenderViewWeek)
+                            // 일요일: #FF0000 (빨강), 토요일: #0000FF (파랑), 평일: #454545 (회색)
+                            // Regular 9px, 90% lineHeight, -0.005em letterSpacing
+                            daysOfWeekStyle: DaysOfWeekStyle(
+                              dowTextFormatter: (date, locale) {
+                                // 요일을 일본어로 표시 (月, 火, 水, 木, 金, 土, 日)
+                                const weekdays = [
+                                  '月',
+                                  '火',
+                                  '水',
+                                  '木',
+                                  '金',
+                                  '土',
+                                  '日',
+                                ];
+                                return weekdays[date.weekday - 1];
+                              },
+                              weekdayStyle: const TextStyle(
+                                fontFamily: 'LINE Seed JP App_TTF',
+                                fontSize: 9, // Regular 9px
+                                fontWeight: FontWeight.w400, // Regular
+                                color: Color(0xFF454545), // 평일: #454545
+                                letterSpacing: -0.045, // -0.005em → -0.045px
+                                height: 0.9, // 90% lineHeight
+                              ),
+                              weekendStyle: const TextStyle(
+                                fontFamily: 'LINE Seed JP App_TTF',
+                                fontSize: 9,
+                                fontWeight: FontWeight.w400,
+                                color: Color(
+                                  0xFF454545,
+                                ), // 기본값 (아래 builder에서 개별 설정)
+                                letterSpacing: -0.045,
+                                height: 0.9,
+                              ),
+                            ),
+
+                            // 5. 캘린더 스타일: 날짜들의 모양과 색상을 설정한다
+                            calendarStyle:
+                                _buildCalendarStyle(), // 캘린더 전체 스타일을 적용해서 날짜들의 모양을 설정한다
+                            // 6. 날짜 선택 처리: 사용자가 날짜를 클릭하면 선택된 날짜로 이동한다
+                            onDaySelected:
+                                _onDaySelected, // 날짜를 클릭하면 선택된 날짜로 이동하고 상태를 업데이트한다
+                            // 7. ⭐️ 페이지(월) 변경 처리: 사용자가 좌우로 스와이프하여 월을 변경하면 헤더 업데이트
+                            onPageChanged: (focusedDay) {
+                              // focusedDay를 업데이트해서 헤더의 월 표시를 동적으로 변경한다
+                              // setState를 호출해서 UI를 다시 그리고 "오늘로 돌아가기" 버튼도 조건부로 표시한다
+                              setState(() {
+                                this.focusedDay =
+                                    focusedDay; // 포커스된 날짜를 새로운 월의 날짜로 업데이트
+                              });
+                            },
+                            // 8. 선택된 날짜 판단: 어떤 날짜가 선택된 상태인지 확인한다
+                            selectedDayPredicate:
+                                _selectedDayPredicate, // 선택된 날짜인지 확인해서 선택된 날짜만 강조 표시한다
+                            // 9. 날짜 셀 빌더: 각 날짜 셀의 모양을 커스터마이징한다
+                            calendarBuilders: _buildCalendarBuilders(
+                              schedules,
+                            ), // 각 날짜 셀의 모양을 설정해서 기본/선택/오늘/이전달 날짜를 다르게 표시한다
+                            // 10. ✅ 파란색 점(marker) 제거
+                            eventLoader: (day) =>
+                                [], // 이벤트 로더를 빈 리스트로 설정해서 marker 표시 안 함
+                          ),
+                        ), // Padding 닫기
+                      ), // AnimatedContainer 닫기
+                    ), // Expanded 닫기
                   ],
+                ), // Column 닫기
+              ), // Positioned.fill 닫기
+              // 🆕 서랍 아이콘 오버레이 (Inbox 모드 + showDrawerIcons일 때만)
+              // 이거를 설정하고 → 하단 네비게이션 바가 있던 위치에 배치해서
+              // 이거를 해서 → 기존 하단 네비를 자연스럽게 대체하고
+              // 이거는 이래서 → seamless한 전환을 만든다
+              if (_showDrawerIcons)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0, // SafeArea.bottom을 포함한 하단 고정
+                  child: SafeArea(
+                    top: false, // 상단 SafeArea 무시
+                    child: DrawerIconsOverlay(
+                      onScheduleTap: () {
+                        print('📅 [서랍] 스케줄 탭');
+                        // TODO: 스케줄 화면으로 이동
+                      },
+                      onTaskTap: () {
+                        print('✅ [서랍] 태스크 탭 - Task Inbox Bottom Sheet 표시');
+                        // 🎯 Stack에서 바텀시트 직접 표시
+                        setState(() {
+                          _showTaskInboxSheet = true;
+                        });
+                      },
+                      onRoutineTap: () {
+                        print('🔄 [서랍] 루틴 탭');
+                        // TODO: 루틴 화면으로 이동
+                      },
+                      onAddTap: () {
+                        print('➕ [서랍] 추가 버튼 탭');
+                        _showKeyboardAttachableQuickAdd();
+                      },
+                    ),
+                  ),
                 ),
-              ),
 
               // ✅ 하단 임시 입력 박스 (Figma 2447-60074, 2447-59689)
               // 이거를 설정하고 → 하단에 고정 위치로 배치해서
@@ -258,10 +511,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     final targetDate = selectedDay ?? DateTime.now();
                     showModalBottomSheet(
                       context: context,
-                      isScrollControlled: true, // ✅ 키보드 높이에 따라 동적으로 조절
+                      isScrollControlled: true, // ✅ 전체화면
                       backgroundColor: Colors.transparent, // ✅ 투명 배경
-                      barrierColor: Colors.transparent, // ✅ 배경 터치 차단 없음
+                      barrierColor: Colors.black.withOpacity(0.4), // ✅ 배경 dim
                       elevation: 0, // ✅ 그림자 제거
+                      useSafeArea: false, // ✅ SafeArea 사용 안함
                       builder: (context) =>
                           CreateEntryBottomSheet(selectedDate: targetDate),
                     );
@@ -274,6 +528,63 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 ),
               ),
+
+              // 🎯 Task Inbox 바텀시트 (Stack에 직접 렌더링 - Navigator 사용 안 함!)
+              if (_showTaskInboxSheet)
+                Positioned.fill(
+                  child: TaskInboxBottomSheet(
+                    onClose: () {
+                      setState(() {
+                        _showTaskInboxSheet = false;
+                        _isInboxMode = false;
+                      });
+                    },
+                  ),
+                ),
+
+              // 🆕 하단 네비게이션 바 (Stack 최상단 - 인박스 모드에서는 숨김)
+              if (!_isInboxMode)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: CustomBottomNavigationBar(
+                    onInboxTap: () {
+                      print('📥 [하단 네비] Inbox 버튼 클릭');
+                      // 🎯 Stack에서 바텀시트 직접 표시
+                      setState(() {
+                        _isInboxMode = true;
+                        _showTaskInboxSheet = true;
+                      });
+                    },
+                    onImageAddTap: () {
+                      print('🖼️ [하단 네비] 이미지 추가 버튼 클릭 → 이미지 선택 시트 오픈');
+                      // 🎯 smooth_sheets 애니메이션과 함께 시트 표시
+                      Navigator.of(context).push(
+                        ModalSheetRoute(
+                          builder: (context) => ImagePickerSmoothSheet(
+                            onClose: () {
+                              Navigator.of(context).pop();
+                            },
+                            onImagesSelected: (List<PickedImage> selectedImages) {
+                              print(
+                                '✅ [HomeScreen] 선택된 이미지: ${selectedImages.length}개',
+                              );
+                              for (final img in selectedImages) {
+                                print('   - 이미지 ID/path: ${img.idOrPath()}');
+                              }
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                    onAddTap: () {
+                      // 🆕 KeyboardAttachable 방식으로 변경!
+                      _showKeyboardAttachableQuickAdd();
+                    },
+                  ),
+                ),
             ],
           ),
         );
@@ -281,6 +592,10 @@ class _HomeScreenState extends State<HomeScreen> {
     ); // StreamBuilder 닫기
   }
 
+  /// 🎯 동적 캘린더 하단 패딩 계산
+  /// - 주가 많을수록 패딩을 늘려서 마지막 주를 더 잘 보이게 함
+  /// - 4주: 패딩 적음 (캘린더가 작아서 이미 잘 보임)
+  /// - 5주: 패딩 중간
   /// 위젯 영역 ------------------------------------------------------------------------------------------------
   // ⭐️ 피그마 디자인: TopNavi (54px 높이)
   // 좌측: 아이콘 버튼 (44×44px) + 중앙: "7月 2025" (ExtraBold 27px) + 우측: 날짜 배지 "11" (검은 배경, 36×36px)
@@ -321,10 +636,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: Colors.transparent,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
-                    Icons.menu,
-                    size: 32, // 피그마: 32×32px
-                    color: Color(0xFFCCCCCC), // 피그마: border #CCCCCC
+                  child: SvgPicture.asset(
+                    'asset/icon/menu_icon.svg',
+                    width: 32, // 피그마: 32×32px
+                    height: 32,
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),
@@ -383,7 +699,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ✅ 피그마 디자인: Frame 686 (오늘 날짜 배지)
-  // 36×36px, 검은 배경 (#111111), radius 12px, "11" 텍스트 (ExtraBold 12px, 흰색)
+  // 36×36px, 검은 배경 (#111111), radius 12px (smoothing 60%), "11" 텍스트 (ExtraBold 12px, 흰색)
   Widget _buildTodayButton(DateTime today) {
     return Hero(
       tag: 'today-button-${today.toString()}',
@@ -400,20 +716,30 @@ class _HomeScreenState extends State<HomeScreen> {
               selectedDay = DateTime.utc(today.year, today.month, today.day);
             });
           },
-          borderRadius: BorderRadius.circular(12),
+          customBorder: SmoothRectangleBorder(
+            borderRadius: SmoothBorderRadius(
+              cornerRadius: 12,
+              cornerSmoothing: 0.6, // 60% smoothing
+            ),
+          ),
           child: Container(
             width: 36, // 피그마: Frame 123 크기 36×36px
             height: 36,
-            decoration: BoxDecoration(
+            decoration: ShapeDecoration(
               color: const Color(0xFF111111), // 피그마: 배경색 #111111
-              borderRadius: BorderRadius.circular(12), // 피그마: radius 12px
-              border: Border.all(
-                color: const Color(
-                  0xFF000000,
-                ).withOpacity(0.04), // 피그마: rgba(0,0,0,0.04)
-                width: 1,
+              shape: SmoothRectangleBorder(
+                side: BorderSide(
+                  color: const Color(
+                    0xFF000000,
+                  ).withOpacity(0.04), // 피그마: rgba(0,0,0,0.04)
+                  width: 1,
+                ),
+                borderRadius: SmoothBorderRadius(
+                  cornerRadius: 12, // 피그마: radius 12px
+                  cornerSmoothing: 0.6, // 60% smoothing
+                ),
               ),
-              boxShadow: [
+              shadows: [
                 // 피그마: 0px 4px 20px rgba(0,0,0,0.12)
                 BoxShadow(
                   color: const Color(0xFF000000).withOpacity(0.12),
@@ -833,7 +1159,86 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // ✅ OpenContainer로 감싸기
+    // 🆕 Inbox 모드에서는 OpenContainer 비활성화
+    // 이거를 설정하고 → Inbox 모드일 때는 클릭해도 디테일뷰로 이동하지 않게 해서
+    // 이거를 해서 → DragTarget으로 감싸서 드롭 가능하게 하고
+    // 이거는 이래서 → 사용자가 Inbox 모드에서 태스크를 드래그하여 날짜에 배치할 수 있다
+    if (_isInboxMode) {
+      return DragTarget<TaskData>(
+        onAcceptWithDetails: (details) async {
+          final task = details.data;
+          final targetDate = DateTime(day.year, day.month, day.day);
+          print(
+            '✅ [HomeScreen] 태스크 드롭: "${task.title}" → ${targetDate.toString().split(' ')[0]}',
+          );
+
+          // ✅ DB 업데이트
+          await GetIt.I<AppDatabase>().updateTaskDate(task.id, targetDate);
+
+          if (mounted) {
+            HapticFeedback.heavyImpact();
+          }
+        },
+        onWillAcceptWithDetails: (details) {
+          // ✅ 드래그 중일 때 true 반환 → 하이라이트 표시
+          return true;
+        },
+        builder: (context, candidateData, rejectedData) {
+          final isHovering = candidateData.isNotEmpty; // ✅ 드래그 중인지 확인
+
+          return Container(
+            width: double.infinity,
+            height: double.infinity,
+            padding: const EdgeInsets.only(top: 4),
+            decoration: isHovering
+                ? BoxDecoration(
+                    color: const Color(0xFF566099).withOpacity(0.1), // ✅ 하이라이트
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: const Color(0xFF566099),
+                      width: 2,
+                    ),
+                  )
+                : null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 날짜 숫자
+                Center(
+                  child: Container(
+                    width: size,
+                    height: size,
+                    decoration: BoxDecoration(
+                      color: isHovering
+                          ? const Color(0xFF566099)
+                          : backgroundColor, // ✅ 호버 시 색상 변경
+                      borderRadius: BorderRadius.circular(isToday ? 9 : 8),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${day.day}',
+                      style: TextStyle(
+                        fontFamily: 'LINE Seed JP App_TTF',
+                        fontSize: 10,
+                        fontWeight: isToday ? FontWeight.w800 : FontWeight.w700,
+                        color: isHovering
+                            ? Colors.white
+                            : textColor, // ✅ 호버 시 흰색
+                        letterSpacing: -0.05,
+                        height: 0.9,
+                      ),
+                    ),
+                  ),
+                ),
+                _buildSchedulePreview(schedulesForDay),
+              ],
+            ),
+          );
+        },
+      );
+    }
+
+    // ✅ 일반 모드: OpenContainer로 감싸기 + DragTarget도 적용
     return OpenContainer(
       // ========================================
       // 애니메이션 설정
@@ -850,40 +1255,94 @@ class _HomeScreenState extends State<HomeScreen> {
       closedColor: const Color(0xFFF7F7F7), // ✅ #F7F7F7 배경색
       middleColor: MotionConfig.openContainerMiddleColor, // ✅ fadeThrough 중간 색상
       closedBuilder: (context, action) {
-        return Container(
-          width: double.infinity,
-          height: double.infinity,
-          padding: const EdgeInsets.only(top: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ✅ 날짜 숫자 (Hero처럼 동기화됨)
-              Center(
-                child: Container(
-                  width: size,
-                  height: size,
-                  decoration: BoxDecoration(
-                    color: backgroundColor,
-                    borderRadius: BorderRadius.circular(isToday ? 9 : 8),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '${day.day}',
-                    style: TextStyle(
-                      fontFamily: 'LINE Seed JP App_TTF',
-                      fontSize: 10,
-                      fontWeight: isToday ? FontWeight.w800 : FontWeight.w700,
-                      color: textColor,
-                      letterSpacing: -0.05,
-                      height: 0.9,
+        // 🎯 DragTarget으로 감싸서 드래그 앤 드롭 지원
+        return DragTarget<TaskData>(
+          onAcceptWithDetails: (details) async {
+            final task = details.data;
+            final targetDate = DateTime(day.year, day.month, day.day);
+            print(
+              '✅ [HomeScreen] 태스크 드롭 성공: "${task.title}" → ${targetDate.toString().split(' ')[0]}',
+            );
+
+            // ✅ DB 업데이트
+            await GetIt.I<AppDatabase>().updateTaskDate(task.id, targetDate);
+
+            if (mounted) {
+              HapticFeedback.heavyImpact();
+            }
+          },
+          onWillAcceptWithDetails: (details) {
+            // ✅ 드래그 중일 때 true 반환 → 하이라이트 표시
+            print(
+              '🎯 [HomeScreen] DragTarget onWillAccept: ${day.day}일 - ${details.data.title}',
+            );
+            return true;
+          },
+          onMove: (details) {
+            // 🔍 디버깅: 드래그가 셀 위를 지나갈 때 로그
+            print('🔍 [HomeScreen] onMove: ${day.day}일');
+          },
+          builder: (context, candidateData, rejectedData) {
+            final isHovering = candidateData.isNotEmpty; // ✅ 드래그 중인지 확인
+
+            if (isHovering) {
+              print('💜 [HomeScreen] 호버링 중: ${day.day}일');
+            }
+
+            return Container(
+              width: double.infinity,
+              height: double.infinity,
+              padding: const EdgeInsets.only(top: 4),
+              decoration: isHovering
+                  ? BoxDecoration(
+                      color: const Color(
+                        0xFF566099,
+                      ).withOpacity(0.1), // ✅ 하이라이트
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFF566099),
+                        width: 2,
+                      ),
+                    )
+                  : null,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ✅ 날짜 숫자 (Hero처럼 동기화됨)
+                  Center(
+                    child: Container(
+                      width: size,
+                      height: size,
+                      decoration: BoxDecoration(
+                        color: isHovering
+                            ? const Color(0xFF566099)
+                            : backgroundColor, // ✅ 호버 시 색상 변경
+                        borderRadius: BorderRadius.circular(isToday ? 9 : 8),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '${day.day}',
+                        style: TextStyle(
+                          fontFamily: 'LINE Seed JP App_TTF',
+                          fontSize: 10,
+                          fontWeight: isToday
+                              ? FontWeight.w800
+                              : FontWeight.w700,
+                          color: isHovering
+                              ? Colors.white
+                              : textColor, // ✅ 호버 시 흰색
+                          letterSpacing: -0.05,
+                          height: 0.9,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  // 일정 미리보기
+                  _buildSchedulePreview(schedulesForDay),
+                ],
               ),
-              // 일정 미리보기
-              _buildSchedulePreview(schedulesForDay),
-            ],
-          ),
+            );
+          },
         );
       },
 
@@ -909,6 +1368,7 @@ class _HomeScreenState extends State<HomeScreen> {
             DateDetailView(
               selectedDate: dateKey,
               onClose: action, // ✅ Pull-to-dismiss 완료 시 OpenContainer 닫기
+              isInboxMode: _isInboxMode, // 📋 인박스 모드 전달
             ),
           ],
         );
@@ -1066,22 +1526,21 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
   /// ```
   ///
   /// 신규 방식 (병행 테스트):
-  /// ```dart
-  /// _showKeyboardAttachableQuickAdd();
-  /// ```
+  /// 🔥 월뷰에서 + 버튼 클릭 → QuickAdd 표시
   void _showKeyboardAttachableQuickAdd() {
     final targetDate = selectedDay ?? DateTime.now();
 
-    InputAccessoryHelper.showQuickAdd(
-      context,
-      selectedDate: targetDate,
-      onSaveComplete: () {
-        print('✅ [KeyboardAttachable] 저장 완료 → StreamBuilder 자동 갱신');
-        // StreamBuilder가 자동으로 UI 갱신하므로 추가 로직 불필요
-      },
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // ✅ 전체화면
+      backgroundColor: Colors.transparent, // ✅ 투명 배경
+      barrierColor: Colors.transparent, // ✅ 배리어도 투명! (뒤에 배경 안보이게)
+      elevation: 0, // ✅ 그림자 제거
+      useSafeArea: false, // ✅ SafeArea 사용 안함
+      builder: (context) => CreateEntryBottomSheet(selectedDate: targetDate),
     );
 
-    print('➕ [KeyboardAttachable] 더하기 버튼 클릭 → 날짜: $targetDate');
+    print('➕ [월뷰 +버튼] QuickAdd 표시 → 날짜: $targetDate');
   }
 
   // ========================================
@@ -1097,80 +1556,83 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
 
         return Scaffold(
           backgroundColor: const Color(0xFFF7F7F7),
+          extendBody: true, // ✅ body가 bottomNavigationBar 아래까지 확장
           bottomNavigationBar: CustomBottomNavigationBar(
             onInboxTap: () {},
-            onStarTap: () {},
+            onImageAddTap: () {},
             onAddTap: () {},
-            isStarSelected: false,
           ),
           body: SafeArea(
+            bottom: false, // ✅ 하단 SafeArea 무시 → 캘린더가 네비 바 아래까지 확장
             child: Column(
               children: [
                 _buildCustomHeader(),
                 Expanded(
-                  child: TableCalendar(
-                    locale: 'ko_KR',
-                    firstDay: DateTime.utc(1800, 1, 1),
-                    lastDay: DateTime.utc(3000, 12, 30),
-                    focusedDay: focusedDay,
-                    shouldFillViewport: true,
-                    headerVisible: false,
-                    daysOfWeekStyle: DaysOfWeekStyle(
-                      dowTextFormatter: (date, locale) {
-                        const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
-                        return weekdays[date.weekday - 1];
-                      },
-                      weekdayStyle: const TextStyle(
-                        fontFamily: 'LINE Seed JP App_TTF',
-                        fontSize: 9,
-                        fontWeight: FontWeight.w400,
-                        color: Color(0xFF454545),
-                        letterSpacing: -0.045,
-                        height: 0.9,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 24), // ✅ 하단 24px 패딩
+                    child: TableCalendar(
+                      locale: 'ko_KR',
+                      firstDay: DateTime.utc(1800, 1, 1),
+                      lastDay: DateTime.utc(3000, 12, 30),
+                      focusedDay: focusedDay,
+                      shouldFillViewport: true,
+                      headerVisible: false,
+                      daysOfWeekStyle: DaysOfWeekStyle(
+                        dowTextFormatter: (date, locale) {
+                          const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
+                          return weekdays[date.weekday - 1];
+                        },
+                        weekdayStyle: const TextStyle(
+                          fontFamily: 'LINE Seed JP App_TTF',
+                          fontSize: 9,
+                          fontWeight: FontWeight.w400,
+                          color: Color(0xFF454545),
+                          letterSpacing: -0.045,
+                          height: 0.9,
+                        ),
+                        weekendStyle: const TextStyle(
+                          fontFamily: 'LINE Seed JP App_TTF',
+                          fontSize: 9,
+                          fontWeight: FontWeight.w400,
+                          color: Color(0xFF454545),
+                          letterSpacing: -0.045,
+                          height: 0.9,
+                        ),
                       ),
-                      weekendStyle: const TextStyle(
-                        fontFamily: 'LINE Seed JP App_TTF',
-                        fontSize: 9,
-                        fontWeight: FontWeight.w400,
-                        color: Color(0xFF454545),
-                        letterSpacing: -0.045,
-                        height: 0.9,
+                      calendarStyle: _buildCalendarStyle(),
+                      onDaySelected: (_, __) {}, // 배경이므로 상호작용 없음
+                      onPageChanged: (_) {}, // 배경이므로 상호작용 없음
+                      selectedDayPredicate: _selectedDayPredicate,
+                      calendarBuilders: CalendarBuilders(
+                        // 배경 월뷰는 OpenContainer 없이 단순 표시만
+                        defaultBuilder: (context, day, focusedDay) {
+                          return _buildSimpleDayCell(day, schedules);
+                        },
+                        todayBuilder: (context, day, focusedDay) {
+                          return _buildSimpleDayCell(
+                            day,
+                            schedules,
+                            isToday: true,
+                          );
+                        },
+                        selectedBuilder: (context, day, focusedDay) {
+                          return _buildSimpleDayCell(
+                            day,
+                            schedules,
+                            isSelected: true,
+                          );
+                        },
+                        outsideBuilder: (context, day, focusedDay) {
+                          return _buildSimpleDayCell(
+                            day,
+                            schedules,
+                            isOutside: true,
+                          );
+                        },
                       ),
-                    ),
-                    calendarStyle: _buildCalendarStyle(),
-                    onDaySelected: (_, __) {}, // 배경이므로 상호작용 없음
-                    onPageChanged: (_) {}, // 배경이므로 상호작용 없음
-                    selectedDayPredicate: _selectedDayPredicate,
-                    calendarBuilders: CalendarBuilders(
-                      // 배경 월뷰는 OpenContainer 없이 단순 표시만
-                      defaultBuilder: (context, day, focusedDay) {
-                        return _buildSimpleDayCell(day, schedules);
-                      },
-                      todayBuilder: (context, day, focusedDay) {
-                        return _buildSimpleDayCell(
-                          day,
-                          schedules,
-                          isToday: true,
-                        );
-                      },
-                      selectedBuilder: (context, day, focusedDay) {
-                        return _buildSimpleDayCell(
-                          day,
-                          schedules,
-                          isSelected: true,
-                        );
-                      },
-                      outsideBuilder: (context, day, focusedDay) {
-                        return _buildSimpleDayCell(
-                          day,
-                          schedules,
-                          isOutside: true,
-                        );
-                      },
                     ),
                   ),
                 ),
-                const SizedBox(height: 40),
               ],
             ),
           ),
@@ -1246,33 +1708,13 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
       ),
     );
   }
-}
 
-// ============================================================================
-// 📝 사용 가이드
-// ============================================================================
-// 
-// **Step 1: 임포트 추가 (파일 상단)**
-// ```dart
-// import '../component/keyboard_attachable_input_view.dart';
-// ```
-// 
-// **Step 2: onAddTap()에서 호출 (기존 코드와 병행)**
-// ```dart
-// onAddTap: () {
-//   // ⭐️ 방법 A: 기존 방식 (현재 사용 중)
-//   // final targetDate = selectedDay ?? DateTime.now();
-//   // showModalBottomSheet(...);
-//   
-//   // ⭐️ 방법 B: 새로운 keyboard_attachable 방식 (테스트)
-//   _showKeyboardAttachableQuickAdd();
-// },
-// ```
-// 
-// **Step 3: 검증 후 기존 코드 제거**
-// - 5가지 Figma 상태 모두 정상 동작 확인
-// - DB 저장/불러오기 정상 동작 확인
-// - 키보드 애니메이션 자연스러운지 확인
-// - 문제 없으면 showModalBottomSheet 방식 제거
-// 
-// ============================================================================
+  // ════════════════════════════════════════════════════════════════════════════
+  // 🆕 Inbox 모드 전환 핸들러
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /// Inbox 모드 진입 핸들러
+  /// 이거를 설정하고 → Inbox 모드로 전환해서
+  /// 이거를 해서 → UI를 업데이트하고 애니메이션을 시작하고
+  /// 이거는 이래서 → 사용자에게 seamless한 경험을 제공한다
+}

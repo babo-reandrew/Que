@@ -108,6 +108,21 @@ class $ScheduleTable extends Schedule
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _isAllDayMeta = const VerificationMeta(
+    'isAllDay',
+  );
+  @override
+  late final GeneratedColumn<bool> isAllDay = GeneratedColumn<bool>(
+    'is_all_day',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_all_day" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -151,6 +166,7 @@ class $ScheduleTable extends Schedule
     colorId,
     repeatRule,
     alertSetting,
+    isAllDay,
     createdAt,
     status,
     visibility,
@@ -236,6 +252,12 @@ class $ScheduleTable extends Schedule
     } else if (isInserting) {
       context.missing(_alertSettingMeta);
     }
+    if (data.containsKey('is_all_day')) {
+      context.handle(
+        _isAllDayMeta,
+        isAllDay.isAcceptableOrUnknown(data['is_all_day']!, _isAllDayMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -303,6 +325,10 @@ class $ScheduleTable extends Schedule
         DriftSqlType.string,
         data['${effectivePrefix}alert_setting'],
       )!,
+      isAllDay: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_all_day'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -334,6 +360,7 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
   final String colorId;
   final String repeatRule;
   final String alertSetting;
+  final bool isAllDay;
   final DateTime createdAt;
   final String status;
   final String visibility;
@@ -347,6 +374,7 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     required this.colorId,
     required this.repeatRule,
     required this.alertSetting,
+    required this.isAllDay,
     required this.createdAt,
     required this.status,
     required this.visibility,
@@ -363,6 +391,7 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     map['color_id'] = Variable<String>(colorId);
     map['repeat_rule'] = Variable<String>(repeatRule);
     map['alert_setting'] = Variable<String>(alertSetting);
+    map['is_all_day'] = Variable<bool>(isAllDay);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['status'] = Variable<String>(status);
     map['visibility'] = Variable<String>(visibility);
@@ -380,6 +409,7 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
       colorId: Value(colorId),
       repeatRule: Value(repeatRule),
       alertSetting: Value(alertSetting),
+      isAllDay: Value(isAllDay),
       createdAt: Value(createdAt),
       status: Value(status),
       visibility: Value(visibility),
@@ -401,6 +431,7 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
       colorId: serializer.fromJson<String>(json['colorId']),
       repeatRule: serializer.fromJson<String>(json['repeatRule']),
       alertSetting: serializer.fromJson<String>(json['alertSetting']),
+      isAllDay: serializer.fromJson<bool>(json['isAllDay']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       status: serializer.fromJson<String>(json['status']),
       visibility: serializer.fromJson<String>(json['visibility']),
@@ -419,6 +450,7 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
       'colorId': serializer.toJson<String>(colorId),
       'repeatRule': serializer.toJson<String>(repeatRule),
       'alertSetting': serializer.toJson<String>(alertSetting),
+      'isAllDay': serializer.toJson<bool>(isAllDay),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'status': serializer.toJson<String>(status),
       'visibility': serializer.toJson<String>(visibility),
@@ -435,6 +467,7 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     String? colorId,
     String? repeatRule,
     String? alertSetting,
+    bool? isAllDay,
     DateTime? createdAt,
     String? status,
     String? visibility,
@@ -448,6 +481,7 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     colorId: colorId ?? this.colorId,
     repeatRule: repeatRule ?? this.repeatRule,
     alertSetting: alertSetting ?? this.alertSetting,
+    isAllDay: isAllDay ?? this.isAllDay,
     createdAt: createdAt ?? this.createdAt,
     status: status ?? this.status,
     visibility: visibility ?? this.visibility,
@@ -469,6 +503,7 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
       alertSetting: data.alertSetting.present
           ? data.alertSetting.value
           : this.alertSetting,
+      isAllDay: data.isAllDay.present ? data.isAllDay.value : this.isAllDay,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       status: data.status.present ? data.status.value : this.status,
       visibility: data.visibility.present
@@ -489,6 +524,7 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
           ..write('colorId: $colorId, ')
           ..write('repeatRule: $repeatRule, ')
           ..write('alertSetting: $alertSetting, ')
+          ..write('isAllDay: $isAllDay, ')
           ..write('createdAt: $createdAt, ')
           ..write('status: $status, ')
           ..write('visibility: $visibility')
@@ -507,6 +543,7 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     colorId,
     repeatRule,
     alertSetting,
+    isAllDay,
     createdAt,
     status,
     visibility,
@@ -524,6 +561,7 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
           other.colorId == this.colorId &&
           other.repeatRule == this.repeatRule &&
           other.alertSetting == this.alertSetting &&
+          other.isAllDay == this.isAllDay &&
           other.createdAt == this.createdAt &&
           other.status == this.status &&
           other.visibility == this.visibility);
@@ -539,6 +577,7 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
   final Value<String> colorId;
   final Value<String> repeatRule;
   final Value<String> alertSetting;
+  final Value<bool> isAllDay;
   final Value<DateTime> createdAt;
   final Value<String> status;
   final Value<String> visibility;
@@ -552,6 +591,7 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     this.colorId = const Value.absent(),
     this.repeatRule = const Value.absent(),
     this.alertSetting = const Value.absent(),
+    this.isAllDay = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.status = const Value.absent(),
     this.visibility = const Value.absent(),
@@ -566,6 +606,7 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     required String colorId,
     required String repeatRule,
     required String alertSetting,
+    this.isAllDay = const Value.absent(),
     this.createdAt = const Value.absent(),
     required String status,
     required String visibility,
@@ -587,6 +628,7 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     Expression<String>? colorId,
     Expression<String>? repeatRule,
     Expression<String>? alertSetting,
+    Expression<bool>? isAllDay,
     Expression<DateTime>? createdAt,
     Expression<String>? status,
     Expression<String>? visibility,
@@ -601,6 +643,7 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
       if (colorId != null) 'color_id': colorId,
       if (repeatRule != null) 'repeat_rule': repeatRule,
       if (alertSetting != null) 'alert_setting': alertSetting,
+      if (isAllDay != null) 'is_all_day': isAllDay,
       if (createdAt != null) 'created_at': createdAt,
       if (status != null) 'status': status,
       if (visibility != null) 'visibility': visibility,
@@ -617,6 +660,7 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     Value<String>? colorId,
     Value<String>? repeatRule,
     Value<String>? alertSetting,
+    Value<bool>? isAllDay,
     Value<DateTime>? createdAt,
     Value<String>? status,
     Value<String>? visibility,
@@ -631,6 +675,7 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
       colorId: colorId ?? this.colorId,
       repeatRule: repeatRule ?? this.repeatRule,
       alertSetting: alertSetting ?? this.alertSetting,
+      isAllDay: isAllDay ?? this.isAllDay,
       createdAt: createdAt ?? this.createdAt,
       status: status ?? this.status,
       visibility: visibility ?? this.visibility,
@@ -667,6 +712,9 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     if (alertSetting.present) {
       map['alert_setting'] = Variable<String>(alertSetting.value);
     }
+    if (isAllDay.present) {
+      map['is_all_day'] = Variable<bool>(isAllDay.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -691,6 +739,7 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
           ..write('colorId: $colorId, ')
           ..write('repeatRule: $repeatRule, ')
           ..write('alertSetting: $alertSetting, ')
+          ..write('isAllDay: $isAllDay, ')
           ..write('createdAt: $createdAt, ')
           ..write('status: $status, ')
           ..write('visibility: $visibility')
@@ -752,6 +801,18 @@ class $TaskTable extends Task with TableInfo<$TaskTable, TaskData> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _executionDateMeta = const VerificationMeta(
+    'executionDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> executionDate =
+      GeneratedColumn<DateTime>(
+        'execution_date',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _listIdMeta = const VerificationMeta('listId');
   @override
   late final GeneratedColumn<String> listId = GeneratedColumn<String>(
@@ -826,6 +887,7 @@ class $TaskTable extends Task with TableInfo<$TaskTable, TaskData> {
     title,
     completed,
     dueDate,
+    executionDate,
     listId,
     createdAt,
     completedAt,
@@ -866,6 +928,15 @@ class $TaskTable extends Task with TableInfo<$TaskTable, TaskData> {
       context.handle(
         _dueDateMeta,
         dueDate.isAcceptableOrUnknown(data['due_date']!, _dueDateMeta),
+      );
+    }
+    if (data.containsKey('execution_date')) {
+      context.handle(
+        _executionDateMeta,
+        executionDate.isAcceptableOrUnknown(
+          data['execution_date']!,
+          _executionDateMeta,
+        ),
       );
     }
     if (data.containsKey('list_id')) {
@@ -934,6 +1005,10 @@ class $TaskTable extends Task with TableInfo<$TaskTable, TaskData> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}due_date'],
       ),
+      executionDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}execution_date'],
+      ),
       listId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}list_id'],
@@ -972,6 +1047,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
   final String title;
   final bool completed;
   final DateTime? dueDate;
+  final DateTime? executionDate;
   final String listId;
   final DateTime createdAt;
   final DateTime? completedAt;
@@ -983,6 +1059,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
     required this.title,
     required this.completed,
     this.dueDate,
+    this.executionDate,
     required this.listId,
     required this.createdAt,
     this.completedAt,
@@ -998,6 +1075,9 @@ class TaskData extends DataClass implements Insertable<TaskData> {
     map['completed'] = Variable<bool>(completed);
     if (!nullToAbsent || dueDate != null) {
       map['due_date'] = Variable<DateTime>(dueDate);
+    }
+    if (!nullToAbsent || executionDate != null) {
+      map['execution_date'] = Variable<DateTime>(executionDate);
     }
     map['list_id'] = Variable<String>(listId);
     map['created_at'] = Variable<DateTime>(createdAt);
@@ -1018,6 +1098,9 @@ class TaskData extends DataClass implements Insertable<TaskData> {
       dueDate: dueDate == null && nullToAbsent
           ? const Value.absent()
           : Value(dueDate),
+      executionDate: executionDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(executionDate),
       listId: Value(listId),
       createdAt: Value(createdAt),
       completedAt: completedAt == null && nullToAbsent
@@ -1039,6 +1122,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
       title: serializer.fromJson<String>(json['title']),
       completed: serializer.fromJson<bool>(json['completed']),
       dueDate: serializer.fromJson<DateTime?>(json['dueDate']),
+      executionDate: serializer.fromJson<DateTime?>(json['executionDate']),
       listId: serializer.fromJson<String>(json['listId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
@@ -1055,6 +1139,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
       'title': serializer.toJson<String>(title),
       'completed': serializer.toJson<bool>(completed),
       'dueDate': serializer.toJson<DateTime?>(dueDate),
+      'executionDate': serializer.toJson<DateTime?>(executionDate),
       'listId': serializer.toJson<String>(listId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'completedAt': serializer.toJson<DateTime?>(completedAt),
@@ -1069,6 +1154,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
     String? title,
     bool? completed,
     Value<DateTime?> dueDate = const Value.absent(),
+    Value<DateTime?> executionDate = const Value.absent(),
     String? listId,
     DateTime? createdAt,
     Value<DateTime?> completedAt = const Value.absent(),
@@ -1080,6 +1166,9 @@ class TaskData extends DataClass implements Insertable<TaskData> {
     title: title ?? this.title,
     completed: completed ?? this.completed,
     dueDate: dueDate.present ? dueDate.value : this.dueDate,
+    executionDate: executionDate.present
+        ? executionDate.value
+        : this.executionDate,
     listId: listId ?? this.listId,
     createdAt: createdAt ?? this.createdAt,
     completedAt: completedAt.present ? completedAt.value : this.completedAt,
@@ -1093,6 +1182,9 @@ class TaskData extends DataClass implements Insertable<TaskData> {
       title: data.title.present ? data.title.value : this.title,
       completed: data.completed.present ? data.completed.value : this.completed,
       dueDate: data.dueDate.present ? data.dueDate.value : this.dueDate,
+      executionDate: data.executionDate.present
+          ? data.executionDate.value
+          : this.executionDate,
       listId: data.listId.present ? data.listId.value : this.listId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       completedAt: data.completedAt.present
@@ -1113,6 +1205,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
           ..write('title: $title, ')
           ..write('completed: $completed, ')
           ..write('dueDate: $dueDate, ')
+          ..write('executionDate: $executionDate, ')
           ..write('listId: $listId, ')
           ..write('createdAt: $createdAt, ')
           ..write('completedAt: $completedAt, ')
@@ -1129,6 +1222,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
     title,
     completed,
     dueDate,
+    executionDate,
     listId,
     createdAt,
     completedAt,
@@ -1144,6 +1238,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
           other.title == this.title &&
           other.completed == this.completed &&
           other.dueDate == this.dueDate &&
+          other.executionDate == this.executionDate &&
           other.listId == this.listId &&
           other.createdAt == this.createdAt &&
           other.completedAt == this.completedAt &&
@@ -1157,6 +1252,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
   final Value<String> title;
   final Value<bool> completed;
   final Value<DateTime?> dueDate;
+  final Value<DateTime?> executionDate;
   final Value<String> listId;
   final Value<DateTime> createdAt;
   final Value<DateTime?> completedAt;
@@ -1168,6 +1264,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
     this.title = const Value.absent(),
     this.completed = const Value.absent(),
     this.dueDate = const Value.absent(),
+    this.executionDate = const Value.absent(),
     this.listId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.completedAt = const Value.absent(),
@@ -1180,6 +1277,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
     required String title,
     this.completed = const Value.absent(),
     this.dueDate = const Value.absent(),
+    this.executionDate = const Value.absent(),
     this.listId = const Value.absent(),
     required DateTime createdAt,
     this.completedAt = const Value.absent(),
@@ -1193,6 +1291,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
     Expression<String>? title,
     Expression<bool>? completed,
     Expression<DateTime>? dueDate,
+    Expression<DateTime>? executionDate,
     Expression<String>? listId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? completedAt,
@@ -1205,6 +1304,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
       if (title != null) 'title': title,
       if (completed != null) 'completed': completed,
       if (dueDate != null) 'due_date': dueDate,
+      if (executionDate != null) 'execution_date': executionDate,
       if (listId != null) 'list_id': listId,
       if (createdAt != null) 'created_at': createdAt,
       if (completedAt != null) 'completed_at': completedAt,
@@ -1219,6 +1319,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
     Value<String>? title,
     Value<bool>? completed,
     Value<DateTime?>? dueDate,
+    Value<DateTime?>? executionDate,
     Value<String>? listId,
     Value<DateTime>? createdAt,
     Value<DateTime?>? completedAt,
@@ -1231,6 +1332,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
       title: title ?? this.title,
       completed: completed ?? this.completed,
       dueDate: dueDate ?? this.dueDate,
+      executionDate: executionDate ?? this.executionDate,
       listId: listId ?? this.listId,
       createdAt: createdAt ?? this.createdAt,
       completedAt: completedAt ?? this.completedAt,
@@ -1254,6 +1356,9 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
     }
     if (dueDate.present) {
       map['due_date'] = Variable<DateTime>(dueDate.value);
+    }
+    if (executionDate.present) {
+      map['execution_date'] = Variable<DateTime>(executionDate.value);
     }
     if (listId.present) {
       map['list_id'] = Variable<String>(listId.value);
@@ -1283,6 +1388,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
           ..write('title: $title, ')
           ..write('completed: $completed, ')
           ..write('dueDate: $dueDate, ')
+          ..write('executionDate: $executionDate, ')
           ..write('listId: $listId, ')
           ..write('createdAt: $createdAt, ')
           ..write('completedAt: $completedAt, ')
@@ -2470,7 +2576,7 @@ class $AudioContentsTable extends AudioContents
   late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
     'created_at',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
@@ -2482,7 +2588,7 @@ class $AudioContentsTable extends AudioContents
   late final GeneratedColumn<int> lastPositionMs = GeneratedColumn<int>(
     'last_position_ms',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
@@ -2494,7 +2600,7 @@ class $AudioContentsTable extends AudioContents
   late final GeneratedColumn<bool> isCompleted = GeneratedColumn<bool>(
     'is_completed',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.bool,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
@@ -2531,7 +2637,7 @@ class $AudioContentsTable extends AudioContents
   late final GeneratedColumn<int> playCount = GeneratedColumn<int>(
     'play_count',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
@@ -2697,15 +2803,15 @@ class $AudioContentsTable extends AudioContents
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
-      ),
+      )!,
       lastPositionMs: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}last_position_ms'],
-      ),
+      )!,
       isCompleted: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_completed'],
-      ),
+      )!,
       lastPlayedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_played_at'],
@@ -2717,7 +2823,7 @@ class $AudioContentsTable extends AudioContents
       playCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}play_count'],
-      ),
+      )!,
     );
   }
 
@@ -2735,12 +2841,12 @@ class AudioContentData extends DataClass
   final String audioPath;
   final int durationSeconds;
   final DateTime targetDate;
-  final DateTime? createdAt;
-  final int? lastPositionMs;
-  final bool? isCompleted;
+  final DateTime createdAt;
+  final int lastPositionMs;
+  final bool isCompleted;
   final DateTime? lastPlayedAt;
   final DateTime? completedAt;
-  final int? playCount;
+  final int playCount;
   const AudioContentData({
     required this.id,
     required this.title,
@@ -2748,12 +2854,12 @@ class AudioContentData extends DataClass
     required this.audioPath,
     required this.durationSeconds,
     required this.targetDate,
-    this.createdAt,
-    this.lastPositionMs,
-    this.isCompleted,
+    required this.createdAt,
+    required this.lastPositionMs,
+    required this.isCompleted,
     this.lastPlayedAt,
     this.completedAt,
-    this.playCount,
+    required this.playCount,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2764,24 +2870,16 @@ class AudioContentData extends DataClass
     map['audio_path'] = Variable<String>(audioPath);
     map['duration_seconds'] = Variable<int>(durationSeconds);
     map['target_date'] = Variable<DateTime>(targetDate);
-    if (!nullToAbsent || createdAt != null) {
-      map['created_at'] = Variable<DateTime>(createdAt);
-    }
-    if (!nullToAbsent || lastPositionMs != null) {
-      map['last_position_ms'] = Variable<int>(lastPositionMs);
-    }
-    if (!nullToAbsent || isCompleted != null) {
-      map['is_completed'] = Variable<bool>(isCompleted);
-    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['last_position_ms'] = Variable<int>(lastPositionMs);
+    map['is_completed'] = Variable<bool>(isCompleted);
     if (!nullToAbsent || lastPlayedAt != null) {
       map['last_played_at'] = Variable<DateTime>(lastPlayedAt);
     }
     if (!nullToAbsent || completedAt != null) {
       map['completed_at'] = Variable<DateTime>(completedAt);
     }
-    if (!nullToAbsent || playCount != null) {
-      map['play_count'] = Variable<int>(playCount);
-    }
+    map['play_count'] = Variable<int>(playCount);
     return map;
   }
 
@@ -2793,24 +2891,16 @@ class AudioContentData extends DataClass
       audioPath: Value(audioPath),
       durationSeconds: Value(durationSeconds),
       targetDate: Value(targetDate),
-      createdAt: createdAt == null && nullToAbsent
-          ? const Value.absent()
-          : Value(createdAt),
-      lastPositionMs: lastPositionMs == null && nullToAbsent
-          ? const Value.absent()
-          : Value(lastPositionMs),
-      isCompleted: isCompleted == null && nullToAbsent
-          ? const Value.absent()
-          : Value(isCompleted),
+      createdAt: Value(createdAt),
+      lastPositionMs: Value(lastPositionMs),
+      isCompleted: Value(isCompleted),
       lastPlayedAt: lastPlayedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastPlayedAt),
       completedAt: completedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(completedAt),
-      playCount: playCount == null && nullToAbsent
-          ? const Value.absent()
-          : Value(playCount),
+      playCount: Value(playCount),
     );
   }
 
@@ -2826,12 +2916,12 @@ class AudioContentData extends DataClass
       audioPath: serializer.fromJson<String>(json['audioPath']),
       durationSeconds: serializer.fromJson<int>(json['durationSeconds']),
       targetDate: serializer.fromJson<DateTime>(json['targetDate']),
-      createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
-      lastPositionMs: serializer.fromJson<int?>(json['lastPositionMs']),
-      isCompleted: serializer.fromJson<bool?>(json['isCompleted']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      lastPositionMs: serializer.fromJson<int>(json['lastPositionMs']),
+      isCompleted: serializer.fromJson<bool>(json['isCompleted']),
       lastPlayedAt: serializer.fromJson<DateTime?>(json['lastPlayedAt']),
       completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
-      playCount: serializer.fromJson<int?>(json['playCount']),
+      playCount: serializer.fromJson<int>(json['playCount']),
     );
   }
   @override
@@ -2844,12 +2934,12 @@ class AudioContentData extends DataClass
       'audioPath': serializer.toJson<String>(audioPath),
       'durationSeconds': serializer.toJson<int>(durationSeconds),
       'targetDate': serializer.toJson<DateTime>(targetDate),
-      'createdAt': serializer.toJson<DateTime?>(createdAt),
-      'lastPositionMs': serializer.toJson<int?>(lastPositionMs),
-      'isCompleted': serializer.toJson<bool?>(isCompleted),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'lastPositionMs': serializer.toJson<int>(lastPositionMs),
+      'isCompleted': serializer.toJson<bool>(isCompleted),
       'lastPlayedAt': serializer.toJson<DateTime?>(lastPlayedAt),
       'completedAt': serializer.toJson<DateTime?>(completedAt),
-      'playCount': serializer.toJson<int?>(playCount),
+      'playCount': serializer.toJson<int>(playCount),
     };
   }
 
@@ -2860,12 +2950,12 @@ class AudioContentData extends DataClass
     String? audioPath,
     int? durationSeconds,
     DateTime? targetDate,
-    Value<DateTime?> createdAt = const Value.absent(),
-    Value<int?> lastPositionMs = const Value.absent(),
-    Value<bool?> isCompleted = const Value.absent(),
+    DateTime? createdAt,
+    int? lastPositionMs,
+    bool? isCompleted,
     Value<DateTime?> lastPlayedAt = const Value.absent(),
     Value<DateTime?> completedAt = const Value.absent(),
-    Value<int?> playCount = const Value.absent(),
+    int? playCount,
   }) => AudioContentData(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -2873,14 +2963,12 @@ class AudioContentData extends DataClass
     audioPath: audioPath ?? this.audioPath,
     durationSeconds: durationSeconds ?? this.durationSeconds,
     targetDate: targetDate ?? this.targetDate,
-    createdAt: createdAt.present ? createdAt.value : this.createdAt,
-    lastPositionMs: lastPositionMs.present
-        ? lastPositionMs.value
-        : this.lastPositionMs,
-    isCompleted: isCompleted.present ? isCompleted.value : this.isCompleted,
+    createdAt: createdAt ?? this.createdAt,
+    lastPositionMs: lastPositionMs ?? this.lastPositionMs,
+    isCompleted: isCompleted ?? this.isCompleted,
     lastPlayedAt: lastPlayedAt.present ? lastPlayedAt.value : this.lastPlayedAt,
     completedAt: completedAt.present ? completedAt.value : this.completedAt,
-    playCount: playCount.present ? playCount.value : this.playCount,
+    playCount: playCount ?? this.playCount,
   );
   AudioContentData copyWithCompanion(AudioContentsCompanion data) {
     return AudioContentData(
@@ -2970,12 +3058,12 @@ class AudioContentsCompanion extends UpdateCompanion<AudioContentData> {
   final Value<String> audioPath;
   final Value<int> durationSeconds;
   final Value<DateTime> targetDate;
-  final Value<DateTime?> createdAt;
-  final Value<int?> lastPositionMs;
-  final Value<bool?> isCompleted;
+  final Value<DateTime> createdAt;
+  final Value<int> lastPositionMs;
+  final Value<bool> isCompleted;
   final Value<DateTime?> lastPlayedAt;
   final Value<DateTime?> completedAt;
-  final Value<int?> playCount;
+  final Value<int> playCount;
   const AudioContentsCompanion({
     this.id = const Value.absent(),
     this.title = const Value.absent(),
@@ -3045,12 +3133,12 @@ class AudioContentsCompanion extends UpdateCompanion<AudioContentData> {
     Value<String>? audioPath,
     Value<int>? durationSeconds,
     Value<DateTime>? targetDate,
-    Value<DateTime?>? createdAt,
-    Value<int?>? lastPositionMs,
-    Value<bool?>? isCompleted,
+    Value<DateTime>? createdAt,
+    Value<int>? lastPositionMs,
+    Value<bool>? isCompleted,
     Value<DateTime?>? lastPlayedAt,
     Value<DateTime?>? completedAt,
-    Value<int?>? playCount,
+    Value<int>? playCount,
   }) {
     return AudioContentsCompanion(
       id: id ?? this.id,
@@ -3604,6 +3692,7 @@ typedef $$ScheduleTableCreateCompanionBuilder =
       required String colorId,
       required String repeatRule,
       required String alertSetting,
+      Value<bool> isAllDay,
       Value<DateTime> createdAt,
       required String status,
       required String visibility,
@@ -3619,6 +3708,7 @@ typedef $$ScheduleTableUpdateCompanionBuilder =
       Value<String> colorId,
       Value<String> repeatRule,
       Value<String> alertSetting,
+      Value<bool> isAllDay,
       Value<DateTime> createdAt,
       Value<String> status,
       Value<String> visibility,
@@ -3675,6 +3765,11 @@ class $$ScheduleTableFilterComposer
 
   ColumnFilters<String> get alertSetting => $composableBuilder(
     column: $table.alertSetting,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isAllDay => $composableBuilder(
+    column: $table.isAllDay,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3748,6 +3843,11 @@ class $$ScheduleTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isAllDay => $composableBuilder(
+    column: $table.isAllDay,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -3806,6 +3906,9 @@ class $$ScheduleTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get isAllDay =>
+      $composableBuilder(column: $table.isAllDay, builder: (column) => column);
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -3858,6 +3961,7 @@ class $$ScheduleTableTableManager
                 Value<String> colorId = const Value.absent(),
                 Value<String> repeatRule = const Value.absent(),
                 Value<String> alertSetting = const Value.absent(),
+                Value<bool> isAllDay = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String> visibility = const Value.absent(),
@@ -3871,6 +3975,7 @@ class $$ScheduleTableTableManager
                 colorId: colorId,
                 repeatRule: repeatRule,
                 alertSetting: alertSetting,
+                isAllDay: isAllDay,
                 createdAt: createdAt,
                 status: status,
                 visibility: visibility,
@@ -3886,6 +3991,7 @@ class $$ScheduleTableTableManager
                 required String colorId,
                 required String repeatRule,
                 required String alertSetting,
+                Value<bool> isAllDay = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 required String status,
                 required String visibility,
@@ -3899,6 +4005,7 @@ class $$ScheduleTableTableManager
                 colorId: colorId,
                 repeatRule: repeatRule,
                 alertSetting: alertSetting,
+                isAllDay: isAllDay,
                 createdAt: createdAt,
                 status: status,
                 visibility: visibility,
@@ -3934,6 +4041,7 @@ typedef $$TaskTableCreateCompanionBuilder =
       required String title,
       Value<bool> completed,
       Value<DateTime?> dueDate,
+      Value<DateTime?> executionDate,
       Value<String> listId,
       required DateTime createdAt,
       Value<DateTime?> completedAt,
@@ -3947,6 +4055,7 @@ typedef $$TaskTableUpdateCompanionBuilder =
       Value<String> title,
       Value<bool> completed,
       Value<DateTime?> dueDate,
+      Value<DateTime?> executionDate,
       Value<String> listId,
       Value<DateTime> createdAt,
       Value<DateTime?> completedAt,
@@ -3980,6 +4089,11 @@ class $$TaskTableFilterComposer extends Composer<_$AppDatabase, $TaskTable> {
 
   ColumnFilters<DateTime> get dueDate => $composableBuilder(
     column: $table.dueDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get executionDate => $composableBuilder(
+    column: $table.executionDate,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4042,6 +4156,11 @@ class $$TaskTableOrderingComposer extends Composer<_$AppDatabase, $TaskTable> {
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get executionDate => $composableBuilder(
+    column: $table.executionDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get listId => $composableBuilder(
     column: $table.listId,
     builder: (column) => ColumnOrderings(column),
@@ -4093,6 +4212,11 @@ class $$TaskTableAnnotationComposer
 
   GeneratedColumn<DateTime> get dueDate =>
       $composableBuilder(column: $table.dueDate, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get executionDate => $composableBuilder(
+    column: $table.executionDate,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get listId =>
       $composableBuilder(column: $table.listId, builder: (column) => column);
@@ -4149,6 +4273,7 @@ class $$TaskTableTableManager
                 Value<String> title = const Value.absent(),
                 Value<bool> completed = const Value.absent(),
                 Value<DateTime?> dueDate = const Value.absent(),
+                Value<DateTime?> executionDate = const Value.absent(),
                 Value<String> listId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime?> completedAt = const Value.absent(),
@@ -4160,6 +4285,7 @@ class $$TaskTableTableManager
                 title: title,
                 completed: completed,
                 dueDate: dueDate,
+                executionDate: executionDate,
                 listId: listId,
                 createdAt: createdAt,
                 completedAt: completedAt,
@@ -4173,6 +4299,7 @@ class $$TaskTableTableManager
                 required String title,
                 Value<bool> completed = const Value.absent(),
                 Value<DateTime?> dueDate = const Value.absent(),
+                Value<DateTime?> executionDate = const Value.absent(),
                 Value<String> listId = const Value.absent(),
                 required DateTime createdAt,
                 Value<DateTime?> completedAt = const Value.absent(),
@@ -4184,6 +4311,7 @@ class $$TaskTableTableManager
                 title: title,
                 completed: completed,
                 dueDate: dueDate,
+                executionDate: executionDate,
                 listId: listId,
                 createdAt: createdAt,
                 completedAt: completedAt,
@@ -4835,12 +4963,12 @@ typedef $$AudioContentsTableCreateCompanionBuilder =
       required String audioPath,
       required int durationSeconds,
       required DateTime targetDate,
-      Value<DateTime?> createdAt,
-      Value<int?> lastPositionMs,
-      Value<bool?> isCompleted,
+      Value<DateTime> createdAt,
+      Value<int> lastPositionMs,
+      Value<bool> isCompleted,
       Value<DateTime?> lastPlayedAt,
       Value<DateTime?> completedAt,
-      Value<int?> playCount,
+      Value<int> playCount,
     });
 typedef $$AudioContentsTableUpdateCompanionBuilder =
     AudioContentsCompanion Function({
@@ -4850,12 +4978,12 @@ typedef $$AudioContentsTableUpdateCompanionBuilder =
       Value<String> audioPath,
       Value<int> durationSeconds,
       Value<DateTime> targetDate,
-      Value<DateTime?> createdAt,
-      Value<int?> lastPositionMs,
-      Value<bool?> isCompleted,
+      Value<DateTime> createdAt,
+      Value<int> lastPositionMs,
+      Value<bool> isCompleted,
       Value<DateTime?> lastPlayedAt,
       Value<DateTime?> completedAt,
-      Value<int?> playCount,
+      Value<int> playCount,
     });
 
 final class $$AudioContentsTableReferences
@@ -5173,12 +5301,12 @@ class $$AudioContentsTableTableManager
                 Value<String> audioPath = const Value.absent(),
                 Value<int> durationSeconds = const Value.absent(),
                 Value<DateTime> targetDate = const Value.absent(),
-                Value<DateTime?> createdAt = const Value.absent(),
-                Value<int?> lastPositionMs = const Value.absent(),
-                Value<bool?> isCompleted = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> lastPositionMs = const Value.absent(),
+                Value<bool> isCompleted = const Value.absent(),
                 Value<DateTime?> lastPlayedAt = const Value.absent(),
                 Value<DateTime?> completedAt = const Value.absent(),
-                Value<int?> playCount = const Value.absent(),
+                Value<int> playCount = const Value.absent(),
               }) => AudioContentsCompanion(
                 id: id,
                 title: title,
@@ -5201,12 +5329,12 @@ class $$AudioContentsTableTableManager
                 required String audioPath,
                 required int durationSeconds,
                 required DateTime targetDate,
-                Value<DateTime?> createdAt = const Value.absent(),
-                Value<int?> lastPositionMs = const Value.absent(),
-                Value<bool?> isCompleted = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> lastPositionMs = const Value.absent(),
+                Value<bool> isCompleted = const Value.absent(),
                 Value<DateTime?> lastPlayedAt = const Value.absent(),
                 Value<DateTime?> completedAt = const Value.absent(),
-                Value<int?> playCount = const Value.absent(),
+                Value<int> playCount = const Value.absent(),
               }) => AudioContentsCompanion.insert(
                 id: id,
                 title: title,

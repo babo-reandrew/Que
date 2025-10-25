@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart'; // ✅ SVG 아이콘 사용
 import '../../const/quick_add_config.dart';
 
 /// Quick_Add 하단 타입 선택 위젯 (일정/할일/습관)
@@ -18,14 +19,12 @@ class QuickAddTypeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 이거를 설정하고 → Frame 704 (Figma: 212×52px, radius 34px)
-    // 이거를 해서 → 3개의 아이콘을 수평으로 배치한다
-    // 이거는 이래서 → 사용자가 쉽게 타입을 선택할 수 있다
+    // ✅ Figma: QuickAdd_ActionType (212×52px, radius 34px)
     return Container(
       width: 212, // Figma: Frame 704 width
       height: 52, // Figma: Frame 704 height
       decoration: BoxDecoration(
-        color: QuickAddConfig.controlBoxBackground, // Figma: #FFFFFF
+        color: const Color(0xFFFFFFFF), // Figma: #FFFFFF
         border: Border.all(
           color: const Color(
             0xFF111111,
@@ -42,19 +41,19 @@ class QuickAddTypeSelector extends StatelessWidget {
           ),
         ],
       ),
-      // Figma: padding 2px 20px
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+      // Figma: padding 2px 20px, gap 8px
+      padding: const EdgeInsets.fromLTRB(20, 2, 20, 2),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween, // Figma: gap 8px
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // 1️⃣ 일정 아이콘 (Frame 654)
           _TypeIconButton(
-            icon: Icons.calendar_today_outlined,
+            svgPath: 'asset/icon/Schedule_icon.svg',
             isSelected: selectedType == QuickAddType.schedule,
             onTap: () {
               if (selectedType == QuickAddType.schedule) {
                 print('📅 [타입 선택] 일정 다시 터치 → 기본 상태로 복귀');
-                onTypeSelected(QuickAddType.schedule); // 부모에서 null 처리하도록 신호
+                onTypeSelected(QuickAddType.schedule);
               } else {
                 print('📅 [타입 선택] 일정 선택됨');
                 onTypeSelected(QuickAddType.schedule);
@@ -64,7 +63,7 @@ class QuickAddTypeSelector extends StatelessWidget {
 
           // 2️⃣ 할일 아이콘 (Frame 655)
           _TypeIconButton(
-            icon: Icons.check_box_outline_blank,
+            svgPath: 'asset/icon/Task_icon.svg',
             isSelected: selectedType == QuickAddType.task,
             onTap: () {
               if (selectedType == QuickAddType.task) {
@@ -79,7 +78,7 @@ class QuickAddTypeSelector extends StatelessWidget {
 
           // 3️⃣ 습관 아이콘 (Frame 656)
           _TypeIconButton(
-            icon: Icons.repeat,
+            svgPath: 'asset/icon/routine_icon.svg',
             isSelected: selectedType == QuickAddType.habit,
             onTap: () {
               if (selectedType == QuickAddType.habit) {
@@ -98,41 +97,44 @@ class QuickAddTypeSelector extends StatelessWidget {
 }
 
 /// 개별 타입 아이콘 버튼 위젯
-/// 이거를 설정하고 → 52×48px 크기의 아이콘 버튼을 만들어서
-/// 이거를 해서 → 선택 상태에 따라 시각적 피드백을 제공한다
+/// ✅ Figma: Frame 654/655/656 (52×48px, padding 12px 14px)
 class _TypeIconButton extends StatelessWidget {
-  final IconData icon;
+  final String svgPath;
   final bool isSelected;
   final VoidCallback onTap;
 
   const _TypeIconButton({
-    required this.icon,
+    required this.svgPath,
     required this.isSelected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    // 이거를 설정하고 → 52×48px 터치 영역을 설정해서
-    // 이거를 해서 → 아이콘을 중앙에 배치한다
+    // ✅ Figma: 52×48px 터치 영역, padding 12px 14px
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 52, // Figma: Frame 654/655/656 width
         height: 48, // Figma: Frame 654/655/656 height
-        // Figma: padding 12px 14px
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(
-          icon,
-          size: 24, // Figma: icon 크기 24×24px
-          // ✅ 선택 시 검은색, 미선택 시 회색
-          color: isSelected
-              ? const Color(0xFF3B3B3B) // 선택: 검은색 #3B3B3B
-              : const Color(0xFFBABABA).withOpacity(0.54), // 미선택: 회색
+        child: SvgPicture.asset(
+          svgPath,
+          width: 24, // Figma: icon 크기 24×24px
+          height: 24,
+          // ✅ SVG 색상 변경: 선택 시 검은색, 미선택 시 회색
+          colorFilter: ColorFilter.mode(
+            isSelected
+                ? const Color(0xFF262626) // 선택: #262626 (SVG 원본 색상과 동일)
+                : const Color(
+                    0xFFBABABA,
+                  ).withOpacity(0.54), // 미선택: rgba(186,186,186,0.54)
+            BlendMode.srcIn,
+          ),
         ),
       ),
     );

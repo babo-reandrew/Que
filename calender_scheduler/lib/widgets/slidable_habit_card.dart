@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // 햅틱 피드백용
 import 'package:flutter_slidable/flutter_slidable.dart';
+import '../component/modal/delete_confirmation_modal.dart'; // 🗑️ 삭제 확인 모달 추가
+import '../component/modal/delete_repeat_confirmation_modal.dart'; // 🔄 반복 삭제 확인 모달 추가
 
 /// 애플 네이티브 스타일의 재사용 가능한 Slidable 습관 카드 컴포넌트
 ///
@@ -21,6 +23,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 class SlidableHabitCard extends StatelessWidget {
   final Widget child; // 실제 습관 카드 위젯
   final int habitId; // 습관 ID
+  final String? repeatRule; // 🔄 반복 규칙 (JSON 문자열) - 습관은 대부분 반복 있음
   final Future<void> Function() onComplete; // 완료 처리 콜백
   final Future<void> Function() onDelete; // 삭제 처리 콜백
   final VoidCallback? onTap; // 탭 이벤트 콜백 (선택사항)
@@ -37,6 +40,7 @@ class SlidableHabitCard extends StatelessWidget {
     Key? key,
     required this.child,
     required this.habitId,
+    this.repeatRule, // 🔄 반복 규칙 추가
     required this.onComplete,
     required this.onDelete,
     this.onTap,
@@ -139,51 +143,69 @@ class SlidableHabitCard extends StatelessWidget {
           dismissalDuration: const Duration(milliseconds: 300),
           resizeDuration: const Duration(milliseconds: 300),
 
-          // ✅ confirmDismiss: 삭제 확인 다이얼로그 (선택사항)
+          // ✅ confirmDismiss: Figma 삭제 확인 모달 (선택사항)
           // 이유: 습관은 중요한 데이터이므로 기본적으로 확인 다이얼로그 표시
           confirmDismiss: showConfirmDialog
               ? () async {
-                  final result = await showDialog<bool>(
-                    context: context,
-                    builder: (dialogContext) {
-                      return AlertDialog(
-                        title: const Text('習慣削除'),
-                        content: const Text('この習慣を削除しますか？'),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(dialogContext).pop(false);
-                            },
-                            child: const Text('キャンセル'),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(dialogContext).pop(true);
-                            },
-                            child: const Text(
-                              '削除',
-                              style: TextStyle(color: Color(0xFFFF3B30)),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                  return result ?? false;
+                  bool confirmed = false;
+                  
+                  // 🔄 반복 규칙이 있으면 반복 삭제 모달, 없으면 일반 삭제 모달
+                  // 습관은 대부분 반복이 있지만 명시적으로 체크
+                  bool hasRepeat = repeatRule != null && 
+                                   repeatRule!.isNotEmpty && 
+                                   repeatRule != '{}' && 
+                                   repeatRule != '[]';
+                  
+                  if (hasRepeat) {
+                    await showDeleteRepeatConfirmationModal(
+                      context,
+                      onDeleteThis: () async {
+                        confirmed = true;
+                        await HapticFeedback.heavyImpact();
+                        print(
+                          '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 이 습관만 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                        );
+                        await onDelete();
+                      },
+                      onDeleteFuture: () async {
+                        confirmed = true;
+                        await HapticFeedback.heavyImpact();
+                        print(
+                          '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 이후 습관 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                        );
+                        // TODO: DB에 이후 삭제 함수 추가 필요
+                        await onDelete();
+                      },
+                      onDeleteAll: () async {
+                        confirmed = true;
+                        await HapticFeedback.heavyImpact();
+                        print(
+                          '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 전체 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                        );
+                        await onDelete();
+                      },
+                    );
+                  } else {
+                    await showDeleteConfirmationModal(
+                      context,
+                      onDelete: () async {
+                        confirmed = true;
+                        await HapticFeedback.heavyImpact();
+                        print(
+                          '🗑️ [SlidableHabit] 습관 ID=$habitId 삭제 스와이프 확인됨 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                        );
+                        await onDelete();
+                      },
+                    );
+                  }
+                  return confirmed;
                 }
               : null,
 
-          onDismissed: () async {
-            // 1. 햅틱 피드백 (강한 진동 - 삭제는 중요한 액션)
-            await HapticFeedback.heavyImpact();
+          onDismissed: () {
+            // confirmDismiss에서 이미 삭제 처리됨
             print(
-              '🗑️ [SlidableHabit] 습관 ID=$habitId 삭제 스와이프 감지 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-            );
-
-            // 2. 삭제 액션 실행
-            await onDelete();
-            print(
-              '🗑️ [SlidableHabit] 습관 ID=$habitId 삭제 처리 완료 - DB 업데이트 및 이벤트 로그 기록됨',
+              '🗑️ [SlidableHabit] 습관 ID=$habitId 삭제 스와이프 완료 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
             );
           },
         ),
@@ -191,42 +213,50 @@ class SlidableHabitCard extends StatelessWidget {
         children: [
           SlidableAction(
             onPressed: (context) async {
-              // 삭제 버튼 클릭 시 confirmDismiss 확인
+              // 삭제 버튼 클릭 시 Figma 모달 표시
               if (showConfirmDialog) {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (dialogContext) {
-                    return AlertDialog(
-                      title: const Text('習慣削除'),
-                      content: const Text('この習慣を削除しますか？'),
-                      actions: [
-                        TextButton(
-                          onPressed: () =>
-                              Navigator.of(dialogContext).pop(false),
-                          child: const Text('キャンセル'),
-                        ),
-                        TextButton(
-                          onPressed: () =>
-                              Navigator.of(dialogContext).pop(true),
-                          child: const Text(
-                            '削除',
-                            style: TextStyle(color: Color(0xFFFF3B30)),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                );
-
-                if (confirmed == true) {
-                  await HapticFeedback.mediumImpact();
-                  print(
-                    '🗑️ [SlidableHabit] 습관 ID=$habitId 삭제 버튼 클릭 (확인됨) - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                // 🔄 반복 규칙이 있으면 반복 삭제 모달, 없으면 일반 삭제 모달
+                bool hasRepeat = repeatRule != null && 
+                                 repeatRule!.isNotEmpty && 
+                                 repeatRule != '{}' && 
+                                 repeatRule != '[]';
+                
+                if (hasRepeat) {
+                  await showDeleteRepeatConfirmationModal(
+                    context,
+                    onDeleteThis: () async {
+                      await HapticFeedback.mediumImpact();
+                      print(
+                        '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 이 습관만 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                      );
+                      await onDelete();
+                    },
+                    onDeleteFuture: () async {
+                      await HapticFeedback.mediumImpact();
+                      print(
+                        '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 이후 습관 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                      );
+                      // TODO: DB에 이후 삭제 함수 추가 필요
+                      await onDelete();
+                    },
+                    onDeleteAll: () async {
+                      await HapticFeedback.mediumImpact();
+                      print(
+                        '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 전체 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                      );
+                      await onDelete();
+                    },
                   );
-                  await onDelete();
                 } else {
-                  print(
-                    '❌ [SlidableHabit] 습관 ID=$habitId 삭제 취소됨 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                  await showDeleteConfirmationModal(
+                    context,
+                    onDelete: () async {
+                      await HapticFeedback.mediumImpact();
+                      print(
+                        '🗑️ [SlidableHabit] 습관 ID=$habitId 삭제 확인됨 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                      );
+                      await onDelete();
+                    },
                   );
                 }
               } else {

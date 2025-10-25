@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'dart:ui'; // ✅ ImageFilter for backdrop blur
 import 'package:provider/provider.dart';
 import '../const/color.dart';
 import '../const/quick_add_config.dart';
@@ -9,6 +10,7 @@ import '../utils/validators/event_validators.dart';
 import '../utils/validators/entity_validators.dart'; // ✅ Task/Habit 검증 추가
 import '../utils/color_utils.dart';
 import '../utils/temp_input_cache.dart'; // ✅ 캐시 저장 추가
+import '../utils/input_accessory_manager.dart'; // 🔥 QuickAddKeyboardTracker
 import '../Database/schedule_database.dart';
 import 'package:get_it/get_it.dart';
 import 'quick_add/quick_add_control_box.dart';
@@ -16,7 +18,6 @@ import 'package:drift/drift.dart' hide Column;
 import '../providers/bottom_sheet_controller.dart';
 import '../design_system/wolt_typography.dart'; // ✅ WoltTypography 사용
 import '../design_system/wolt_helpers.dart'; // ✅ Wolt helper functions
-import 'package:keyboard_attachable/keyboard_attachable.dart';
 
 /// CreateEntryBottomSheet - Quick_Add 시스템 통합 버전
 /// 이거를 설정하고 → 기존 기능을 모두 보존하면서 새 컴포넌트를 조합해서
@@ -49,6 +50,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
   bool _useQuickAdd = true; // ✅ Quick Add 모드 활성화! (피그마 디자인 적용)
   final TextEditingController _quickAddController = TextEditingController();
   QuickAddType? _selectedQuickAddType; // ✅ 외부에서 관리하는 타입 상태
+  bool _isKeyboardLocked = false; // 🔥 키보드 고정 상태
 
   // ========================================
   // ✅ 습관 입력 전용 상태 변수 (새로 추가)
@@ -56,26 +58,17 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
   final TextEditingController _habitTitleController =
       TextEditingController(); // 습관 제목 입력 컨트롤러
 
-  double _savedKeyboardHeight = 0.0; // 키보드 내려가도 높이 유지
-
   @override
   void initState() {
     super.initState();
-    print('🎬 [CreateEntry] 바텀시트 초기화 완료');
-  }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // ✅ 키보드 높이 저장 (build 중이 아닌 여기서!)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-      if (keyboardHeight > 0 && _savedKeyboardHeight != keyboardHeight) {
-        setState(() {
-          _savedKeyboardHeight = keyboardHeight;
-        });
-      }
-    });
+    // 🔥 키보드 락 초기화 (매번 바텀시트 열 때 false로 시작!)
+    _isKeyboardLocked = false;
+
+    // 🔥 타입 선택기 초기화 (매번 바텀시트 열 때 null로 시작!)
+    _selectedQuickAddType = null;
+
+    print('🎬 [CreateEntry] 바텀시트 초기화 완료');
   }
 
   @override
@@ -88,6 +81,19 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
       // 이거라면 → 입력된 텍스트가 있으면 캐시에 저장한다
       TempInputCache.saveTempInput(tempText);
       print('💾 [CreateEntry] dispose 시 캐시 저장: "$tempText"');
+    }
+
+    if (_useQuickAdd) {
+      try {
+        final controller = context.read<BottomSheetController>();
+        final selectedColorId = controller.selectedColor;
+        if (selectedColorId.isNotEmpty) {
+          TempInputCache.saveTempColor(selectedColorId);
+          debugPrint('💾 [CreateEntry] dispose 시 색상 캐시 저장: "$selectedColorId"');
+        }
+      } catch (e) {
+        debugPrint('⚠️ [CreateEntry] dispose 색상 캐시 저장 실패: $e');
+      }
     }
 
     _quickAddController.dispose();
@@ -554,66 +560,105 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
 
   @override
   Widget build(BuildContext context) {
-    // ✅ 키보드 높이 감지
-    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final hasKeyboard = keyboardHeight > 0;
-
-    print('⌨️ [키보드] 높이: ${keyboardHeight}px, 화면: ${screenHeight}px');
     print('🎯 [CreateEntryBottomSheet] _useQuickAdd: $_useQuickAdd');
-    print('🎯 [CreateEntryBottomSheet] hasKeyboard: $hasKeyboard');
+    print('🔒 [CreateEntryBottomSheet] _isKeyboardLocked: $_isKeyboardLocked');
 
-    // ✅ Quick Add 모드일 때 keyboard_attachable로 정확히 고정!
+    // ✅✅✅ ULTRATHINK: Quick Add 모드
     if (_useQuickAdd) {
-      print(
-        '✅ [CreateEntryBottomSheet] Quick Add 모드 진입! (keyboard_attachable)',
-      );
+      print('✅ [CreateEntryBottomSheet] Quick Add 모드');
 
       return Scaffold(
         backgroundColor: Colors.transparent,
-        resizeToAvoidBottomInset: false, // keyboard_attachable 필수!
-        body: SafeArea(
-          top: false,
-          bottom: false,
-          child: FooterLayout(
-            child: const SizedBox.shrink(),
-            footer: KeyboardAttachable(
-              backgroundColor: Colors.transparent,
-              child: Builder(
-                builder: (context) {
-                  final currentKeyboardHeight = MediaQuery.of(
-                    context,
-                  ).viewInsets.bottom;
-                  final bottomSafeArea = MediaQuery.of(context).padding.bottom;
-
-                  // ✅ 키보드 내려갔을 때 추가 패딩 (저장된 높이 사용)
-                  final extraBottomPadding =
-                      (currentKeyboardHeight == 0 && _savedKeyboardHeight > 0)
-                      ? _savedKeyboardHeight
-                      : 0.0;
-
-                  print(
-                    '⌨️ [KeyboardAttachable] current=$currentKeyboardHeight, saved=$_savedKeyboardHeight, extra=$extraBottomPadding',
-                  );
-
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    curve: Curves.easeOutCubic,
-                    padding: EdgeInsets.only(
-                      left: 14,
-                      right: 14,
-                      top: 6,
-                      bottom: 6 + bottomSafeArea + extraBottomPadding,
-                    ),
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: _buildQuickAddUI(),
-                    ),
-                  );
+        resizeToAvoidBottomInset: false, // ✅ Scaffold 자동 리사이즈 차단
+        body: Stack(
+          children: [
+            // 🎨 상단 투명 영역 - 터치 시 바텀시트 닫기
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.of(context).pop();
                 },
+                child: Container(
+                  color: Colors.transparent, // ✅ 배경 완전 투명
+                ),
               ),
             ),
-          ),
+            // 🎨 배경 블러 박스 (하단부터 인풋악세사리 상단까지 전체 채움)
+            QuickAddKeyboardTracker(
+              isLocked: _isKeyboardLocked,
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color.fromRGBO(
+                      250,
+                      250,
+                      250,
+                      0.95,
+                    ), // FAFAFA 95%
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24), // 상단만 둥글게
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+                      child: Container(color: Colors.transparent),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // 🔥 전체 입력박스 - 추가 버튼 누르면 상단 위치 고정!
+            // 이거를 설정하고 → QuickAddKeyboardTracker가 Positioned로 절대 위치 관리해서
+            // 이거를 해서 → 고정 시: 박스 상단이 화면 상단에서 고정 위치 유지
+            // 이거는 이래서 → 키보드 내려가도 박스는 그 자리, 타입선택기는 박스 안에서 확장!
+            QuickAddKeyboardTracker(
+              isLocked: _isKeyboardLocked, // 🔥 고정 상태 전달
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 8.0), // ✅ 키보드와 8px 여백
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                    ), // ✅ 좌우만 20px
+                    child: QuickAddControlBox(
+                      selectedDate: widget.selectedDate,
+                      onSave: _handleQuickAddSave,
+                      externalSelectedType: _selectedQuickAddType,
+                      onTypeChanged: (type) {
+                        setState(() {
+                          _selectedQuickAddType = type;
+                        });
+                        print('📋 [타입 변경] $type');
+                      },
+                      onAddButtonPressed: () {
+                        // 🔥 추가 버튼 클릭 시 키보드 고정!
+                        setState(() {
+                          _isKeyboardLocked = true;
+                        });
+                        debugPrint(
+                          '🔒 [CreateEntry] 키보드 고정! isLocked: $_isKeyboardLocked',
+                        );
+                      },
+                      onInputFocused: () {
+                        // 🔥 입력 포커스 시 키보드 락 해제!
+                        setState(() {
+                          _isKeyboardLocked = false;
+                        });
+                        debugPrint(
+                          '🔓 [CreateEntry] 키보드 락 해제! isLocked: $_isKeyboardLocked',
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -625,35 +670,6 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         padding: const EdgeInsets.all(8.0),
         child: SizedBox(height: 500, child: _buildLegacyFormMode()),
       ),
-    );
-  }
-
-  /// ✅ Quick Add UI (통합 버전 - 단순화)
-  /// 이거를 설정하고 → QuickAddControlBox 하나만 사용해서 (Frame 704는 내부에 포함)
-  /// 이거를 해서 → Figma 디자인처럼 타입 선택기가 입력 박스 우측 하단에 겹쳐 표시된다
-  Widget _buildQuickAddUI() {
-    print('🎨 [_buildQuickAddUI] 호출됨! selectedType: $_selectedQuickAddType');
-
-    // ✅ 습관 타입이 선택되었을 때는 완전히 다른 UI 표시
-    if (_selectedQuickAddType == QuickAddType.habit) {
-      print('🎨 [_buildQuickAddUI] 습관 모드');
-      return _buildHabitInputMode();
-    }
-
-    print('🎨 [_buildQuickAddUI] QuickAddControlBox 렌더링!');
-    // ✅ Figma: Quick_Add_ControlBox
-    // Frame 701 (입력 박스) + Frame 704 (타입 선택기)가 하나의 위젯으로 통합
-    return QuickAddControlBox(
-      key: ValueKey(_selectedQuickAddType),
-      selectedDate: widget.selectedDate,
-      onSave: _handleQuickAddSave,
-      externalSelectedType: _selectedQuickAddType,
-      onTypeChanged: (type) {
-        setState(() {
-          _selectedQuickAddType = type;
-        });
-        print('📋 [타입 변경] $type');
-      },
     );
   }
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // 햅틱 피드백용
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'modal/delete_confirmation_modal.dart'; // 🗑️ 삭제 확인 모달 추가
+import 'modal/delete_repeat_confirmation_modal.dart'; // 🔄 반복 삭제 확인 모달 추가
 
 /// 애플 네이티브 스타일의 재사용 가능한 Slidable 일정 카드 컴포넌트
 ///
@@ -21,6 +23,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 class SlidableScheduleCard extends StatelessWidget {
   final Widget child; // 실제 일정 카드 위젯
   final int scheduleId; // 일정 ID
+  final String? repeatRule; // 🔄 반복 규칙 (JSON 문자열)
   final Future<void> Function() onComplete; // 완료 처리 콜백
   final Future<void> Function() onDelete; // 삭제 처리 콜백
   final VoidCallback? onTap; // 탭 이벤트 콜백 (선택사항)
@@ -37,6 +40,7 @@ class SlidableScheduleCard extends StatelessWidget {
     Key? key,
     required this.child,
     required this.scheduleId,
+    this.repeatRule, // 🔄 반복 규칙 추가
     required this.onComplete,
     required this.onDelete,
     this.onTap,
@@ -177,57 +181,70 @@ class SlidableScheduleCard extends StatelessWidget {
           dismissalDuration: const Duration(milliseconds: 300),
           resizeDuration: const Duration(milliseconds: 300),
 
-          // ✅ confirmDismiss: 삭제 확인 다이얼로그 (선택사항)
+          // ✅ confirmDismiss: Figma 삭제 확인 모달 (선택사항)
           // 이유: 사용자 실수 방지
           // 조건: showConfirmDialog가 true일 때만 표시
           // 반환: true → 삭제 진행, false/null → 취소
           confirmDismiss: showConfirmDialog
               ? () async {
-                  final result = await showDialog<bool>(
-                    context: context,
-                    builder: (dialogContext) {
-                      return AlertDialog(
-                        title: const Text('일정 삭제'),
-                        content: const Text('이 일정을 삭제하시겠습니까?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(dialogContext).pop(false);
-                            },
-                            child: const Text('취소'),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(dialogContext).pop(true);
-                            },
-                            child: const Text(
-                              '삭제',
-                              style: TextStyle(color: Color(0xFFFF3B30)),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                  return result ?? false; // null인 경우 false 반환
+                  bool confirmed = false;
+                  
+                  // 🔄 반복 규칙이 있으면 반복 삭제 모달, 없으면 일반 삭제 모달
+                  bool hasRepeat = repeatRule != null && 
+                                   repeatRule!.isNotEmpty && 
+                                   repeatRule != '{}' && 
+                                   repeatRule != '[]';
+                  
+                  if (hasRepeat) {
+                    await showDeleteRepeatConfirmationModal(
+                      context,
+                      onDeleteThis: () async {
+                        confirmed = true;
+                        await HapticFeedback.heavyImpact();
+                        print(
+                          '🗑️ [Slidable] 반복 일정 ID=$scheduleId 이 일정만 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                        );
+                        await onDelete();
+                      },
+                      onDeleteFuture: () async {
+                        confirmed = true;
+                        await HapticFeedback.heavyImpact();
+                        print(
+                          '🗑️ [Slidable] 반복 일정 ID=$scheduleId 이후 일정 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                        );
+                        // TODO: DB에 이후 삭제 함수 추가 필요
+                        await onDelete();
+                      },
+                      onDeleteAll: () async {
+                        confirmed = true;
+                        await HapticFeedback.heavyImpact();
+                        print(
+                          '🗑️ [Slidable] 반복 일정 ID=$scheduleId 전체 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                        );
+                        await onDelete();
+                      },
+                    );
+                  } else {
+                    await showDeleteConfirmationModal(
+                      context,
+                      onDelete: () async {
+                        confirmed = true;
+                        await HapticFeedback.heavyImpact();
+                        print(
+                          '🗑️ [Slidable] 일정 ID=$scheduleId 삭제 스와이프 확인됨 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                        );
+                        await onDelete();
+                      },
+                    );
+                  }
+                  return confirmed;
                 }
               : null,
 
-          onDismissed: () async {
-            // 1. 햅틱 피드백 (강한 진동 - 삭제는 중요한 액션)
-            // 이유: 삭제는 되돌릴 수 없으므로 강한 피드백 제공
-            // 조건: heavyImpact는 중요한 액션에 사용
-            await HapticFeedback.heavyImpact();
+          onDismissed: () {
+            // confirmDismiss에서 이미 삭제 처리됨
             print(
-              '🗑️ [Slidable] 일정 ID=$scheduleId 삭제 스와이프 감지 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-            );
-
-            // 2. 삭제 액션 실행
-            // 이유: DB에서 일정을 삭제하고 UI 갱신
-            // 조건: onDelete 콜백이 제공되어야 함
-            await onDelete();
-            print(
-              '🗑️ [Slidable] 일정 ID=$scheduleId 삭제 처리 완료 - DB 업데이트 및 이벤트 로그 기록됨',
+              '🗑️ [Slidable] 일정 ID=$scheduleId 삭제 스와이프 완료 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
             );
           },
         ),
@@ -235,42 +252,50 @@ class SlidableScheduleCard extends StatelessWidget {
         children: [
           SlidableAction(
             onPressed: (context) async {
-              // 삭제 버튼 클릭 시 confirmDismiss 확인
+              // 삭제 버튼 클릭 시 Figma 모달 표시
               if (showConfirmDialog) {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (dialogContext) {
-                    return AlertDialog(
-                      title: const Text('일정 삭제'),
-                      content: const Text('이 일정을 삭제하시겠습니까?'),
-                      actions: [
-                        TextButton(
-                          onPressed: () =>
-                              Navigator.of(dialogContext).pop(false),
-                          child: const Text('취소'),
-                        ),
-                        TextButton(
-                          onPressed: () =>
-                              Navigator.of(dialogContext).pop(true),
-                          child: const Text(
-                            '삭제',
-                            style: TextStyle(color: Color(0xFFFF3B30)),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                );
-
-                if (confirmed == true) {
-                  await HapticFeedback.mediumImpact();
-                  print(
-                    '🗑️ [Slidable] 일정 ID=$scheduleId 삭제 버튼 클릭 (확인됨) - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                // 🔄 반복 규칙이 있으면 반복 삭제 모달, 없으면 일반 삭제 모달
+                bool hasRepeat = repeatRule != null && 
+                                 repeatRule!.isNotEmpty && 
+                                 repeatRule != '{}' && 
+                                 repeatRule != '[]';
+                
+                if (hasRepeat) {
+                  await showDeleteRepeatConfirmationModal(
+                    context,
+                    onDeleteThis: () async {
+                      await HapticFeedback.mediumImpact();
+                      print(
+                        '🗑️ [Slidable] 반복 일정 ID=$scheduleId 이 일정만 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                      );
+                      await onDelete();
+                    },
+                    onDeleteFuture: () async {
+                      await HapticFeedback.mediumImpact();
+                      print(
+                        '🗑️ [Slidable] 반복 일정 ID=$scheduleId 이후 일정 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                      );
+                      // TODO: DB에 이후 삭제 함수 추가 필요
+                      await onDelete();
+                    },
+                    onDeleteAll: () async {
+                      await HapticFeedback.mediumImpact();
+                      print(
+                        '🗑️ [Slidable] 반복 일정 ID=$scheduleId 전체 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                      );
+                      await onDelete();
+                    },
                   );
-                  await onDelete();
                 } else {
-                  print(
-                    '❌ [Slidable] 일정 ID=$scheduleId 삭제 취소됨 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                  await showDeleteConfirmationModal(
+                    context,
+                    onDelete: () async {
+                      await HapticFeedback.mediumImpact();
+                      print(
+                        '🗑️ [Slidable] 일정 ID=$scheduleId 삭제 확인됨 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+                      );
+                      await onDelete();
+                    },
                   );
                 }
               } else {

@@ -20,11 +20,13 @@ import '../Database/schedule_database.dart';
 
 /// 통합 리스트 아이템 타입
 enum UnifiedItemType {
+  inboxHeader, // 📋 인박스 모드 헤더 (今日の流れを整えて スタート)
   schedule, // 일정
   task, // 할일
   habit, // 습관
   divider, // 점선 구분선
   completed, // 완료 섹션
+  placeholder, // 🎯 드래그 호버 시 임시 플레이스홀더
 }
 
 /// 통합 리스트 아이템 클래스
@@ -122,6 +124,20 @@ class UnifiedListItem {
     );
   }
 
+  /// 📋 인박스 헤더 생성
+  /// 이거를 설정하고 → 인박스 모드 전용 헤더를 생성해서
+  /// 이거를 해서 → "今日の流れを整えて スタート" 텍스트를 표시하고
+  /// 이거는 이래서 → isDraggable = false로 절대 고정된다
+  factory UnifiedListItem.inboxHeader({required int sortOrder}) {
+    return UnifiedListItem(
+      uniqueId: 'inbox_header',
+      type: UnifiedItemType.inboxHeader,
+      data: null,
+      sortOrder: sortOrder,
+      isDraggable: false, // 인박스 헤더는 드래그 불가 (절대 고정)
+    );
+  }
+
   /// 완료 섹션 생성
   /// 이거를 설정하고 → 완료 섹션 아이템을 생성해서
   /// 이거를 해서 → 완료된 항목들을 별도로 표시하고
@@ -133,6 +149,20 @@ class UnifiedListItem {
       data: null,
       sortOrder: sortOrder,
       isDraggable: false, // 완료 섹션은 드래그 불가
+    );
+  }
+
+  /// 🎯 드래그 플레이스홀더 생성
+  /// 이거를 설정하고 → 드래그 호버 시 임시 플레이스홀더를 생성해서
+  /// 이거를 해서 → AnimatedReorderableListView가 자동으로 공간을 생성하고
+  /// 이거는 이래서 → 네이티브 insertDuration 애니메이션이 작동한다
+  factory UnifiedListItem.placeholder({required int sortOrder}) {
+    return UnifiedListItem(
+      uniqueId: 'placeholder_${DateTime.now().millisecondsSinceEpoch}',
+      type: UnifiedItemType.placeholder,
+      data: null,
+      sortOrder: sortOrder,
+      isDraggable: false, // 플레이스홀더는 드래그 불가
     );
   }
 

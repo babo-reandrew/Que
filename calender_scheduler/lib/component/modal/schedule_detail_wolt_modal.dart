@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wolt_modal_sheet/wolt_modal_sheet.dart';
+import 'package:smooth_sheets/smooth_sheets.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:get_it/get_it.dart';
+import 'package:figma_squircle/figma_squircle.dart';
+import 'package:flutter_svg/flutter_svg.dart'; // ✅ SVG 지원
 
 import '../../Database/schedule_database.dart';
 import '../../providers/bottom_sheet_controller.dart';
 import '../../providers/schedule_form_controller.dart';
 import '../../design_system/wolt_helpers.dart'; // ✅ Wolt 최신 모달
+import '../../utils/temp_input_cache.dart'; // ✅ 임시 캐시
+import '../../const/color.dart'; // ✅ 색상 맵핑
+import 'date_time_picker_modal.dart'; // ✅ 스무스 바텀시트 날짜/시간 선택기
+import 'discard_changes_modal.dart'; // ✅ 변경 취소 확인 모달
+import 'delete_confirmation_modal.dart'; // ✅ 삭제 확인 모달
+import 'delete_repeat_confirmation_modal.dart'; // ✅ 반복 삭제 확인 모달
+import 'change_repeat_confirmation_modal.dart'; // ✅ 반복 변경 확인 모달
+import '../toast/action_toast.dart'; // ✅ 변경 토스트
+import '../toast/save_toast.dart'; // ✅ 저장 토스트
 
 /// 일정 상세 Wolt Modal Sheet
 ///
@@ -61,7 +72,7 @@ void showScheduleDetailWoltModal(
   required DateTime selectedDate,
 }) {
   // Provider 초기화
-  WidgetsBinding.instance.addPostFrameCallback((_) {
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
     final scheduleController = Provider.of<ScheduleFormController>(
       context,
       listen: false,
@@ -87,107 +98,216 @@ void showScheduleDetailWoltModal(
     } else {
       // 새 일정 생성
       scheduleController.reset();
-      scheduleController.setStartDate(selectedDate);
-      scheduleController.setEndDate(selectedDate);
+      bottomSheetController.reset(); // ✅ Provider 초기화
+
+      // ✅ 임시 캐시에서 색상 복원 (새 일정일 때만)
+      final cachedColor = await TempInputCache.getTempColor();
+      if (cachedColor != null && cachedColor.isNotEmpty) {
+        bottomSheetController.updateColor(cachedColor);
+        debugPrint('✅ [ScheduleWolt] 임시 색상 복원: $cachedColor');
+      }
+
+      // ✅ 임시 캐시에서 날짜/시간 복원 (새 일정일 때만)
+      final cachedDateTime = await TempInputCache.getTempDateTime();
+      if (cachedDateTime != null) {
+        final cachedStart = cachedDateTime['start'];
+        final cachedEnd = cachedDateTime['end'];
+
+        if (cachedStart != null && cachedEnd != null) {
+          scheduleController.setStartDate(cachedStart);
+          scheduleController.setEndDate(cachedEnd);
+          scheduleController.setStartTime(TimeOfDay.fromDateTime(cachedStart));
+          scheduleController.setEndTime(TimeOfDay.fromDateTime(cachedEnd));
+          debugPrint('✅ [ScheduleWolt] 임시 날짜/시간 복원: $cachedStart ~ $cachedEnd');
+        } else {
+          // 캐시가 없으면 기본값 사용
+          scheduleController.setStartDate(selectedDate);
+          scheduleController.setEndDate(selectedDate);
+        }
+      } else {
+        // 캐시가 없으면 기본값 사용
+        scheduleController.setStartDate(selectedDate);
+        scheduleController.setEndDate(selectedDate);
+      }
+
+      // ✅ 임시 캐시에서 리마인더 복원 (기본값 10분전)
+      final cachedReminder = await TempInputCache.getTempReminder();
+      if (cachedReminder != null && cachedReminder.isNotEmpty) {
+        bottomSheetController.updateReminder(cachedReminder);
+        debugPrint('✅ [ScheduleWolt] 임시 리마인더 복원: $cachedReminder');
+      }
+
+      // ⚠️ 반복 규칙은 캐시에서 복원하지 않음 (사용자가 명시적으로 선택해야 함)
     }
 
     debugPrint('✅ [ScheduleWolt] Provider 초기화 완료');
-  });
 
-  WoltModalSheet.show(
-    context: context,
-    pageListBuilder: (context) => [
-      _buildScheduleDetailPage(
-        context,
-        schedule: schedule,
-        selectedDate: selectedDate,
+    // ✅ 초기 값 저장 (변경사항 감지용)
+    final initialTitle = scheduleController.titleController.text;
+    final initialStartDate = scheduleController.startDate;
+    final initialEndDate = scheduleController.endDate;
+    final initialStartTime = scheduleController.startTime;
+    final initialEndTime = scheduleController.endTime;
+    final initialColor = bottomSheetController.selectedColor;
+    final initialReminder = bottomSheetController.reminder;
+    final initialRepeatRule = bottomSheetController.repeatRule;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      isDismissible: false, // ✅ 기본 드래그 닫기 비활성화
+      enableDrag: true, // ✅ 드래그는 활성화
+      builder: (sheetContext) => WillPopScope(
+        onWillPop: () async {
+          // ✅ 변경사항 감지
+          final hasChanges =
+              initialTitle != scheduleController.titleController.text ||
+              initialStartDate != scheduleController.startDate ||
+              initialEndDate != scheduleController.endDate ||
+              initialStartTime != scheduleController.startTime ||
+              initialEndTime != scheduleController.endTime ||
+              initialColor != bottomSheetController.selectedColor ||
+              initialReminder != bottomSheetController.reminder ||
+              initialRepeatRule != bottomSheetController.repeatRule;
+
+          if (hasChanges) {
+            // ✅ 변경사항 있으면 확인 모달
+            final confirmed = await showDiscardChangesModal(context);
+            return confirmed == true;
+          }
+          // ✅ 변경사항 없으면 바로 닫기
+          return true;
+        },
+        child: GestureDetector(
+          onTap: () async {
+            // ✅ 바깥 영역 터치 시 변경사항 확인
+            final hasChanges =
+                initialTitle != scheduleController.titleController.text ||
+                initialStartDate != scheduleController.startDate ||
+                initialEndDate != scheduleController.endDate ||
+                initialStartTime != scheduleController.startTime ||
+                initialEndTime != scheduleController.endTime ||
+                initialColor != bottomSheetController.selectedColor ||
+                initialReminder != bottomSheetController.reminder ||
+                initialRepeatRule != bottomSheetController.repeatRule;
+
+            if (hasChanges) {
+              final confirmed = await showDiscardChangesModal(context);
+              if (confirmed == true && sheetContext.mounted) {
+                Navigator.of(sheetContext).pop();
+              }
+            } else {
+              Navigator.of(sheetContext).pop();
+            }
+          },
+          behavior: HitTestBehavior.opaque,
+          child: GestureDetector(
+            onTap: () {}, // ✅ 내부 터치는 무시 (이벤트 버블링 방지)
+            child: NotificationListener<DraggableScrollableNotification>(
+              onNotification: (notification) {
+                // ✅ 바텀시트를 minChildSize 이하로 내릴 때 감지
+                if (notification.extent <= notification.minExtent + 0.05) {
+                  // ✅ 변경사항 확인
+                  final hasChanges =
+                      initialTitle != scheduleController.titleController.text ||
+                      initialStartDate != scheduleController.startDate ||
+                      initialEndDate != scheduleController.endDate ||
+                      initialStartTime != scheduleController.startTime ||
+                      initialEndTime != scheduleController.endTime ||
+                      initialColor != bottomSheetController.selectedColor ||
+                      initialReminder != bottomSheetController.reminder ||
+                      initialRepeatRule != bottomSheetController.repeatRule;
+
+                  if (hasChanges) {
+                    // ✅ 변경사항 있으면 확인 모달
+                    showDiscardChangesModal(context).then((confirmed) {
+                      if (confirmed == true && sheetContext.mounted) {
+                        Navigator.of(sheetContext).pop();
+                      }
+                    });
+                    return true; // ✅ 이벤트 소비 (기본 닫기 방지)
+                  } else {
+                    // ✅ 변경사항 없으면 바로 닫기
+                    if (sheetContext.mounted) {
+                      Navigator.of(sheetContext).pop();
+                    }
+                  }
+                }
+                return false;
+              },
+              child: DraggableScrollableSheet(
+                initialChildSize: 0.7,
+                minChildSize: 0.5,
+                maxChildSize: 0.95,
+                snap: true,
+                snapSizes: const [0.5, 0.7, 0.95],
+                builder: (context, scrollController) => Container(
+                  decoration: ShapeDecoration(
+                    color: const Color(0xFFFCFCFC),
+                    shape: SmoothRectangleBorder(
+                      borderRadius: SmoothBorderRadius(
+                        cornerRadius: 36,
+                        cornerSmoothing: 0.6,
+                      ),
+                    ),
+                  ),
+                  child: _buildScheduleDetailPage(
+                    context,
+                    scrollController: scrollController,
+                    schedule: schedule,
+                    selectedDate: selectedDate,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
-    ],
-    modalTypeBuilder: (context) => WoltModalType.bottomSheet(),
-    onModalDismissedWithBarrierTap: () {
-      FocusScope.of(context).unfocus(); // ✅ 키보드 닫기
-      debugPrint('✅ [ScheduleWolt] Modal dismissed with tap');
-    },
-    onModalDismissedWithDrag: () {
-      FocusScope.of(context).unfocus(); // ✅ 키보드 닫기
-      debugPrint('✅ [ScheduleWolt] Modal dismissed with drag');
-    },
-    useSafeArea: false, // ✅ SafeArea 비활성화
-  );
+    );
+  });
 }
 
 // ========================================
 // Schedule Detail Page Builder
 // ========================================
 
-SliverWoltModalSheetPage _buildScheduleDetailPage(
+Widget _buildScheduleDetailPage(
   BuildContext context, {
+  required ScrollController scrollController,
   required ScheduleData? schedule,
   required DateTime selectedDate,
 }) {
-  return SliverWoltModalSheetPage(
-    hasTopBarLayer: false, // TopNavi를 컨텐츠 안에 포함
+  return ListView(
+    controller: scrollController,
+    padding: EdgeInsets.zero,
+    children: [
+      const SizedBox(height: 32), // ✅ Figma: 상단 여백 32px
+      // ========== TopNavi (60px) ==========
+      _buildTopNavi(context, schedule: schedule, selectedDate: selectedDate),
 
-    mainContentSliversBuilder: (context) => [
-      SliverToBoxAdapter(
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFFFCFCFC), // ✅ Figma 배경색
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(36),
-              topRight: Radius.circular(36),
-            ),
-            border: Border.all(
-              color: const Color(0xFF111111).withOpacity(0.1), // #111111 10%
-              width: 1,
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(36),
-              topRight: Radius.circular(36),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ========== TopNavi (60px) ==========
-                _buildTopNavi(
-                  context,
-                  schedule: schedule,
-                  selectedDate: selectedDate,
-                ),
+      const SizedBox(height: 4), // ✅ TextField 상단 여백 4px
+      // ========== TextField (51px) ==========
+      _buildTextField(context),
 
-                // ========== TextField (51px) ==========
-                _buildTextField(context),
+      const SizedBox(height: 24), // gap
+      // ========== AllDay Toggle (32px) ==========
+      _buildAllDayToggle(context),
 
-                const SizedBox(height: 24), // gap
-                // ========== AllDay Toggle (32px) ==========
-                _buildAllDayToggle(context),
+      const SizedBox(height: 12), // gap
+      // ========== Time Picker (94px ~ 97px) ==========
+      _buildTimePicker(context),
 
-                const SizedBox(height: 12), // gap
-                // ========== Time Picker (94px ~ 97px) ==========
-                _buildTimePicker(context),
+      const SizedBox(height: 36), // gap
+      // ========== DetailOptions (64px) ==========
+      _buildDetailOptions(context, selectedDate: selectedDate),
 
-                const SizedBox(height: 36), // gap
-                // ========== DetailOptions (64px) ==========
-                _buildDetailOptions(context, selectedDate: selectedDate),
+      const SizedBox(height: 48), // gap
+      // ========== Delete Button (52px) ==========
+      if (schedule != null) _buildDeleteButton(context, schedule: schedule),
 
-                const SizedBox(height: 48), // gap
-                // ========== Delete Button (52px) ==========
-                if (schedule != null)
-                  _buildDeleteButton(context, schedule: schedule),
-
-                const SizedBox(height: 32), // ✅ 하단 패딩 32px
-              ],
-            ),
-          ),
-        ),
-      ),
+      const SizedBox(height: 32), // ✅ 하단 패딩 32px
     ],
-
-    // ✅ 배경색 투명 (Container가 배경색 처리)
-    backgroundColor: Colors.transparent,
-    surfaceTintColor: Colors.transparent,
   );
 }
 
@@ -200,8 +320,10 @@ Widget _buildTopNavi(
   required ScheduleData? schedule,
   required DateTime selectedDate,
 }) {
-  return Padding(
-    padding: const EdgeInsets.fromLTRB(28, 28, 28, 9),
+  return Container(
+    width: 393,
+    height: 60,
+    padding: const EdgeInsets.fromLTRB(28, 9, 28, 9), // Figma: 9px 28px
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -212,8 +334,8 @@ Widget _buildTopNavi(
             fontFamily: 'LINE Seed JP App_TTF',
             fontSize: 16,
             fontWeight: FontWeight.w700,
-            height: 1.4,
-            letterSpacing: -0.08,
+            height: 1.4, // 140%
+            letterSpacing: -0.005 * 16, // -0.005em
             color: Color(0xFF505050),
           ),
         ),
@@ -228,7 +350,10 @@ Widget _buildTopNavi(
           child: Container(
             width: 74,
             height: 42,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 12,
+            ), // 12px 24px
             decoration: BoxDecoration(
               color: const Color(0xFF111111),
               borderRadius: BorderRadius.circular(16),
@@ -247,8 +372,8 @@ Widget _buildTopNavi(
                 fontFamily: 'LINE Seed JP App_TTF',
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
-                height: 1.4,
-                letterSpacing: -0.065,
+                height: 1.4, // 140%
+                letterSpacing: -0.005 * 13, // -0.005em
                 color: Color(0xFFFAFAFA),
               ),
             ),
@@ -269,10 +394,15 @@ Widget _buildTextField(BuildContext context) {
     listen: false,
   );
 
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 12),
+  return Container(
+    width: 393,
+    height: 51,
+    padding: const EdgeInsets.only(
+      top: 16,
+      bottom: 12,
+    ), // ✅ 상단 16px (12+4), 하단 12px
     child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 24), // Figma: 0px 24px
       child: TextField(
         controller: scheduleController.titleController,
         autofocus: false,
@@ -280,18 +410,18 @@ Widget _buildTextField(BuildContext context) {
           fontFamily: 'LINE Seed JP App_TTF',
           fontSize: 19,
           fontWeight: FontWeight.w700,
-          height: 1.4,
-          letterSpacing: -0.095,
+          height: 1.4, // 140%
+          letterSpacing: -0.005 * 19, // -0.005em
           color: Color(0xFF111111),
         ),
         decoration: const InputDecoration(
-          hintText: '予定を追加',
+          hintText: 'スケジュールを入力',
           hintStyle: TextStyle(
             fontFamily: 'LINE Seed JP App_TTF',
             fontSize: 19,
             fontWeight: FontWeight.w700,
-            height: 1.4,
-            letterSpacing: -0.095,
+            height: 1.4, // 140%
+            letterSpacing: -0.005 * 19, // -0.005em
             color: Color(0xFFAAAAAA),
           ),
           border: InputBorder.none,
@@ -309,29 +439,25 @@ Widget _buildTextField(BuildContext context) {
 // ========================================
 
 Widget _buildAllDayToggle(BuildContext context) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 24),
+  return Container(
+    width: 393,
+    height: 32,
+    padding: const EdgeInsets.only(left: 24, right: 28), // ✅ 좌측 24px, 우측 28px
     child: Consumer<ScheduleFormController>(
       builder: (context, controller, child) {
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Left: Icon + Text
+            // Left: Icon + Text (Frame 715)
             Row(
               children: [
-                // Icon
-                Container(
+                // Icon - SVG 사용
+                SvgPicture.asset(
+                  'asset/icon/Schedule_AllDay.svg', // ✅ 대소문자 수정
                   width: 19,
                   height: 19,
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: const Color(0xFF111111),
-                      width: 1.5,
-                    ),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 8), // Figma: gap 8px
                 // Text
                 const Text(
                   '終日',
@@ -339,43 +465,52 @@ Widget _buildAllDayToggle(BuildContext context) {
                     fontFamily: 'LINE Seed JP App_TTF',
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    height: 1.4,
-                    letterSpacing: -0.065,
+                    height: 1.4, // 140%
+                    letterSpacing: -0.005 * 13, // -0.005em
                     color: Color(0xFF111111),
                   ),
                 ),
               ],
             ),
 
-            // Right: Toggle
-            GestureDetector(
-              onTap: controller.toggleAllDay,
-              child: Container(
-                width: 40,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: controller.isAllDay
-                      ? const Color(0xFF111111)
-                      : const Color(0xFFE4E4E4),
-                  border: Border.all(
+            // Right: Toggle (Frame 749)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                8,
+                4,
+                0,
+                4,
+              ), // Figma: 4px 0px 4px 8px
+              child: GestureDetector(
+                onTap: controller.toggleAllDay,
+                child: Container(
+                  width: 40,
+                  height: 24,
+                  decoration: BoxDecoration(
                     color: controller.isAllDay
                         ? const Color(0xFF111111)
                         : const Color(0xFFE4E4E4),
+                    border: Border.all(
+                      color: controller.isAllDay
+                          ? const Color(0xFF111111)
+                          : const Color(0xFFE4E4E4),
+                      width: 1,
+                    ),
+                    borderRadius: BorderRadius.circular(100),
                   ),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: AnimatedAlign(
-                  duration: const Duration(milliseconds: 200),
-                  alignment: controller.isAllDay
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: Container(
-                    width: 16,
-                    height: 16,
-                    margin: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFAFAFA),
-                      shape: BoxShape.circle,
+                  child: AnimatedAlign(
+                    duration: const Duration(milliseconds: 200),
+                    alignment: controller.isAllDay
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
+                    child: Container(
+                      width: 16,
+                      height: 16,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFAFAFA),
+                        shape: BoxShape.circle,
+                      ),
                     ),
                   ),
                 ),
@@ -401,70 +536,55 @@ Widget _buildTimePicker(BuildContext context) {
       final endDate = controller.endDate;
       final endTime = controller.endTime;
 
-      // 시간 선택 여부
-      final hasStartTime = startTime != null;
-      final hasEndTime = endTime != null;
-
-      // 동적 패딩 계산
-      double horizontalPadding;
-      if (isAllDay) {
-        horizontalPadding = 48; // 종일
-      } else if (hasStartTime || hasEndTime) {
-        horizontalPadding = 54; // 시간 선택됨
-      } else {
-        horizontalPadding = 50; // 미선택
-      }
-
       return Padding(
-        padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        padding: const EdgeInsets.only(
+          left: 48,
+          right: 48,
+        ), // ✅ 날짜 피커와 동일: 좌우 48px
+        child: Stack(
           children: [
-            // Start Time
-            _buildTimeObject(
-              context,
-              label: '開始',
-              date: startDate,
-              time: startTime,
-              isAllDay: isAllDay,
-              onTap: () => _handleStartTimePicker(context),
+            // 좌측: 開始
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _buildTimeObject(
+                context,
+                label: '開始',
+                date: startDate,
+                time: startTime,
+                isAllDay: isAllDay,
+                onTap: () => _handleDateTimePicker(context),
+              ),
             ),
 
-            // Divider
-            _buildDivider(),
+            // 중앙: 화살표
+            Align(
+              alignment: Alignment.center,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 20), // ✅ 날짜 피커와 동일
+                child: SvgPicture.asset(
+                  'asset/icon/Date_Picker_arrow.svg',
+                  width: 8,
+                  height: 46,
+                ),
+              ),
+            ),
 
-            // End Time
-            _buildTimeObject(
-              context,
-              label: '終了',
-              date: endDate,
-              time: endTime,
-              isAllDay: isAllDay,
-              onTap: () => _handleEndTimePicker(context),
+            // 우측: 終了
+            Align(
+              alignment: Alignment.centerRight,
+              child: _buildTimeObject(
+                context,
+                label: '終了',
+                date: endDate,
+                time: endTime,
+                isAllDay: isAllDay,
+                onTap: () => _handleDateTimePicker(context),
+              ),
             ),
           ],
         ),
       );
     },
-  );
-}
-
-Widget _buildDivider() {
-  return SizedBox(
-    width: 8,
-    height: 46,
-    child: Center(
-      child: Container(
-        width: 8,
-        height: 30,
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: const Color.fromRGBO(0, 0, 0, 0.05),
-            width: 2,
-          ),
-        ),
-      ),
-    ),
   );
 }
 
@@ -503,10 +623,11 @@ Widget _buildTimeObject(
           const SizedBox(height: 12),
 
           // ========== Content ==========
-          if (time != null)
-            _buildTimeSelectedContent(date!, time, isAllDay)
-          else if (isAllDay && date != null)
+          // ✅ 終日일 때는 시간이 있어도 날짜만 표시
+          if (isAllDay && date != null)
             _buildAllDayContent(date)
+          else if (time != null && !isAllDay)
+            _buildTimeSelectedContent(date!, time, isAllDay)
           else
             _buildEmptyContent(onTap),
         ],
@@ -529,15 +650,15 @@ Widget _buildLabel(String label, TimeOfDay? time, bool isAllDay) {
   }
 
   return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 3),
+    padding: const EdgeInsets.symmetric(horizontal: 3), // Figma: 0px 3px
     child: Text(
       label,
       style: TextStyle(
         fontFamily: 'LINE Seed JP App_TTF',
         fontSize: 16,
         fontWeight: FontWeight.w700,
-        height: 1.4,
-        letterSpacing: -0.08,
+        height: 1.4, // 140%
+        letterSpacing: -0.005 * 16, // -0.005em
         color: labelColor,
       ),
     ),
@@ -562,8 +683,8 @@ Widget _buildEmptyContent(VoidCallback onTap) {
             fontFamily: 'LINE Seed JP App_TTF',
             fontSize: 50,
             fontWeight: FontWeight.w800,
-            height: 1.2,
-            letterSpacing: -0.25,
+            height: 1.2, // 120%
+            letterSpacing: -0.005 * 50, // -0.005em
             color: Color(0xFFEEEEEE), // 회색
           ),
         ),
@@ -618,11 +739,10 @@ Widget _buildTimeSelectedContent(DateTime date, TimeOfDay time, bool isAllDay) {
       '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
 
   return SizedBox(
-    width: 99,
     height: 65,
     child: Column(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start, // ✅ 좌측 정렬 유지
       children: [
         // 날짜 (작게)
         Text(
@@ -634,8 +754,8 @@ Widget _buildTimeSelectedContent(DateTime date, TimeOfDay time, bool isAllDay) {
             fontFamily: 'LINE Seed JP App_TTF',
             fontSize: 19,
             fontWeight: FontWeight.w800,
-            height: 1.2,
-            letterSpacing: -0.095,
+            height: 1.2, // 120%
+            letterSpacing: -0.005 * 19, // -0.005em
             color: Color(0xFF111111),
             shadows: [
               Shadow(
@@ -647,7 +767,7 @@ Widget _buildTimeSelectedContent(DateTime date, TimeOfDay time, bool isAllDay) {
           ),
         ),
 
-        // 시간 (크게)
+        // 시간 (크게) - ✅ width 제거하여 좌측 기준으로 정렬
         Text(
           timeText,
           maxLines: 1,
@@ -657,8 +777,8 @@ Widget _buildTimeSelectedContent(DateTime date, TimeOfDay time, bool isAllDay) {
             fontFamily: 'LINE Seed JP App_TTF',
             fontSize: 33,
             fontWeight: FontWeight.w800,
-            height: 1.2,
-            letterSpacing: -0.165,
+            height: 1.2, // 120%
+            letterSpacing: -0.005 * 33, // -0.005em
             color: Color(0xFF111111),
             shadows: [
               Shadow(
@@ -686,11 +806,10 @@ Widget _buildAllDayContent(DateTime date) {
   final dateText = '${date.month}.${date.day}';
 
   return SizedBox(
-    width: 83,
     height: 63,
     child: Column(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start, // ✅ 좌측 정렬 유지
       children: [
         // 연도 (작게)
         Text(
@@ -702,8 +821,8 @@ Widget _buildAllDayContent(DateTime date) {
             fontFamily: 'LINE Seed JP App_TTF',
             fontSize: 19,
             fontWeight: FontWeight.w800,
-            height: 1.2,
-            letterSpacing: -0.095,
+            height: 1.2, // 120%
+            letterSpacing: -0.005 * 19, // -0.005em
             color: Color(0xFF111111),
             shadows: [
               Shadow(
@@ -715,7 +834,7 @@ Widget _buildAllDayContent(DateTime date) {
           ),
         ),
 
-        // 날짜 (크게)
+        // 날짜 (크게) - ✅ width 제거하여 좌측 기준으로 정렬
         Text(
           dateText,
           maxLines: 1,
@@ -725,8 +844,8 @@ Widget _buildAllDayContent(DateTime date) {
             fontFamily: 'LINE Seed JP App_TTF',
             fontSize: 33,
             fontWeight: FontWeight.w800,
-            height: 1.2,
-            letterSpacing: -0.165,
+            height: 1.2, // 120%
+            letterSpacing: -0.005 * 33, // -0.005em
             color: Color(0xFF111111),
             shadows: [
               Shadow(
@@ -750,33 +869,22 @@ Widget _buildDetailOptions(
   BuildContext context, {
   required DateTime selectedDate,
 }) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 48), // 일정은 48px!
+  return Container(
+    width: 256, // Figma: 256px
+    height: 64,
+    padding: const EdgeInsets.symmetric(horizontal: 24), // Figma: 0px 24px
     child: Row(
-      mainAxisAlignment: MainAxisAlignment.start,
+      mainAxisAlignment:
+          MainAxisAlignment.center, // Figma: justify-content: center
       children: [
         // 반복
-        _buildDetailOptionButton(
-          context,
-          icon: Icons.repeat,
-          onTap: () => _handleRepeatPicker(context),
-        ),
-        const SizedBox(width: 8),
-
+        _buildRepeatOptionButton(context),
+        const SizedBox(width: 8), // Figma: gap 8px
         // 리마인더
-        _buildDetailOptionButton(
-          context,
-          icon: Icons.notifications_outlined,
-          onTap: () => _handleReminderPicker(context),
-        ),
-        const SizedBox(width: 8),
-
+        _buildReminderOptionButton(context),
+        const SizedBox(width: 8), // Figma: gap 8px
         // 색상
-        _buildDetailOptionButton(
-          context,
-          icon: Icons.palette_outlined,
-          onTap: () => _handleColorPicker(context),
-        ),
+        _buildColorOptionButton(context),
       ],
     ),
   );
@@ -815,6 +923,218 @@ Widget _buildDetailOptionButton(
   );
 }
 
+// ✅ 리마인더 버튼 (선택된 리마인더 텍스트 표시)
+Widget _buildReminderOptionButton(BuildContext context) {
+  return Consumer<BottomSheetController>(
+    builder: (context, controller, _) {
+      // 선택된 리마인더 표시 텍스트 추출
+      String? displayText;
+      if (controller.reminder.isNotEmpty) {
+        try {
+          final reminderData = controller.reminder;
+          if (reminderData.contains('"display":"')) {
+            final startIndex = reminderData.indexOf('"display":"') + 11;
+            final endIndex = reminderData.indexOf('"', startIndex);
+            displayText = reminderData.substring(startIndex, endIndex);
+          }
+        } catch (e) {
+          debugPrint('리마인더 파싱 오류: $e');
+        }
+      }
+
+      return GestureDetector(
+        onTap: () => _handleReminderPicker(context),
+        child: Container(
+          width: 64,
+          height: 64,
+          padding: displayText != null
+              ? const EdgeInsets.all(8)
+              : const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFFFF),
+            border: Border.all(color: const Color.fromRGBO(17, 17, 17, 0.08)),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: const [
+              BoxShadow(
+                color: Color.fromRGBO(186, 186, 186, 0.08),
+                offset: Offset(0, 2),
+                blurRadius: 8,
+              ),
+              BoxShadow(
+                color: Color.fromRGBO(0, 0, 0, 0.02),
+                offset: Offset(0, 4),
+                blurRadius: 20,
+              ),
+            ],
+          ),
+          child: displayText != null
+              ? Center(
+                  child: Text(
+                    displayText,
+                    style: const TextStyle(
+                      fontFamily: 'LINE Seed JP App_TTF',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      height: 1.4, // line-height: 140%
+                      letterSpacing: -0.065, // -0.005em * 13px
+                      color: Color(0xFF111111),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              : const Icon(
+                  Icons.notifications_outlined,
+                  size: 24,
+                  color: Color(0xFF111111),
+                ),
+        ),
+      );
+    },
+  );
+}
+
+// ✅ 반복 버튼 (선택된 반복 규칙 표시)
+Widget _buildRepeatOptionButton(BuildContext context) {
+  return Consumer<BottomSheetController>(
+    builder: (context, controller, _) {
+      // 선택된 반복 규칙에서 display 텍스트 추출
+      String? displayText;
+      if (controller.repeatRule.isNotEmpty) {
+        try {
+          final repeatData = controller.repeatRule;
+          if (repeatData.contains('"display":"')) {
+            final startIndex = repeatData.indexOf('"display":"') + 11;
+            final endIndex = repeatData.indexOf('"', startIndex);
+            displayText = repeatData.substring(startIndex, endIndex);
+            // ✅ 개행 문자는 그대로 유지 (박스 안에서 중앙 정렬)
+          }
+        } catch (e) {
+          debugPrint('반복 규칙 파싱 오류: $e');
+        }
+      }
+
+      return GestureDetector(
+        onTap: () => _handleRepeatPicker(context),
+        child: SizedBox(
+          width: 64,
+          height: 64,
+          child: Stack(
+            clipBehavior: Clip.none, // ✅ 텍스트가 박스 밖으로 나갈 수 있음
+            children: [
+              // 배경 박스 (64×64 정사각형)
+              Container(
+                width: 64,
+                height: 64,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFFFF),
+                  border: Border.all(
+                    color: const Color.fromRGBO(17, 17, 17, 0.08),
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color.fromRGBO(186, 186, 186, 0.08),
+                      offset: Offset(0, 2),
+                      blurRadius: 8,
+                    ),
+                    BoxShadow(
+                      color: Color.fromRGBO(0, 0, 0, 0.02),
+                      offset: Offset(0, 4),
+                      blurRadius: 20,
+                    ),
+                  ],
+                ),
+                child: displayText == null
+                    ? const Icon(
+                        Icons.repeat,
+                        size: 24,
+                        color: Color(0xFF111111),
+                      )
+                    : null,
+              ),
+              // 텍스트 (박스 안에서 가로세로 중앙 정렬)
+              if (displayText != null)
+                Positioned.fill(
+                  child: Center(
+                    child: Text(
+                      displayText,
+                      style: const TextStyle(
+                        fontFamily: 'LINE Seed JP App_TTF',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        height: 1.4,
+                        letterSpacing: -0.06,
+                        color: Color(0xFF111111),
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2, // ✅ 최대 2행 (개행 허용)
+                      overflow: TextOverflow.clip, // ✅ 박스 안에서만 표시
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+// ✅ 색상 버튼 (선택된 색상 표시)
+Widget _buildColorOptionButton(BuildContext context) {
+  return Consumer<BottomSheetController>(
+    builder: (context, controller, _) {
+      // 선택된 색상 가져오기
+      final selectedColorId = controller.selectedColor;
+      final Color? selectedColor = categoryColorMap[selectedColorId];
+      final bool hasColor = selectedColor != null;
+
+      return GestureDetector(
+        onTap: () => _handleColorPicker(context),
+        child: Container(
+          width: 64,
+          height: 64,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFFFF),
+            border: Border.all(color: const Color.fromRGBO(17, 17, 17, 0.08)),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: const [
+              BoxShadow(
+                color: Color.fromRGBO(186, 186, 186, 0.08),
+                offset: Offset(0, 2),
+                blurRadius: 8,
+              ),
+              BoxShadow(
+                color: Color.fromRGBO(0, 0, 0, 0.02),
+                offset: Offset(0, 4),
+                blurRadius: 20,
+              ),
+            ],
+          ),
+          child: hasColor
+              ? SvgPicture.asset(
+                  'asset/icon/Color_Selected_icon.svg',
+                  width: 24,
+                  height: 24,
+                  colorFilter: ColorFilter.mode(selectedColor, BlendMode.srcIn),
+                )
+              : SvgPicture.asset(
+                  'asset/icon/color_icon.svg',
+                  width: 24,
+                  height: 24,
+                  colorFilter: const ColorFilter.mode(
+                    Color(0xFF111111),
+                    BlendMode.srcIn,
+                  ),
+                ),
+        ),
+      );
+    },
+  );
+}
+
 // ========================================
 // Delete Button Component (52px)
 // ========================================
@@ -824,13 +1144,16 @@ Widget _buildDeleteButton(
   required ScheduleData schedule,
 }) {
   return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 24),
+    padding: const EdgeInsets.symmetric(horizontal: 24), // Figma: 0px 24px
     child: GestureDetector(
       onTap: () => _handleDelete(context, schedule: schedule),
       child: Container(
         width: 100,
         height: 52,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 24,
+          vertical: 16,
+        ), // Figma: 16px 24px
         decoration: BoxDecoration(
           color: const Color(0xFFFAFAFA),
           border: Border.all(color: const Color.fromRGBO(186, 186, 186, 0.08)),
@@ -847,12 +1170,16 @@ Widget _buildDeleteButton(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // Icon
-            const Icon(
-              Icons.delete_outline,
-              size: 20,
-              color: Color(0xFFF74A4A),
+            SvgPicture.asset(
+              'asset/icon/trash_icon.svg',
+              width: 20,
+              height: 20,
+              colorFilter: const ColorFilter.mode(
+                Color(0xFFF74A4A),
+                BlendMode.srcIn,
+              ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 6), // Figma: gap 6px
             // Text
             const Text(
               '削除',
@@ -860,8 +1187,8 @@ Widget _buildDeleteButton(
                 fontFamily: 'LINE Seed JP App_TTF',
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                height: 1.4,
-                letterSpacing: -0.065,
+                height: 1.4, // 140%
+                letterSpacing: -0.005 * 13, // -0.005em
                 color: Color(0xFFF74A4A),
               ),
             ),
@@ -890,48 +1217,230 @@ void _handleSave(
     listen: false,
   );
 
+  // ========== 1단계: 필수 필드 검증 ==========
+  // 제목 검증
   if (!scheduleController.hasTitle) {
     debugPrint('⚠️ [ScheduleWolt] 제목 없음');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('タイトルを入力してください'),
+        duration: Duration(seconds: 2),
+      ),
+    );
     return;
+  }
+
+  // 시작 날짜/시간 검증
+  if (scheduleController.startDateTime == null) {
+    debugPrint('⚠️ [ScheduleWolt] 시작 날짜/시간 없음');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('開始日時を選択してください'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    return;
+  }
+
+  // 종료 날짜/시간 검증
+  if (scheduleController.endDateTime == null) {
+    debugPrint('⚠️ [ScheduleWolt] 종료 날짜/시간 없음');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('終了日時を選択してください'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    return;
+  }
+
+  // 시작 < 종료 검증
+  if (scheduleController.startDateTime!.isAfter(
+    scheduleController.endDateTime!,
+  )) {
+    debugPrint('⚠️ [ScheduleWolt] 시작 시간이 종료 시간보다 늦음');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('開始日時は終了日時より前である必要があります'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    return;
+  }
+
+  // ========== 2단계: 캐시에서 최신 데이터 읽기 ==========
+  final cachedColor = await TempInputCache.getTempColor();
+  final cachedRepeatRule = await TempInputCache.getTempRepeatRule();
+  final cachedReminder = await TempInputCache.getTempReminder();
+
+  // ========== 3단계: Provider 우선, 캐시는 보조 (반복/리마인더는 Provider 최신값 사용) ==========
+  final finalColor = cachedColor ?? bottomSheetController.selectedColor;
+  // ✅ 반복 규칙은 Provider 우선 (사용자가 선택한 최신 값)
+  final finalRepeatRule = bottomSheetController.repeatRule.isNotEmpty
+      ? bottomSheetController.repeatRule
+      : (cachedRepeatRule ?? '');
+  // ✅ 리마인더도 Provider 우선
+  final finalReminder = bottomSheetController.reminder.isNotEmpty
+      ? bottomSheetController.reminder
+      : (cachedReminder ?? '');
+
+  // ========== 4단계: 빈 문자열 → null 변환 ==========
+  String? safeRepeatRule = finalRepeatRule.trim().isEmpty
+      ? null
+      : finalRepeatRule;
+  String? safeReminder = finalReminder.trim().isEmpty ? null : finalReminder;
+
+  // JSON 형식이면 빈 객체/배열 체크
+  if (safeRepeatRule != null &&
+      (safeRepeatRule == '{}' || safeRepeatRule == '[]')) {
+    safeRepeatRule = null;
+  }
+  if (safeReminder != null && (safeReminder == '{}' || safeReminder == '[]')) {
+    safeReminder = null;
   }
 
   final db = GetIt.I<AppDatabase>();
 
   try {
     if (schedule != null) {
-      // 기존 일정 수정
-      await db.updateSchedule(
-        ScheduleCompanion(
-          id: Value(schedule.id),
-          summary: Value(scheduleController.title),
-          start: Value(scheduleController.startDateTime!),
-          end: Value(scheduleController.endDateTime!),
-          colorId: Value(bottomSheetController.selectedColor),
-          alertSetting: Value(bottomSheetController.reminder),
-          repeatRule: Value(bottomSheetController.repeatRule),
-        ),
-      );
-      debugPrint('✅ [ScheduleWolt] 일정 수정 완료');
+      // ========== 🔄 기존에 반복 규칙이 있었거나, 반복 규칙을 제거하려는 경우 ==========
+      final hadRepeatRule =
+          schedule.repeatRule.isNotEmpty &&
+          schedule.repeatRule != '{}' &&
+          schedule.repeatRule != '[]';
+
+      if (hadRepeatRule) {
+        // 변경사항이 있는지 확인
+        final hasChanges =
+            schedule.summary != scheduleController.title.trim() ||
+            schedule.start != scheduleController.startDateTime ||
+            schedule.end != scheduleController.endDateTime ||
+            schedule.colorId != finalColor ||
+            schedule.alertSetting != (safeReminder ?? '') ||
+            schedule.repeatRule != (safeRepeatRule ?? '');
+
+        if (hasChanges) {
+          // ⚠️ Schedule 변경 확인 모달은 아직 미구현
+          // 현재는 직접 업데이트
+          await db.updateSchedule(
+            ScheduleCompanion(
+              id: Value(schedule.id),
+              summary: Value(scheduleController.title.trim()),
+              start: Value(scheduleController.startDateTime!),
+              end: Value(scheduleController.endDateTime!),
+              colorId: Value(finalColor),
+              alertSetting: Value(safeReminder ?? ''),
+              repeatRule: Value(safeRepeatRule ?? ''),
+              // ✅ 기존 필드 유지
+              createdAt: Value(schedule.createdAt),
+              status: Value(schedule.status),
+              visibility: Value(schedule.visibility),
+              description: Value(schedule.description),
+              location: Value(schedule.location),
+            ),
+          );
+          debugPrint('✅ [ScheduleWolt] 반복 일정 수정 완료');
+
+          // ✅ 변경 토스트 표시
+          if (context.mounted) {
+            showActionToast(context, type: ToastType.change);
+          }
+        } else {
+          debugPrint('ℹ️ [ScheduleWolt] 변경사항 없음');
+        }
+      } else {
+        // 반복 없는 일반 일정 수정
+        await db.updateSchedule(
+          ScheduleCompanion(
+            id: Value(schedule.id),
+            summary: Value(scheduleController.title.trim()),
+            start: Value(scheduleController.startDateTime!),
+            end: Value(scheduleController.endDateTime!),
+            colorId: Value(finalColor),
+            alertSetting: Value(safeReminder ?? ''),
+            repeatRule: Value(safeRepeatRule ?? ''),
+            // ✅ 기존 필드 유지
+            createdAt: Value(schedule.createdAt),
+            status: Value(schedule.status),
+            visibility: Value(schedule.visibility),
+            description: Value(schedule.description),
+            location: Value(schedule.location),
+          ),
+        );
+        debugPrint('✅ [ScheduleWolt] 일정 수정 완료');
+
+        // ✅ 변경 토스트 표시
+        if (context.mounted) {
+          showActionToast(context, type: ToastType.change);
+        }
+      }
+
+      debugPrint('   - 제목: ${scheduleController.title}');
+      debugPrint('   - 시작: ${scheduleController.startDateTime}');
+      debugPrint('   - 종료: ${scheduleController.endDateTime}');
+      debugPrint('   - 반복 규칙: ${safeRepeatRule ?? "(없음)"}');
+
+      // ✅ 수정 완료 후 캐시 클리어
+      await TempInputCache.clearTempInput();
+      debugPrint('🗑️ [ScheduleWolt] 캐시 클리어 완료');
     } else {
-      // 새 일정 생성
-      await db.createSchedule(
+      // ========== 5단계: 새 일정 생성 (createdAt 명시) ==========
+      final newId = await db.createSchedule(
         ScheduleCompanion.insert(
-          summary: scheduleController.title,
+          summary: scheduleController.title.trim(),
           start: scheduleController.startDateTime!,
           end: scheduleController.endDateTime!,
-          colorId: bottomSheetController.selectedColor,
-          alertSetting: bottomSheetController.reminder,
-          repeatRule: bottomSheetController.repeatRule,
+          colorId: finalColor,
+          alertSetting: safeReminder ?? '',
+          repeatRule: safeRepeatRule ?? '',
           status: 'confirmed',
           visibility: 'default',
+          createdAt: Value(DateTime.now()), // ✅ 명시적 생성 시간
         ),
       );
       debugPrint('✅ [ScheduleWolt] 새 일정 생성 완료');
+      debugPrint('   - 제목: ${scheduleController.title}');
+      debugPrint('   - 색상: $finalColor');
+      debugPrint('   - 반복: $safeRepeatRule');
+      debugPrint('   - 리마인더: $safeReminder');
+
+      // ========== 6단계: 캐시 클리어 ==========
+      await TempInputCache.clearTempInput();
+      debugPrint('🗑️ [ScheduleWolt] 캐시 클리어 완료');
+
+      // ✅ 저장 토스트 표시 (캘린더에 저장됨)
+      if (context.mounted) {
+        showSaveToast(
+          context,
+          toInbox: false,
+          onTap: () async {
+            // 토스트 탭 시 해당 일정의 상세 모달 다시 열기
+            final createdSchedule = await db.getScheduleById(newId);
+            if (createdSchedule != null && context.mounted) {
+              showScheduleDetailWoltModal(
+                context,
+                schedule: createdSchedule,
+                selectedDate: createdSchedule.start,
+              );
+            }
+          },
+        );
+      }
     }
 
     Navigator.pop(context);
-  } catch (e) {
+  } catch (e, stackTrace) {
     debugPrint('❌ [ScheduleWolt] 저장 실패: $e');
+    debugPrint('❌ 스택 트레이스: $stackTrace');
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('保存に失敗しました: ${e.toString()}'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: const Color(0xFFF74A4A),
+        ),
+      );
+    }
   }
 }
 
@@ -939,62 +1448,84 @@ void _handleDelete(
   BuildContext context, {
   required ScheduleData schedule,
 }) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('일정 삭제'),
-      content: const Text('이 일정을 삭제하시겠습니까?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('취소'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('삭제', style: TextStyle(color: Color(0xFFF74A4A))),
-        ),
-      ],
-    ),
-  );
+  // ✅ 반복 여부 확인
+  final hasRepeat =
+      schedule.repeatRule.isNotEmpty &&
+      schedule.repeatRule != '{}' &&
+      schedule.repeatRule != '[]';
 
-  if (confirmed == true) {
-    final db = GetIt.I<AppDatabase>();
-    await db.deleteSchedule(schedule.id);
-    debugPrint('✅ [ScheduleWolt] 일정 삭제 완료');
-    Navigator.pop(context);
+  final db = GetIt.I<AppDatabase>();
+
+  if (hasRepeat) {
+    // ✅ 반복 있으면 → 반복 삭제 모달
+    await showDeleteRepeatConfirmationModal(
+      context,
+      onDeleteThis: () async {
+        // ✅ この回のみ 삭제: 내일부터 시작하도록 변경
+        await _deleteScheduleThisOnly(db, schedule);
+        if (context.mounted) Navigator.pop(context);
+      },
+      onDeleteFuture: () async {
+        // ✅ この予定以降 삭제: 어제까지로 종료
+        await _deleteScheduleFuture(db, schedule);
+        if (context.mounted) Navigator.pop(context);
+      },
+      onDeleteAll: () async {
+        // すべての回 삭제 (전체 삭제)
+        debugPrint('✅ [ScheduleWolt] すべての回 삭제');
+        await db.deleteSchedule(schedule.id);
+        if (context.mounted) Navigator.pop(context);
+      },
+    );
+  } else {
+    // ✅ 반복 없으면 → 일반 삭제 모달
+    await showDeleteConfirmationModal(
+      context,
+      onDelete: () async {
+        debugPrint('✅ [ScheduleWolt] 일정 삭제 완료');
+        await db.deleteSchedule(schedule.id);
+        if (context.mounted) Navigator.pop(context);
+      },
+    );
   }
 }
 
-void _handleStartTimePicker(BuildContext context) async {
+void _handleDateTimePicker(BuildContext context) async {
   final controller = Provider.of<ScheduleFormController>(
     context,
     listen: false,
   );
 
-  final picked = await showTimePicker(
-    context: context,
-    initialTime: controller.startTime ?? TimeOfDay.now(),
+  // 현재 날짜와 시간을 DateTime으로 통합
+  final startDateTime = DateTime(
+    controller.startDate?.year ?? DateTime.now().year,
+    controller.startDate?.month ?? DateTime.now().month,
+    controller.startDate?.day ?? DateTime.now().day,
+    controller.startTime?.hour ?? 0,
+    controller.startTime?.minute ?? 0,
   );
 
-  if (picked != null) {
-    controller.setStartTime(picked);
-  }
-}
+  final endDateTime = DateTime(
+    controller.endDate?.year ?? DateTime.now().year,
+    controller.endDate?.month ?? DateTime.now().month,
+    controller.endDate?.day ?? DateTime.now().day,
+    controller.endTime?.hour ?? 0,
+    controller.endTime?.minute ?? 0,
+  );
 
-void _handleEndTimePicker(BuildContext context) async {
-  final controller = Provider.of<ScheduleFormController>(
+  // 새로운 스무스 바텀시트 모달 호출
+  await showDateTimePickerModal(
     context,
-    listen: false,
+    initialStartDateTime: startDateTime,
+    initialEndDateTime: endDateTime,
+    isAllDay: controller.isAllDay, // ✅ 終日 모드 전달
+    onDateTimeSelected: (start, end) {
+      controller.setStartDate(start);
+      controller.setStartTime(TimeOfDay.fromDateTime(start));
+      controller.setEndDate(end);
+      controller.setEndTime(TimeOfDay.fromDateTime(end));
+    },
   );
-
-  final picked = await showTimePicker(
-    context: context,
-    initialTime: controller.endTime ?? TimeOfDay.now(),
-  );
-
-  if (picked != null) {
-    controller.setEndTime(picked);
-  }
 }
 
 void _handleRepeatPicker(BuildContext context) {
@@ -1032,4 +1563,52 @@ void _handleColorPicker(BuildContext context) {
     context,
     initialColorId: bottomSheetController.selectedColor,
   );
+}
+
+// ==================== 삭제 헬퍼 함수 ====================
+
+/// ✅ この回のみ 삭제: 오늘만 제외하고 내일부터 다시 시작
+Future<void> _deleteScheduleThisOnly(
+  AppDatabase db,
+  ScheduleData schedule,
+) async {
+  // 1. 오늘을 제외한 새로운 시작일 계산
+  final today = DateTime.now();
+  final tomorrow = DateTime(today.year, today.month, today.day + 1);
+
+  // 2. start를 내일로 변경하여 업데이트
+  await (db.update(db.schedule)..where((tbl) => tbl.id.equals(schedule.id)))
+      .write(ScheduleCompanion(id: Value(schedule.id), start: Value(tomorrow)));
+
+  debugPrint('✅ [ScheduleWolt] この回のみ 삭제 완료');
+  debugPrint('   - ID: ${schedule.id}');
+  debugPrint('   - 새 시작일: $tomorrow');
+}
+
+/// ✅ この予定以降 삭제: 어제까지만 유지하고 이후 반복 종료
+Future<void> _deleteScheduleFuture(
+  AppDatabase db,
+  ScheduleData schedule,
+) async {
+  // 1. 어제 날짜 계산
+  final today = DateTime.now();
+  final yesterday = DateTime(today.year, today.month, today.day - 1);
+
+  // 2. 반복 규칙에서 endDate를 어제로 설정
+  // TODO: repeatRule JSON 파싱 및 endDate 추가 로직 필요
+  // 현재는 단순히 오늘부터 표시 안 되도록 end를 과거로 변경
+  await (db.update(
+    db.schedule,
+  )..where((tbl) => tbl.id.equals(schedule.id))).write(
+    ScheduleCompanion(
+      id: Value(schedule.id),
+      end: Value(yesterday), // 종료일을 어제로 변경
+      repeatRule: const Value(''), // 반복 제거 (임시)
+    ),
+  );
+
+  debugPrint('✅ [ScheduleWolt] この予定以降 삭제 완료');
+  debugPrint('   - ID: ${schedule.id}');
+  debugPrint('   - 종료일: $yesterday');
+  debugPrint('   ⚠️ TODO: repeatRule endDate 설정 필요');
 }

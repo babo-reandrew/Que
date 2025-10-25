@@ -1,138 +1,267 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:figma_squircle/figma_squircle.dart';
+import 'dart:convert';
 import '../const/color.dart';
 import '../const/typography.dart';
-import '../const/calendar_config.dart';
 
 class ScheduleCard extends StatelessWidget {
-  // schedule.dart의 필드명과 통일: start, end, summary, colorId
-  final DateTime start; // startTime → start로 변경하여 schedule.dart와 통일
-  final DateTime end; // endTime → end로 변경하여 schedule.dart와 통일
-  final String? summary; // title → summary로 변경하여 schedule.dart와 통일
-  final String?
-  colorId; // color → colorId로 변경하여 schedule.dart와 통일 (String 타입으로 변경)
-  //final String description;
+  // schedule.dart의 필드명과 통일: start, end, summary, colorId, repeatRule, alertSetting
+  final DateTime start;
+  final DateTime end;
+  final String? summary;
+  final String? colorId;
+  final String? repeatRule; // 반복 규칙 (JSON 문자열)
+  final String? alertSetting; // 알림 설정 (JSON 문자열)
 
   const ScheduleCard({
     super.key,
-    required this.start, // startTime → start로 변경
-    required this.end, // endTime → end로 변경
-    this.summary, // title → summary로 변경 (required 제거하여 nullable로 변경)
-    this.colorId, // color → colorId로 변경 (required 제거하여 nullable로 변경)
+    required this.start,
+    required this.end,
+    this.summary,
+    this.colorId,
+    this.repeatRule,
+    this.alertSetting,
   });
 
-  // colorId(String)를 Color로 변환하는 함수: colorId가 null이면 gray, 있으면 categoryColorMap에서 조회
+  // colorId(String)를 Color로 변환하는 함수
   Color _getDisplayColor() {
     return categoryColorMap[colorId ?? 'gray'] ?? categoryGray;
   }
 
+  // 시간 포맷: "17時 - 18時" 형식
+  String _formatTime(DateTime time) {
+    return '${time.hour}時';
+  }
+
+  // 알림 텍스트 파싱: JSON → "10分前" 형식
+  String? _parseAlertText() {
+    if (alertSetting == null || alertSetting!.isEmpty) return null;
+    try {
+      final data = jsonDecode(alertSetting!);
+      if (data is Map && data.containsKey('display')) {
+        return data['display'];
+      }
+      if (data is Map && data.containsKey('value')) {
+        return data['value'];
+      }
+    } catch (e) {
+      // JSON 파싱 실패 시 null 반환
+    }
+    return null;
+  }
+
+  // 반복 텍스트 파싱: JSON → "月火水木" 형식
+  String? _parseRepeatText() {
+    if (repeatRule == null || repeatRule!.isEmpty) return null;
+    try {
+      final data = jsonDecode(repeatRule!);
+      if (data is Map && data.containsKey('display')) {
+        return data['display'];
+      }
+      if (data is Map && data.containsKey('value')) {
+        return data['value'];
+      }
+    } catch (e) {
+      // JSON 파싱 실패 시 null 반환
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.start, // Column의 세로 정렬을 시작점으로 설정
-      crossAxisAlignment: CrossAxisAlignment.start, // Column의 가로 정렬을 시작점으로 설정
-      children: [
-        SmoothWidgetUtils.createSmoothCard(
-          // 스무딩 위젯 유틸리티를 사용해서 안전한 스무딩 카드를 생성
-          height: 110, // 피그마 디자인: 고정 높이 110px
-          borderRadius: 24, // 둥근 모서리 반지름을 24픽셀로 설정해서 부드러운 모양을 만듦
-          backgroundColor: Colors.white, // 배경색을 흰색으로 설정해서 카드 배경을 만듦
-          borderColor: const Color(
-            0xFF111111,
-          ).withOpacity(0.08), // 피그마: rgba(17,17,17,0.08)
-          borderWidth: 1, // 테두리 두께를 1픽셀로 설정해서 얇은 경계선을 만듦
-          padding: const EdgeInsets.symmetric(
-            horizontal: 20.0, // 좌우 패딩을 20픽셀로 설정해서 좌우 여백을 만듦
-            vertical: 16.0, // 상하 패딩을 16픽셀로 설정해서 상하 여백을 만듦
-          ),
-          margin: const EdgeInsets.symmetric(
-            horizontal: 4.0, // 좌우 여백 4px
-          ), // 카드 좌우 여백
-          child: Row(
-            // 가로로 배치하기 위해 Row를 사용
-            children: [
-              Container(
-                // 세로 선을 만들기 위한 컨테이너 (피그마: 4px)
-                width: 4, // 선의 두께를 4픽셀로 설정 (피그마 디자인 기준)
-                height: 70, // 선의 높이를 70픽셀로 설정
-                decoration: BoxDecoration(
-                  color:
-                      _getDisplayColor(), // _getDisplayColor() 함수를 사용해서 colorId를 Color로 변환하여 동적 색상 설정
-                ), // 선의 색상을 colorId를 Color로 변환한 값으로 설정하여 카테고리별 색상 표시
-              ),
+    final alertText = _parseAlertText();
+    final repeatText = _parseRepeatText();
 
-              Expanded(
-                // 텍스트 영역을 Expanded로 감싸서 오버플로우를 방지하고 ShaderMask 페이드 효과를 적용
-                child: Padding(
-                  // 선과 제목 사이에 간격을 만들기 위해 패딩 추가
-                  padding: const EdgeInsets.only(
-                    left: 16.0,
-                  ), // 왼쪽에만 16픽셀 패딩을 추가해서 선과 제목 사이에 간격을 만듦
-                  child: ClipRect(
-                    // ClipRect를 사용해서 넘어가는 텍스트를 완전히 잘라내서 숨김
-                    child: ShaderMask(
-                      // ShaderMask를 사용해서 텍스트 오버플로우 시 페이드 효과를 적용
-                      shaderCallback: (Rect bounds) {
-                        // 그라데이션 페이드 효과를 생성하는 함수
-                        return LinearGradient(
-                          begin: Alignment.centerLeft, // 왼쪽에서 시작
-                          end: Alignment.centerRight, // 오른쪽에서 끝
-                          colors: [
-                            Colors.black, // 시작 부분은 완전 불투명
-                            Colors.black, // 중간 부분도 완전 불투명
-                            Colors.black.withOpacity(0.0), // 끝 부분은 완전 투명
-                          ],
-                          stops: [0.0, 0.85, 1.0], // 오른쪽 15%만 페이드 효과 적용
-                        ).createShader(bounds);
-                      },
-                      blendMode: BlendMode.dstIn, // 투명도 적용 모드를 설정해서 페이드 효과를 만듦
-                      child: Column(
-                        // 제목과 시간을 세로로 배치하기 위해 Column 사용
-                        mainAxisAlignment:
-                            MainAxisAlignment.start, // Column의 세로 정렬을 시작점으로 설정
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start, // Column의 가로 정렬을 시작점으로 설정
-                        children: [
-                          Text(
-                            summary ?? '', // title → summary로 변경하고 null 체크 추가
-                            style: CalendarTypography.calendarText.copyWith(
-                              fontSize: 16,
-                              color: gray950,
-                              fontWeight: FontWeight.w900,
-                            ),
-                            maxLines: 1, // 제목을 1줄로 제한해서 오버플로우를 방지
-                            softWrap: false, // 텍스트 줄바꿈을 비활성화해서 한 줄로 표시
-                            overflow: TextOverflow
-                                .visible, // 오버플로우를 허용해서 ShaderMask 페이드 효과가 작동하도록 함
-                          ), // 일정의 제목을 표시하는 텍스트
-                          SizedBox(height: 8), // 제목과 시간 사이에 8픽셀 간격을 추가
-                          Row(
-                            // 시작 시간과 종료 시간을 가로로 배치하기 위해 Row 사용
-                            children: [
-                              Text(
-                                // 시작 시간을 표시하는 텍스트
-                                '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}', // startTime → start로 변경하여 schedule.dart와 통일
-                                style: TextStyle(
-                                  fontSize: 13, // 폰트 크기를 13으로 설정
-                                  color: gray950, // 텍스트 색상을 gray950으로 설정
-                                  fontWeight: FontWeight
-                                      .w700, // 폰트 굵기를 700으로 설정해서 굵게 표시
-                                ),
+    // 컨텐츠 높이 계산
+    // - 제목: 16px * 1.2 (line height) * 최대2줄 = 최대 38.4px
+    // - 간격1: 8px
+    // - 시간: 13px * 1.2 = 15.6px
+    // - 간격2: 10px
+    // - 옵션: (있으면) 16px (아이콘 높이)
+    // - 상하 패딩: 16px * 2 = 32px
+    // - 추가 여유: 2px
+    // 하지만 실제 텍스트 높이는 동적이므로 LayoutBuilder 사용
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 345, // Figma: 고정 너비
+          margin: const EdgeInsets.symmetric(horizontal: 4.0),
+          decoration: ShapeDecoration(
+            color: Colors.white,
+            shape: SmoothRectangleBorder(
+              borderRadius: SmoothBorderRadius(
+                cornerRadius: 24,
+                cornerSmoothing: 0.7, // Figma smoothing 70%
+              ),
+              side: BorderSide(
+                color: const Color(0xFF111111).withOpacity(0.08),
+                width: 1,
+              ),
+            ),
+          ),
+          child: Stack(
+            children: [
+              // 메인 컨텐츠
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  20,
+                  16,
+                  48,
+                  16,
+                ), // Figma: left 20, right 48, top/bottom 16
+                child: IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 좌측 컬러 라인 - 컨텐츠 높이 + 상하 패딩 32px + 여유 2px
+                      Container(
+                        width: 4,
+                        margin: const EdgeInsets.only(
+                          top: 1,
+                          bottom: 1,
+                        ), // +2px 여유 (상하 각 1px)
+                        decoration: BoxDecoration(
+                          color: _getDisplayColor(),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // 텍스트 영역
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 제목
+                            Text(
+                              summary ?? '',
+                              style: CalendarTypography.calendarText.copyWith(
+                                fontSize: 16,
+                                color: gray950,
+                                fontWeight: FontWeight.w800, // extrabold
+                                height: 1.4, // 행간 140%
                               ),
-                              SizedBox(width: 8), // 시작 시간과 종료 시간 사이에 8픽셀 간격을 추가
-                              Text(
-                                // 종료 시간을 표시하는 텍스트
-                                '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}', // endTime → end로 변경하여 schedule.dart와 통일
-                                style: TextStyle(
-                                  fontSize: 13, // 폰트 크기를 13으로 설정
-                                  color:
-                                      _getDisplayColor(), // color → _getDisplayColor()로 변경하여 colorId를 Color로 변환한 값 사용
-                                  fontWeight: FontWeight
-                                      .w700, // 폰트 굵기를 700으로 설정해서 굵게 표시
+                              maxLines: 2, // 최대 2줄
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 8),
+                            // 시간
+                            Row(
+                              children: [
+                                Text(
+                                  _formatTime(start),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: gray950,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'LINESeedJP',
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '-',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: gray950,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _formatTime(end),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: _getDisplayColor(),
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'LINESeedJP',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (alertText != null || repeatText != null) ...[
+                              const SizedBox(height: 8), // 위 여백 8px
+                              // 옵션 행 (알림, 반복) - 제목, 시간과 같은 좌측 시작점에 정렬
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: 6,
+                                ), // 하단 여백 14px - 이미 있는 8px = 6px 추가
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    // 알림
+                                    if (alertText != null) ...[
+                                      SvgPicture.asset(
+                                        'asset/icon/remind_icon.svg',
+                                        width: 16,
+                                        height: 16,
+                                        colorFilter: ColorFilter.mode(
+                                          gray950.withOpacity(0.4),
+                                          BlendMode.srcIn,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        alertText,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: gray950.withOpacity(0.4),
+                                          fontWeight: FontWeight.w400,
+                                          fontFamily: 'LINESeedJP',
+                                        ),
+                                      ),
+                                      if (repeatText != null)
+                                        const SizedBox(width: 12),
+                                    ],
+                                    // 반복
+                                    if (repeatText != null) ...[
+                                      SvgPicture.asset(
+                                        'asset/icon/repeat_icon.svg',
+                                        width: 16,
+                                        height: 16,
+                                        colorFilter: ColorFilter.mode(
+                                          gray950.withOpacity(0.4),
+                                          BlendMode.srcIn,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        repeatText,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: gray950.withOpacity(0.4),
+                                          fontWeight: FontWeight.w400,
+                                          fontFamily: 'LINESeedJP',
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
                             ],
-                          ),
-                        ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // 우측 중앙 드래그 아이콘 - 카드의 수직 중앙에 위치
+              Positioned.fill(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: SvgPicture.asset(
+                      'asset/icon/drag_menu_icon.svg',
+                      width: 24,
+                      height: 24,
+                      colorFilter: const ColorFilter.mode(
+                        Color(0xFFF0F0F0), // #F0F0F0
+                        BlendMode.srcIn,
                       ),
                     ),
                   ),

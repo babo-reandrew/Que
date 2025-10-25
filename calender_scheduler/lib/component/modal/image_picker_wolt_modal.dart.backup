@@ -1,0 +1,585 @@
+import 'package:flutter/material.dart';
+import 'package:wolt_modal_sheet/wolt_modal_sheet.dart';
+import 'package:wechat_assets_picker/wechat_assets_picker.dart';
+import 'package:photo_manager/photo_manager.dart';
+import 'package:flutter_svg/flutter_svg.dart'; // 📸 SVG 아이콘 추가
+import '../../design_system/wolt_common_widgets.dart';
+
+/// 📸 이미지 선택 Wolt Modal Sheet
+///
+/// **Figma Design Spec:**
+///
+/// **Frame 847 - Modal Container:**
+/// - Size: 393 x 651px
+/// - Background: #FDFCFC
+/// - Border: 1px solid rgba(17, 17, 17, 0.1)
+/// - Shadow: 0px 2px 20px rgba(165, 165, 165, 0.2)
+/// - Border radius: 36px
+///
+/// **TopNavi (54px):**
+/// - Padding: 9px 28px
+/// - Title: "画像で追加" - Bold 19px, #566099, LINE Seed JP
+/// - Close Button: 36×36px circle, background: rgba(228, 228, 228, 0.9)
+///
+/// **Frame 848 - Image Grid Container:**
+/// - Size: 393 x 651px
+/// - Background: #FEFDFD
+/// - Overflow-y: scroll
+/// - Gap: 1px
+///
+/// **Image_Area (각 슬롯):**
+/// - Size: 130 x 232px
+/// - Background (미선택): linear-gradient(0deg, rgba(17, 17, 17, 0.05), rgba(17, 17, 17, 0.05)), #DDDDDD
+/// - Background (선택): linear-gradient(0deg, rgba(17, 17, 17, 0.25), rgba(17, 17, 17, 0.25))
+/// - Image_Selected: right: 9.23%, top: 5.17% (우상단)
+///
+/// **Camera Slot:**
+/// - Icon: 40×40px camera, border: 2px solid #555555
+/// - Text: "カメラ" - 12px
+void showImagePickerWoltModal(
+  BuildContext context, {
+  required Function(List<AssetEntity>) onImagesSelected,
+}) {
+  WoltModalSheet.show(
+    context: context,
+    pageListBuilder: (context) => [
+      _buildImagePickerPage(context, onImagesSelected),
+    ],
+    modalTypeBuilder: (context) {
+      // 반응형 레이아웃: 768px 미만은 BottomSheet, 이상은 Dialog
+      final width = MediaQuery.sizeOf(context).width;
+      if (width < 768) {
+        return WoltModalType.bottomSheet();
+      } else {
+        return WoltModalType.dialog();
+      }
+    },
+    onModalDismissedWithBarrierTap: () {
+      debugPrint('✅ [ImagePickerWolt] Modal dismissed with tap');
+    },
+    onModalDismissedWithDrag: () {
+      debugPrint('✅ [ImagePickerWolt] Modal dismissed with drag');
+    },
+    useSafeArea: false,
+  );
+}
+
+// ========================================
+// Image Picker Page Builder
+// ========================================
+
+SliverWoltModalSheetPage _buildImagePickerPage(
+  BuildContext context,
+  Function(List<AssetEntity>) onImagesSelected,
+) {
+  return SliverWoltModalSheetPage(
+    hasTopBarLayer: false,
+
+    mainContentSliversBuilder: (context) => [
+      SliverToBoxAdapter(
+        child: Container(
+          // Figma: Frame 847 스펙
+          decoration: BoxDecoration(
+            color: const Color(0xFFFDFCFC), // ✅ Figma 배경색
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(36),
+              topRight: Radius.circular(36),
+            ),
+            border: Border.all(
+              color: const Color(0xFF111111).withOpacity(0.1),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFA5A5A5).withOpacity(0.2),
+                offset: const Offset(0, 2),
+                blurRadius: 20,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(36),
+              topRight: Radius.circular(36),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ========== TopNavi (54px) ==========
+                _buildTopNavi(context),
+
+                // ========== Image Grid (651px) ==========
+                SizedBox(
+                  height: 651, // Figma: Frame 848 height
+                  child: _ImageGridView(
+                    onImagesSelected: onImagesSelected,
+                    onClose: () => Navigator.of(context).pop(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ],
+
+    hasSabGradient: false, // 그라데이션 비활성화 (필요시 활성화)
+  );
+}
+
+// ========================================
+// TopNavi Header
+// ========================================
+
+Widget _buildTopNavi(BuildContext context) {
+  return Container(
+    height: 54, // Figma: TopNavi height
+    padding: const EdgeInsets.symmetric(
+      horizontal: 28,
+      vertical: 9,
+    ), // Figma: padding 9px 28px
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        // 빈 공간 (왼쪽 정렬 유지)
+        const SizedBox.shrink(),
+
+        // 중앙 타이틀: "画像で追加"
+        Text(
+          '画像で追加',
+          style: TextStyle(
+            fontFamily: 'LINE Seed JP App_TTF',
+            fontSize: 19, // Figma: font-size 19px
+            fontWeight: FontWeight.w700, // Figma: font-weight 700
+            height: 1.4, // Figma: line-height 140%
+            letterSpacing: -0.005, // Figma: letter-spacing -0.005em
+            color: const Color(0xFF566099), // Figma: color #566099
+          ),
+        ),
+
+        // 닫기 버튼 (36×36px)
+        WoltCloseButton(),
+      ],
+    ),
+  );
+}
+
+// ========================================
+// Image Grid View (LazyLoading)
+// ========================================
+
+class _ImageGridView extends StatefulWidget {
+  const _ImageGridView({
+    required this.onImagesSelected,
+    required this.onClose,
+  });
+
+  final Function(List<AssetEntity>) onImagesSelected;
+  final VoidCallback onClose;
+
+  @override
+  State<_ImageGridView> createState() => _ImageGridViewState();
+}
+
+class _ImageGridViewState extends State<_ImageGridView> {
+  AssetPathEntity? _currentPath;
+  List<AssetEntity> _assets = [];
+  List<AssetEntity> _selectedAssets = []; // 📸 선택된 이미지 리스트
+  int _totalCount = 0;
+  int _currentPage = 0;
+  bool _isLoading = false;
+  bool _hasMore = true;
+
+  static const int _pageSize = 50; // 한 번에 로드할 개수 (LazyLoading)
+  static const int _gridCount = 3; // Figma: 3열 레이아웃
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAssets();
+  }
+
+  /// 📸 권한 요청 및 앨범 에셋 로드 (LazyLoading)
+  Future<void> _loadAssets() async {
+    if (_isLoading || !_hasMore) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. 권한 요청
+      final PermissionState ps = await PhotoManager.requestPermissionExtend();
+      if (!ps.isAuth) {
+        debugPrint('❌ [ImagePickerWolt] 권한 거부됨');
+        if (mounted) {
+          _showPermissionDeniedDialog();
+        }
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // 2. 첫 로드: 앨범 경로 가져오기
+      if (_currentPath == null) {
+        final List<AssetPathEntity> paths = await PhotoManager.getAssetPathList(
+          type: RequestType.image,
+          hasAll: true,
+        );
+
+        if (paths.isEmpty) {
+          debugPrint('⚠️ [ImagePickerWolt] 앨범이 비어있음');
+          setState(() {
+            _isLoading = false;
+            _hasMore = false;
+          });
+          return;
+        }
+
+        _currentPath = paths.first;
+        _totalCount = await _currentPath!.assetCountAsync;
+        debugPrint('✅ [ImagePickerWolt] 총 이미지 개수: $_totalCount');
+      }
+
+      // 3. 페이지별 에셋 로드 (LazyLoading)
+      final List<AssetEntity> assets = await _currentPath!.getAssetListPaged(
+        page: _currentPage,
+        size: _pageSize,
+      );
+
+      debugPrint(
+          '✅ [ImagePickerWolt] Page $_currentPage 로드: ${assets.length}개');
+
+      setState(() {
+        _assets.addAll(assets);
+        _currentPage++;
+        _hasMore = _assets.length < _totalCount;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('❌ [ImagePickerWolt] 에셋 로드 실패: $e');
+      setState(() => _isLoading = false);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('画像の読み込みに失敗しました: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 🚫 권한 거부 다이얼로그
+  void _showPermissionDeniedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('アクセス権限が必要です'),
+        content: const Text('写真を選択するには、フォトライブラリへのアクセスを許可してください。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              PhotoManager.openSetting();
+            },
+            child: const Text('設定を開く'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📷 WeChat Assets Picker 오픈
+  Future<void> _openAssetPicker() async {
+    final List<AssetEntity>? result = await AssetPicker.pickAssets(
+      context,
+      pickerConfig: AssetPickerConfig(
+        maxAssets: 999, // 무제한에 가까운 큰 값
+        requestType: RequestType.image,
+        gridCount: _gridCount,
+        pageSize: _pageSize,
+        themeColor: const Color(0xFF566099), // Figma: #566099
+        textDelegate: const AssetPickerTextDelegate(),
+        specialItemPosition: SpecialItemPosition.none,
+        // 썸네일 크기 최적화
+        gridThumbnailSize: const ThumbnailSize.square(200),
+        pathThumbnailSize: const ThumbnailSize.square(80),
+      ),
+    );
+
+    if (result != null && result.isNotEmpty) {
+      debugPrint('✅ [ImagePickerWolt] 선택된 이미지: ${result.length}개');
+      widget.onImagesSelected(result);
+      if (mounted) {
+        Navigator.of(context).pop(); // Bottom Sheet 닫기
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // 이미지 그리드
+        Expanded(
+          child: Container(
+            color: const Color(0xFFFEFDFD), // Figma: Frame 842 background
+            child: CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: EdgeInsets.zero,
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: _gridCount,
+                      crossAxisSpacing: 1, // Figma: gap 1px
+                      mainAxisSpacing: 1, // Figma: gap 1px
+                      childAspectRatio: 130 / 232, // Figma: width 130px / height 232px
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        // 첫 번째 슬롯: 카메라 버튼
+                        if (index == 0) {
+                          return _buildCameraSlot();
+                        }
+
+                        final assetIndex = index - 1;
+
+                        // 이미지 로드
+                        if (assetIndex < _assets.length) {
+                          return _buildImageSlot(_assets[assetIndex]);
+                        }
+
+                        // 스크롤 끝에 도달: 다음 페이지 로드
+                        if (assetIndex == _assets.length && _hasMore && !_isLoading) {
+                          Future.microtask(() => _loadAssets());
+                        }
+
+                        // 로딩 인디케이터
+                        if (_isLoading && assetIndex == _assets.length) {
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF566099),
+                            ),
+                          );
+                        }
+
+                        return const SizedBox.shrink();
+                      },
+                      childCount: _assets.length + 1 + (_isLoading ? 1 : 0),
+                      findChildIndexCallback: (Key key) {
+                        if (key is ValueKey<String>) {
+                          final index = _assets.indexWhere((asset) => asset.id == key.value);
+                          return index >= 0 ? index + 1 : null;
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // 하단 액션 바 (선택 개수 표시)
+        if (_selectedAssets.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  offset: const Offset(0, -2),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
+            child: SafeArea(
+              top: false,
+              child: ElevatedButton(
+                onPressed: () {
+                  widget.onImagesSelected(_selectedAssets);
+                  widget.onClose();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF566099),
+                  minimumSize: const Size(double.infinity, 56),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      '追加',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${_selectedAssets.length}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+                      ),
+                    );
+                  }
+
+                  return const SizedBox.shrink();
+                },
+                childCount: _assets.length + 1 + (_isLoading ? 1 : 0),
+                findChildIndexCallback: (Key key) {
+                  // 성능 최적화를 위한 인덱스 찾기
+                  if (key is ValueKey<String>) {
+                    final index = _assets.indexWhere((asset) => asset.id == key.value);
+                    return index >= 0 ? index + 1 : null;
+                  }
+                  return null;
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📷 카메라 슬롯 (첫 번째 위치)
+  ///
+  /// Figma: Image_Area - Camera
+  /// - Size: 130 x 232px
+  /// - Background: #D3D3D3 (비활성화 배경색)
+  /// - Icon: asset/icon/camera.svg
+  Widget _buildCameraSlot() {
+    return GestureDetector(
+      onTap: _openAssetPicker,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFD3D3D3), // Figma: #D3D3D3
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // 카메라 SVG 아이콘 (40×40px)
+              SvgPicture.asset(
+                'asset/icon/camera.svg',
+                width: 40,
+                height: 40,
+              ),
+              const SizedBox(height: 8),
+              // "カメラ" 텍스트
+              const Text(
+                'カメラ',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF555555),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 🖼️ 이미지 슬롯 (선택 상태 관리)
+  ///
+  /// Figma: Image_Area
+  /// - Size: 130 x 232px
+  /// - Background: #D3D3D3 (미선택), rgba(17, 17, 17, 0.25) overlay (선택)
+  /// - Image_Selected: right: 9.23%, top: 5.17%
+  Widget _buildImageSlot(AssetEntity asset) {
+    final isSelected = _selectedAssets.contains(asset);
+
+    return GestureDetector(
+      key: ValueKey<String>(asset.id),
+      onTap: () {
+        setState(() {
+          if (isSelected) {
+            // 선택 해제
+            _selectedAssets.remove(asset);
+            debugPrint('✅ [ImagePicker] 이미지 선택 해제: ${asset.id}');
+          } else {
+            // 선택 추가
+            _selectedAssets.add(asset);
+            debugPrint('✅ [ImagePicker] 이미지 선택: ${asset.id} (${_selectedAssets.length}개)');
+          }
+        });
+      },
+      child: RepaintBoundary(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 1. 이미지 썸네일
+            AssetEntityImage(
+              asset,
+              isOriginal: false,
+              thumbnailSize: const ThumbnailSize.square(200),
+              fit: BoxFit.cover,
+            ),
+
+            // 2. 선택 오버레이 (선택 시에만 표시)
+            if (isSelected)
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFF111111).withOpacity(0.25),
+                      const Color(0xFF111111).withOpacity(0.25),
+                    ],
+                  ),
+                ),
+              ),
+
+            // 3. 선택 아이콘 (우상단)
+            // Figma: left: 72.31%, right: 9.23%, top: 5.17%, bottom: 84.48%
+            Positioned(
+              right: 130 * 0.0923, // 9.23% from right
+              top: 232 * 0.0517, // 5.17% from top
+              child: SvgPicture.asset(
+                isSelected 
+                    ? 'asset/icon/Selected.svg' 
+                    : 'asset/icon/NotSelected.svg',
+                width: 24,
+                height: 24,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

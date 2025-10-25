@@ -175,4 +175,134 @@ class RepeatRuleUtils {
         return null;
     }
   }
+
+  /// 🎯 특정 날짜에 항목이 반복 규칙에 의해 표시되어야 하는지 확인
+  ///
+  /// [targetDate]: 확인할 날짜
+  /// [baseDate]: 기준 날짜 (Schedule의 start, Task의 executionDate, Habit의 createdAt)
+  /// [repeatRule]: 반복 규칙 JSON 문자열
+  ///
+  /// 반환: true이면 해당 날짜에 표시해야 함
+  static bool shouldShowOnDate({
+    required DateTime targetDate,
+    required DateTime baseDate,
+    required String? repeatRule,
+  }) {
+    // 반복 규칙이 없으면 기준 날짜와 같은지만 확인
+    if (repeatRule == null || repeatRule.isEmpty) {
+      return _isSameDate(targetDate, baseDate);
+    }
+
+    final parsed = parseRepeatRule(repeatRule);
+    if (parsed == null) {
+      return _isSameDate(targetDate, baseDate);
+    }
+
+    final type = parsed['type'] as String?;
+
+    switch (type) {
+      case 'daily':
+        return _checkDailyRepeat(targetDate, baseDate, parsed);
+
+      case 'monthly':
+        return _checkMonthlyRepeat(targetDate, baseDate, parsed);
+
+      case 'interval':
+        return _checkIntervalRepeat(targetDate, baseDate, parsed);
+
+      default:
+        return _isSameDate(targetDate, baseDate);
+    }
+  }
+
+  /// 매일 반복 규칙 확인
+  static bool _checkDailyRepeat(
+    DateTime targetDate,
+    DateTime baseDate,
+    Map<String, dynamic> parsed,
+  ) {
+    // targetDate가 baseDate보다 이전이면 표시 안 함
+    if (targetDate.isBefore(_dateOnly(baseDate))) {
+      return false;
+    }
+
+    // weekdays가 있으면 해당 요일만 표시
+    final weekdays = parsed['weekdays'] as List<dynamic>?;
+    if (weekdays != null && weekdays.isNotEmpty) {
+      // targetDate의 요일 (월=1, 일=7)
+      final targetWeekday = targetDate.weekday;
+      return weekdays.contains(targetWeekday);
+    }
+
+    // weekdays가 없거나 비어있으면 매일 표시 (baseDate 이후)
+    return true;
+  }
+
+  /// 매월 반복 규칙 확인
+  static bool _checkMonthlyRepeat(
+    DateTime targetDate,
+    DateTime baseDate,
+    Map<String, dynamic> parsed,
+  ) {
+    // targetDate가 baseDate보다 이전이면 표시 안 함
+    if (targetDate.isBefore(_dateOnly(baseDate))) {
+      return false;
+    }
+
+    final days = parsed['days'] as List<dynamic>?;
+    if (days == null || days.isEmpty) {
+      return false;
+    }
+
+    // targetDate의 일(day)이 선택된 날짜 목록에 있으면 표시
+    return days.contains(targetDate.day);
+  }
+
+  /// 간격 반복 규칙 확인
+  static bool _checkIntervalRepeat(
+    DateTime targetDate,
+    DateTime baseDate,
+    Map<String, dynamic> parsed,
+  ) {
+    // targetDate가 baseDate보다 이전이면 표시 안 함
+    if (targetDate.isBefore(_dateOnly(baseDate))) {
+      return false;
+    }
+
+    final value = parsed['value'] as String?;
+    if (value == null || value.isEmpty) {
+      return false;
+    }
+
+    // "2day", "3day" 등 파싱
+    final match = RegExp(r'(\d+)day').firstMatch(value);
+    if (match == null) {
+      return false;
+    }
+
+    final intervalDays = int.tryParse(match.group(1) ?? '');
+    if (intervalDays == null || intervalDays <= 0) {
+      return false;
+    }
+
+    // baseDate부터 targetDate까지의 일수 차이 계산
+    final baseDateOnly = _dateOnly(baseDate);
+    final targetDateOnly = _dateOnly(targetDate);
+    final daysDiff = targetDateOnly.difference(baseDateOnly).inDays;
+
+    // 간격의 배수이면 표시
+    return daysDiff >= 0 && daysDiff % intervalDays == 0;
+  }
+
+  /// 두 DateTime이 같은 날짜인지 확인 (시간 무시)
+  static bool _isSameDate(DateTime date1, DateTime date2) {
+    return date1.year == date2.year &&
+        date1.month == date2.month &&
+        date1.day == date2.day;
+  }
+
+  /// DateTime에서 시간을 제거하고 날짜만 반환
+  static DateTime _dateOnly(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
+  }
 }

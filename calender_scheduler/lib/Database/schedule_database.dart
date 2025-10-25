@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import '../model/schedule.dart';
 import '../model/entities.dart'; // ✅ Task, Habit, HabitCompletion 추가
+import '../utils/repeat_rule_utils.dart'; // ✅ 반복 규칙 유틸리티 추가
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3_flutter_libs/sqlite3_flutter_libs.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -46,6 +47,17 @@ class AppDatabase extends _$AppDatabase {
     return result;
   }
 
+  /// 특정 ID의 일정 조회
+  Future<ScheduleData?> getScheduleById(int id) async {
+    final result = await (select(
+      schedule,
+    )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
+    print(
+      '🔍 [DB] getScheduleById 실행: ID=$id → ${result != null ? "찾음" : "없음"}',
+    );
+    return result;
+  }
+
   /// 특정 날짜의 일정만 조회하는 함수 (메모리 효율적)
   /// 이거를 설정하고 → 선택한 날짜의 00:00부터 다음날 00:00 전까지의 범위를 계산해서
   /// 이거를 해서 → 해당 구간과 겹치는 일정만 DB에서 필터링한다
@@ -82,6 +94,31 @@ class AppDatabase extends _$AppDatabase {
           (tbl) =>
               OrderingTerm(expression: tbl.summary, mode: OrderingMode.asc),
         ]))
+        .watch();
+  }
+
+  /// 특정 날짜 범위의 일정을 실시간으로 관찰하는 함수 (캘린더 최적화용)
+  /// 이거를 설정하고 → 캘린더에 보이는 범위(시작일~종료일)의 일정만 가져온다
+  /// 이거는 이래서 → 1000개가 아닌 30~60개 정도만 로드해서 성능 향상
+  Stream<List<ScheduleData>> watchSchedulesInRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) {
+    print(
+      '👀 [DB] watchSchedulesInRange - ${startDate.toString().substring(0, 10)} ~ ${endDate.toString().substring(0, 10)}',
+    );
+    return (select(schedule)
+          ..where(
+            (tbl) =>
+                tbl.end.isBiggerThanValue(startDate) &
+                tbl.start.isSmallerThanValue(endDate),
+          )
+          ..orderBy([
+            (tbl) =>
+                OrderingTerm(expression: tbl.start, mode: OrderingMode.asc),
+            (tbl) =>
+                OrderingTerm(expression: tbl.summary, mode: OrderingMode.asc),
+          ]))
         .watch();
   }
 
@@ -207,13 +244,26 @@ class AppDatabase extends _$AppDatabase {
     return id;
   }
 
+  /// 특정 ID의 할일 조회
+  Future<TaskData?> getTaskById(int id) async {
+    final result = await (select(
+      task,
+    )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
+    print('🔍 [DB] getTaskById 실행: ID=$id → ${result != null ? "찾음" : "없음"}');
+    return result;
+  }
+
   /// 할일 목록 조회 (스트림)
   /// 이거를 설정하고 → task 테이블을 watch()로 구독해서
   /// 이거를 해서 → 실시간으로 할일 목록을 받는다
+  /// 이거는 이래서 → executionDate가 있으면 그 날짜로 정렬하고, 없으면 인박스에만 표시
   Stream<List<TaskData>> watchTasks() {
     print('👀 [DB] watchTasks 스트림 시작 - 실시간 관찰 중');
     return (select(task)..orderBy([
           (tbl) => OrderingTerm(expression: tbl.completed), // 미완료 먼저
+          (tbl) => OrderingTerm(
+            expression: tbl.executionDate,
+          ), // 실행일 순 (executionDate 우선)
           (tbl) => OrderingTerm(expression: tbl.dueDate), // 마감일 순
           (tbl) => OrderingTerm(expression: tbl.title), // 제목 순
         ]))
@@ -252,6 +302,20 @@ class AppDatabase extends _$AppDatabase {
     return count;
   }
 
+  /// 🎯 할일 날짜 업데이트 (드래그 앤 드롭용)
+  /// 이거를 설정하고 → 특정 id의 할일의 executionDate를 새로운 날짜로 업데이트해서
+  /// 이거를 해서 → 인박스에서 캘린더로 드래그 시 해당 날짜로 이동하고
+  /// 이거는 이래서 → DetailView에 표시되며, executionDate가 없으면 Inbox에만 표시된다
+  Future<int> updateTaskDate(int id, DateTime newDate) async {
+    final count = await (update(task)..where((tbl) => tbl.id.equals(id))).write(
+      TaskCompanion(executionDate: Value(newDate)), // ✅ executionDate로 변경
+    );
+    print(
+      '📅 [DB] updateTaskDate 실행 완료: ID=$id → ${newDate.toString().split(' ')[0]}로 이동됨 (executionDate 설정)',
+    );
+    return count;
+  }
+
   // ==================== Habit (습관) 함수 ====================
 
   /// 습관 생성
@@ -262,6 +326,15 @@ class AppDatabase extends _$AppDatabase {
     print('✅ [DB] createHabit 실행 완료: ID=$id로 습관 생성됨');
     print('   → 제목: ${data.title.value}');
     return id;
+  }
+
+  /// 특정 ID의 습관 조회
+  Future<HabitData?> getHabitById(int id) async {
+    final result = await (select(
+      habit,
+    )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
+    print('🔍 [DB] getHabitById 실행: ID=$id → ${result != null ? "찾음" : "없음"}');
+    return result;
   }
 
   /// 습관 목록 조회 (스트림)
@@ -507,6 +580,52 @@ class AppDatabase extends _$AppDatabase {
   // 📄 페이지네이션 - 화면에 보이는 데이터만 로드
   // ============================================================================
 
+  /// 🎯 특정 날짜의 할일 조회 (executionDate 기준)
+  /// 이거를 설정하고 → executionDate가 지정된 날짜인 할일만 가져와서
+  /// 이거를 해서 → DetailView에 해당 날짜의 할일을 표시하고
+  /// 이거는 이래서 → executionDate가 없으면 Inbox에만 표시된다
+  Stream<List<TaskData>> watchTasksByExecutionDate(DateTime date) {
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+
+    print(
+      '👀 [DB] watchTasksByExecutionDate: ${date.toString().split(' ')[0]}',
+    );
+    return (select(task)
+          ..where(
+            (tbl) =>
+                tbl.executionDate.isBiggerOrEqualValue(startOfDay) &
+                tbl.executionDate.isSmallerOrEqualValue(endOfDay),
+          )
+          ..orderBy([
+            (tbl) => OrderingTerm(expression: tbl.completed), // 미완료 먼저
+            (tbl) => OrderingTerm(expression: tbl.executionDate), // 실행일 순
+            (tbl) => OrderingTerm(expression: tbl.dueDate), // 마감일 순
+            (tbl) => OrderingTerm(expression: tbl.title), // 제목 순
+          ]))
+        .watch();
+  }
+
+  /// 📥 Inbox 할일 조회 (완료되지 않은 것만)
+  /// 이거를 설정하고 → completed가 false인 할일만 가져와서
+  /// 이거를 해서 → Inbox에만 표시한다
+  Stream<List<TaskData>> watchInboxTasks() {
+    print('👀 [DB] watchInboxTasks: 완료되지 않은 할일만 표시');
+    return (select(task)
+          ..where((tbl) => tbl.completed.equals(false)) // ✅ 완료되지 않은 것만
+          ..orderBy([
+            (tbl) => OrderingTerm(
+              expression: tbl.dueDate,
+              mode: OrderingMode.asc,
+            ), // 마감일 오름차순
+            (tbl) => OrderingTerm(
+              expression: tbl.title,
+              mode: OrderingMode.asc,
+            ), // 제목 오름차순
+          ]))
+        .watch();
+  }
+
   /// 📄 할일 페이지네이션 (화면에 보이는 것만 로드)
   /// 이거를 설정하고 → limit과 offset으로 필요한 만큼만 가져와서
   /// 이거를 해서 → 성능을 최적화하고
@@ -519,6 +638,7 @@ class AppDatabase extends _$AppDatabase {
     return (select(task)
           ..orderBy([
             (tbl) => OrderingTerm(expression: tbl.completed), // 미완료 먼저
+            (tbl) => OrderingTerm(expression: tbl.executionDate), // 실행일 순
             (tbl) => OrderingTerm(expression: tbl.dueDate), // 마감일 순
             (tbl) => OrderingTerm(expression: tbl.title), // 제목 순
           ])
@@ -566,6 +686,155 @@ class AppDatabase extends _$AppDatabase {
     final count = result.read(habit.id.count()) ?? 0;
     print('📊 [DB] getHabitsCount: $count개');
     return count;
+  }
+
+  // ============================================================================
+  // 🔁 반복 규칙 필터링 (RepeatRuleUtils 사용)
+  // ============================================================================
+
+  /// 🎯 특정 날짜의 Schedule (반복 규칙 고려)
+  ///
+  /// 1. DB에서 모든 Schedule 조회
+  /// 2. 반복 규칙을 파싱하여 targetDate에 표시되어야 하는지 확인
+  /// 3. 필터링된 Schedule만 반환
+  Stream<List<ScheduleData>> watchSchedulesWithRepeat(DateTime targetDate) {
+    print(
+      '🔁 [DB] watchSchedulesWithRepeat: ${targetDate.toString().split(' ')[0]}',
+    );
+
+    // 모든 Schedule을 가져온 후 반복 규칙으로 필터링
+    return watchSchedules().map((schedules) {
+      return schedules.where((schedule) {
+        // repeatRule이 없으면 start 날짜 기준으로 판단
+        if (schedule.repeatRule.isEmpty) {
+          final scheduleStartDate = DateTime(
+            schedule.start.year,
+            schedule.start.month,
+            schedule.start.day,
+          );
+          final scheduleEndDate = DateTime(
+            schedule.end.year,
+            schedule.end.month,
+            schedule.end.day,
+          );
+          final target = DateTime(
+            targetDate.year,
+            targetDate.month,
+            targetDate.day,
+          );
+
+          // ✅ target이 일정의 시작~종료 날짜 범위 안에 있으면 표시
+          // 조건: 시작날짜 ≤ target ≤ 종료날짜
+          return !scheduleStartDate.isAfter(target) &&
+              !scheduleEndDate.isBefore(target);
+        }
+
+        // repeatRule이 있으면 RepeatRuleUtils로 확인
+        return RepeatRuleUtils.shouldShowOnDate(
+          targetDate: targetDate,
+          baseDate: schedule.start,
+          repeatRule: schedule.repeatRule,
+        );
+      }).toList();
+    });
+  }
+
+  /// 🎯 특정 날짜의 Task (반복 규칙 고려)
+  ///
+  /// 조건:
+  /// - executionDate가 null이면 제외 (Inbox 전용)
+  /// - executionDate가 있고 repeatRule이 없으면 해당 날짜만
+  /// - repeatRule이 있으면 반복 규칙에 따라 표시
+  Stream<List<TaskData>> watchTasksWithRepeat(DateTime targetDate) {
+    print(
+      '🔁 [DB] watchTasksWithRepeat: ${targetDate.toString().split(' ')[0]}',
+    );
+
+    return watchTasks().map((tasks) {
+      final filtered = tasks.where((task) {
+        // executionDate가 null이면 Inbox 전용 (DetailView에 표시 안 함)
+        if (task.executionDate == null) {
+          return false;
+        }
+
+        // repeatRule이 없으면 executionDate 기준으로 판단
+        if (task.repeatRule.isEmpty) {
+          final taskDate = DateTime(
+            task.executionDate!.year,
+            task.executionDate!.month,
+            task.executionDate!.day,
+          );
+          final target = DateTime(
+            targetDate.year,
+            targetDate.month,
+            targetDate.day,
+          );
+          return taskDate.isAtSameMomentAs(target);
+        }
+
+        // repeatRule이 있으면 RepeatRuleUtils로 확인
+        return RepeatRuleUtils.shouldShowOnDate(
+          targetDate: targetDate,
+          baseDate: task.executionDate!,
+          repeatRule: task.repeatRule,
+        );
+      }).toList();
+
+      // 완료 안 된 것이 먼저, 완료된 것이 나중에 (가장 아래)
+      filtered.sort((a, b) {
+        if (a.completed == b.completed) return 0;
+        return a.completed ? 1 : -1;
+      });
+
+      return filtered;
+    });
+  }
+
+  /// 🎯 특정 날짜의 Habit (반복 규칙 고려)
+  ///
+  /// Habit은 항상 repeatRule이 있어야 함 (기본: 매일)
+  /// createdAt 날짜 이후로 반복 규칙에 따라 표시
+  Stream<List<HabitData>> watchHabitsWithRepeat(DateTime targetDate) {
+    print(
+      '🔁 [DB] watchHabitsWithRepeat: ${targetDate.toString().split(' ')[0]}',
+    );
+
+    return (select(habit)..orderBy([
+          (tbl) =>
+              OrderingTerm(expression: tbl.createdAt, mode: OrderingMode.desc),
+        ]))
+        .watch()
+        .map((habits) {
+          return habits.where((habit) {
+            // repeatRule이 없으면 표시 안 함 (Habit은 반복이 필수)
+            if (habit.repeatRule.isEmpty) {
+              return false;
+            }
+
+            // createdAt 이전 날짜에는 표시 안 함
+            final createdDate = DateTime(
+              habit.createdAt.year,
+              habit.createdAt.month,
+              habit.createdAt.day,
+            );
+            final target = DateTime(
+              targetDate.year,
+              targetDate.month,
+              targetDate.day,
+            );
+
+            if (target.isBefore(createdDate)) {
+              return false;
+            }
+
+            // RepeatRuleUtils로 확인
+            return RepeatRuleUtils.shouldShowOnDate(
+              targetDate: targetDate,
+              baseDate: habit.createdAt,
+              repeatRule: habit.repeatRule,
+            );
+          }).toList();
+        });
   }
 
   // ==================== 🎵 Insight Player 함수 (Phase 1) ====================
@@ -773,7 +1042,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 5; // ✅ 스키마 버전 5: Insight Player (AudioContents + TranscriptLines, 재생 상태 통합)
+  int get schemaVersion => 6; // ✅ 스키마 버전 6: Task에 executionDate (실행일) 컬럼 추가
 
   // ✅ [마이그레이션 전략 추가]
   // 이거를 설정하고 → onCreate에서 테이블을 생성하고
@@ -812,6 +1081,13 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(audioContents);
         await m.createTable(transcriptLines);
         print('✅ [DB Migration] v4→v5+ 완료 - Insight Player 기능 추가 (재생 상태 통합)');
+      }
+
+      // v5 → v6: Task 테이블에 executionDate (실행일) 컬럼 추가
+      if (from == 5 && to >= 6) {
+        print('📦 [DB Migration] v5→v6+: Task에 executionDate 컬럼 추가');
+        await m.addColumn(task, task.executionDate);
+        print('✅ [DB Migration] v5→v6+ 완료 - Task 실행일 기능 추가');
       }
 
       print('✅ [DB Migration] 업그레이드 완료');

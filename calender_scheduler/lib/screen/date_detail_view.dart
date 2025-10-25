@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // ✅ HapticFeedback
 import 'package:flutter/physics.dart'; // ✅ SpringSimulation 사용
-import 'package:animated_reorderable_list/animated_reorderable_list.dart'; // 🆕 드래그 재정렬
+import 'package:smooth_sheets/smooth_sheets.dart'; // ✅ smooth_sheets 추가
+import 'package:reorderable_staggered_scroll_view/reorderable_staggered_scroll_view.dart'; // 🆕 드래그 재정렬 (패키지 교체)
+import '../component/toast/action_toast.dart'; // ✅ 토스트 추가
 import '../component/schedule_card.dart';
 import '../component/create_entry_bottom_sheet.dart';
 import '../const/motion_config.dart'; // ✅ Safari 스프링 파라미터
@@ -10,9 +12,12 @@ import '../component/modal/option_setting_wolt_modal.dart'; // ✅ OptionSetting
 import '../component/modal/schedule_detail_wolt_modal.dart'; // ✅ 일정 상세 Wolt 모달
 import '../component/modal/task_detail_wolt_modal.dart'; // ✅ 할일 상세 Wolt 모달
 import '../component/modal/habit_detail_wolt_modal.dart'; // ✅ 습관 상세 Wolt 모달
+import '../component/modal/image_picker_smooth_sheet.dart'; // ✅ 이미지 선택 Smooth Sheet 모달
+import '../component/modal/task_inbox_bottom_sheet.dart'; // 📋 Task Inbox 추가
 import '../widgets/bottom_navigation_bar.dart'; // ✅ 하단 네비게이션 바 추가
 import '../widgets/temp_input_box.dart'; // ✅ 임시 입력 박스 추가
 import '../widgets/date_detail_header.dart'; // ✅ 날짜 헤더 위젯 추가
+import '../widgets/task_inbox_top_bar.dart'; // 📋 Task Inbox TopBar 추가 (일간뷰용)
 import '../widgets/task_card.dart'; // ✅ TaskCard 추가
 import '../widgets/habit_card.dart'; // ✅ HabitCard 추가
 import '../widgets/slidable_task_card.dart'; // ✅ SlidableTaskCard 추가
@@ -32,11 +37,13 @@ import 'package:get_it/get_it.dart';
 class DateDetailView extends StatefulWidget {
   final DateTime selectedDate; // 선택된 날짜를 저장하는 변수
   final VoidCallback? onClose; // 🚀 Pull-to-dismiss 완료 시 OpenContainer 닫기 콜백
+  final bool isInboxMode; // 📋 인박스 모드 여부
 
   const DateDetailView({
     super.key,
     required this.selectedDate, // 선택된 날짜를 필수로 받는다
     this.onClose, // ✅ OpenContainer의 action()을 받아서 실제 닫기 처리
+    this.isInboxMode = false, // 기본값: false (일반 모드)
   });
 
   @override
@@ -53,6 +60,11 @@ class _DateDetailViewState extends State<DateDetailView>
   late Animation<double> _entryScaleAnimation; // ✅ 진입 스케일 애니메이션
   double _dragOffset = 0.0; // Pull-to-dismiss를 위한 드래그 오프셋
 
+  // 📋 인박스 모드 상태 (내부에서 변경 가능)
+  late bool _isInboxMode;
+  bool _showInboxOverlay = false; // 📋 인박스 오버레이 표시 여부
+  bool _isDraggingFromInbox = false; // 🎯 인박스에서 드래그 중인지 여부
+
   // 🚫 Divider 제약을 위한 변수
   bool _isReorderingScheduleBelowDivider = false; // 일정이 divider 아래로 이동 시도 중
 
@@ -64,11 +76,19 @@ class _DateDetailViewState extends State<DateDetailView>
   // 무한 스크롤을 위한 중앙 인덱스 (충분히 큰 수)
   static const int _centerIndex = 1000000;
 
+  // 🎯 Future 캐시: FutureBuilder rebuild 시 중복 호출 방지
+  final Map<String, Future<List<UnifiedListItem>>> _itemListCache = {};
+
+  // 🎯 자동 스크롤을 위한 BuildContext 캐시
+  BuildContext? _scrollableContext;
+
   @override
   void initState() {
     super.initState();
     // 이거를 설정하고 → 기존 selectedDate를 현재 날짜로 초기화해서
     _currentDate = widget.selectedDate;
+    // 📋 인박스 모드 초기화
+    _isInboxMode = widget.isInboxMode;
     // 이거를 해서 → 무한 스크롤을 위한 PageController 생성한다 (중앙 인덱스부터 시작)
     _pageController = PageController(initialPage: _centerIndex);
     // ✅ 리스트 스크롤 컨트롤러 초기화 (리스트 최상단 감지용)
@@ -149,6 +169,70 @@ class _DateDetailViewState extends State<DateDetailView>
     }
   }
 
+  /// 🎯 드래그 시 자동 스크롤 (AnimatedReorderableListView 네이티브 동작)
+  /// 이거를 설정하고 → 드래그 중인 카드의 Y 위치를 감지해서
+  /// 이거를 해서 → 화면 상단/하단 경계 근처면 자동으로 스크롤하고
+  /// 이거는 이래서 → 보이지 않는 영역으로도 드래그 가능하다
+  void _handleAutoScroll(double globalY, BuildContext dragContext) {
+    if (_scrollableContext == null) {
+      // print('❌ [AutoScroll] _scrollableContext가 없음!');
+      return;
+    }
+
+    // Scrollable 위젯의 ScrollPosition에 직접 접근
+    final scrollableState = Scrollable.maybeOf(_scrollableContext!);
+    if (scrollableState == null) {
+      print('❌ [AutoScroll] Scrollable을 찾을 수 없음!');
+      return;
+    }
+
+    final position = scrollableState.position;
+
+    // 🚫 PageView의 무한 스크롤 감지 (maxScrollExtent가 비정상적으로 크면 무시)
+    if (position.maxScrollExtent > 100000000) {
+      // print('❌ [AutoScroll] PageView 스크롤 감지됨 - 무시');
+      return;
+    }
+
+    // 화면 높이 가져오기
+    final screenHeight = MediaQuery.of(dragContext).size.height;
+
+    // 디버그용 로그 (너무 많아서 주석 처리 가능)
+    // print('📊 [AutoScroll] globalY=$globalY, screenHeight=$screenHeight, offset=${position.pixels}, max=${position.maxScrollExtent}');
+
+    const topScrollZone = 300.0; // 상단 300px (확대!)
+    final bottomScrollZone = screenHeight - 300.0; // 하단에서 300px 위 (확대!)
+    const scrollSpeed = 40.0; // 스크롤 속도
+
+    // print('🎯 [AutoScroll] 임계값 체크: top=${globalY < topScrollZone}, bottom=${globalY > bottomScrollZone} (bottom기준=$bottomScrollZone)');
+
+    // 🔼 상단 경계 근처: 위로 스크롤
+    if (globalY < topScrollZone) {
+      final intensity = (topScrollZone - globalY) / topScrollZone; // 0.0 ~ 1.0
+      final offset = (position.pixels - (scrollSpeed * intensity)).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      // print('🔼 [AutoScroll] 상단 스크롤: intensity=$intensity, newOffset=$offset');
+      position.jumpTo(offset);
+    }
+    // 🔽 하단 경계 근처: 아래로 스크롤
+    else if (globalY > bottomScrollZone) {
+      final intensity = ((globalY - bottomScrollZone) / 300.0).clamp(
+        0.0,
+        1.0,
+      ); // 300px 범위
+      final offset = (position.pixels + (scrollSpeed * intensity)).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      print(
+        '🔽 [AutoScroll] 하단 스크롤: globalY=$globalY, bottom=$bottomScrollZone, intensity=$intensity, newOffset=$offset',
+      );
+      position.jumpTo(offset);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
@@ -163,6 +247,7 @@ class _DateDetailViewState extends State<DateDetailView>
 
         return Stack(
           children: [
+            // 🎯 메인 컨텐츠와 DragTarget들
             Material(
               type: MaterialType.transparency,
               child: GestureDetector(
@@ -187,87 +272,125 @@ class _DateDetailViewState extends State<DateDetailView>
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(borderRadius),
-                        child: Scaffold(
-                          appBar: _buildAppBar(context),
-                          backgroundColor: const Color(0xFFF7F7F7),
-                          resizeToAvoidBottomInset: false,
-                          body: Stack(
-                            children: [
-                              _buildPageView(),
+                        clipBehavior: Clip.hardEdge, // 🎯 터치 이벤트 통과 보장
+                        child: Stack(
+                          children: [
+                            // 메인 Scaffold
+                            Scaffold(
+                              appBar: _buildAppBar(context),
+                              backgroundColor: const Color(0xFFF7F7F7),
+                              resizeToAvoidBottomInset: false,
+                              body: _buildPageView(), // 🎯 직접 렌더링
+                              // ✅ FloatingActionButton 제거 → 하단 네비게이션 바로 대체
+                              // ✅ 하단 네비게이션 바 추가 (피그마: Frame 822)
+                              bottomNavigationBar: _isInboxMode
+                                  ? null // 📋 인박스 모드에서는 하단 네비 숨김
+                                  : CustomBottomNavigationBar(
+                                      onInboxTap: () {
+                                        print('📥 [하단 네비] Inbox 버튼 클릭');
+                                        setState(() {
+                                          _isInboxMode = true; // 📋 인박스 모드 활성화
+                                          _showInboxOverlay =
+                                              true; // 📋 오버레이 표시
+                                        });
+                                      },
+                                      onImageAddTap: () {
+                                        print(
+                                          '🖼️ [하단 네비] 이미지 추가 버튼 클릭 → 이미지 선택 모달 오픈',
+                                        );
+                                        // 📸 이미지 선택 Smooth Sheet 표시
+                                        Navigator.push(
+                                          context,
+                                          ModalSheetRoute(
+                                            builder: (context) => ImagePickerSmoothSheet(
+                                              onImagesSelected: (selectedImages) {
+                                                print(
+                                                  '✅ [DateDetailView] 선택된 이미지: ${selectedImages.length}개',
+                                                );
+                                                // TODO: AI 분석으로 전달 (추후 구현)
+                                                for (final img
+                                                    in selectedImages) {
+                                                  print(
+                                                    '   - 이미지 ID/path: ${img.idOrPath()}',
+                                                  );
+                                                }
+                                              },
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      onAddTap: () {
+                                        showModalBottomSheet(
+                                          context: context,
+                                          isScrollControlled: true, // ✅ 전체화면
+                                          backgroundColor:
+                                              Colors.transparent, // ✅ 투명 배경
+                                          barrierColor:
+                                              Colors.transparent, // ✅ 배리어도 투명!
+                                          elevation: 0, // ✅ 그림자 제거
+                                          useSafeArea:
+                                              false, // ✅ SafeArea 사용 안함
+                                          builder: (context) =>
+                                              CreateEntryBottomSheet(
+                                                selectedDate: _currentDate,
+                                              ),
+                                        );
+                                        print('➕ [디테일뷰 +버튼] QuickAdd 표시');
+                                      },
+                                    ),
+                            ),
+                            // 📋 인박스 모드 상단 TopBar
+                            if (_isInboxMode)
                               Positioned(
+                                top: 0,
                                 left: 0,
                                 right: 0,
-                                bottom: 20,
-                                child: TempInputBox(
-                                  onTap: () {
-                                    showModalBottomSheet(
-                                      context: context,
-                                      barrierColor: Colors.black.withOpacity(
-                                        0.0,
-                                      ),
-                                      backgroundColor: Colors.transparent,
-                                      builder: (context) => Container(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.topCenter,
-                                            end: Alignment.bottomCenter,
-                                            colors: [
-                                              Colors.white.withOpacity(0.0),
-                                              Colors.white.withOpacity(0.95),
-                                              Colors.white,
-                                            ],
-                                            stops: [0.0, 0.3, 1.0],
+                                child: Container(
+                                  color: const Color(0xFFF7F7F7),
+                                  child: SafeArea(
+                                    bottom: false,
+                                    child: Stack(
+                                      children: [
+                                        TaskInboxDayTopBar(
+                                          date: _currentDate,
+                                          onSwipeLeft: () {
+                                            _pageController.nextPage(
+                                              duration: const Duration(
+                                                milliseconds: 300,
+                                              ),
+                                              curve: Curves.easeInOut,
+                                            );
+                                          },
+                                          onSwipeRight: () {
+                                            _pageController.previousPage(
+                                              duration: const Duration(
+                                                milliseconds: 300,
+                                              ),
+                                              curve: Curves.easeInOut,
+                                            );
+                                          },
+                                        ),
+                                        Positioned(
+                                          right: 24,
+                                          top: 0,
+                                          bottom: 0,
+                                          child: Center(
+                                            child: TaskInboxCheckButton(
+                                              onClose: () {
+                                                setState(() {
+                                                  _isInboxMode = false;
+                                                  _showInboxOverlay = false;
+                                                });
+                                              },
+                                            ),
                                           ),
                                         ),
-                                        child: CreateEntryBottomSheet(
-                                          selectedDate: _currentDate,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  onDismiss: () => setState(() {}),
-                                ),
-                              ),
-                            ],
-                          ),
-                          // ✅ FloatingActionButton 제거 → 하단 네비게이션 바로 대체
-                          // ✅ 하단 네비게이션 바 추가 (피그마: Frame 822)
-                          bottomNavigationBar: CustomBottomNavigationBar(
-                            onInboxTap: () {
-                              print('📥 [하단 네비] Inbox 버튼 클릭');
-                              // TODO: Inbox 화면으로 이동
-                            },
-                            onStarTap: () {
-                              print('⭐ [하단 네비] 별 버튼 클릭');
-                              // TODO: 즐겨찾기 화면으로 이동
-                            },
-                            onAddTap: () {
-                              showModalBottomSheet(
-                                context: context,
-                                barrierColor: Colors.black.withOpacity(0.0),
-                                backgroundColor: Colors.transparent,
-                                builder: (context) => Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.white.withOpacity(0.0),
-                                        Colors.white.withOpacity(0.95),
-                                        Colors.white,
                                       ],
-                                      stops: [0.0, 0.3, 1.0],
                                     ),
                                   ),
-                                  child: CreateEntryBottomSheet(
-                                    selectedDate: _currentDate,
-                                  ),
                                 ),
-                              );
-                              print('➕ [하단 네비] 일정 추가 버튼 클릭 → 바텀시트 표시');
-                            },
-                            isStarSelected: false, // TODO: 상태 관리
-                          ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -275,6 +398,43 @@ class _DateDetailViewState extends State<DateDetailView>
                 ),
               ),
             ),
+            // 🎯 TempInputBox를 Stack 최상위로 이동
+            if (!_showInboxOverlay)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom:
+                    20 +
+                    MediaQuery.of(context).padding.bottom +
+                    80, // bottomNavigationBar 높이 고려
+                child: TempInputBox(
+                  onTap: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true, // ✅ 전체화면
+                      backgroundColor: Colors.transparent, // ✅ 투명 배경
+                      barrierColor: Colors.transparent, // ✅ 배리어도 투명!
+                      elevation: 0, // ✅ 그림자 제거
+                      useSafeArea: false, // ✅ SafeArea 사용 안함
+                      builder: (context) =>
+                          CreateEntryBottomSheet(selectedDate: _currentDate),
+                    );
+                  },
+                  onDismiss: () => setState(() {}),
+                ),
+              ),
+            // 📋 인박스 오버레이 (조건부 표시) - 최상위 레이어
+            if (_showInboxOverlay)
+              Positioned.fill(
+                child: TaskInboxBottomSheet(
+                  onClose: () {
+                    setState(() {
+                      _showInboxOverlay = false;
+                      _isInboxMode = false;
+                    });
+                  },
+                ),
+              ),
           ],
         );
       },
@@ -378,11 +538,19 @@ class _DateDetailViewState extends State<DateDetailView>
       },
       itemBuilder: (context, index) {
         final date = _getDateForIndex(index);
-        // ✅ OpenContainer와 동일한 배경색 적용
-        return Material(
-          color: const Color(0xFFF7F7F7), // ✅ #F7F7F7 배경색
-          // 이거는 이래서 → 기존 _buildBody 함수 재사용
-          child: _buildBody(context, date),
+        // ✅ 인박스 모드 애니메이션 추가 (홈스크린과 동일 - AnimatedContainer 사용)
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 900), // ✅ 홈스크린과 동일
+          curve: const Cubic(0.4, 0.0, 0.2, 1.0), // ✅ Material Emphasized curve
+          transform: _isInboxMode
+              ? (Matrix4.identity()..scale(0.92, 0.92)) // ✅ 가로 92%, 세로 92%
+              : Matrix4.identity(),
+          transformAlignment: Alignment.topCenter,
+          child: Material(
+            color: const Color(0xFFF7F7F7), // ✅ #F7F7F7 배경색
+            // 이거는 이래서 → 기존 _buildBody 함수 재사용
+            child: _buildBody(context, date),
+          ),
         );
       },
     );
@@ -393,6 +561,126 @@ class _DateDetailViewState extends State<DateDetailView>
   /// 이거를 해서 → 피그마 디자인과 동일한 레이아웃을 만든다
   /// 이거는 이래서 → iOS 네이티브 앱과 유사한 UX를 제공한다
   PreferredSizeWidget _buildAppBar(BuildContext context) {
+    print('🔍 [AppBar] isInboxMode: $_isInboxMode');
+
+    // 인박스 모드일 때는 그라데이션 배경의 커스텀 앱바
+    if (_isInboxMode) {
+      return PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: Opacity(
+          opacity: 0.96, // 전체 투명도 96%
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xFFFAFAFA).withOpacity(1.0), // 상단 100% #FAFAFA
+                  const Color(0xFFFAFAFA).withOpacity(0.0), // 하단 0% #FAFAFA
+                ],
+              ),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0x0A111111), // background 4% #111111 오버레이
+              ),
+              child: AppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                automaticallyImplyLeading: false,
+                // 중앙에 일과 요일 표시 (AnimatedSwitcher 적용)
+                title: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 600),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder:
+                      (Widget child, Animation<double> animation) {
+                        // 🎯 홈스크린과 완전히 동일한 애니메이션 값
+                        final scaleAnimation = TweenSequence<double>([
+                          TweenSequenceItem(
+                            tween: Tween<double>(
+                              begin: 0.92,
+                              end: 1.05,
+                            ).chain(CurveTween(curve: Curves.easeOutCubic)),
+                            weight: 50,
+                          ),
+                          TweenSequenceItem(
+                            tween: Tween<double>(
+                              begin: 1.05,
+                              end: 1.0,
+                            ).chain(CurveTween(curve: Curves.easeInOut)),
+                            weight: 30,
+                          ),
+                        ]).animate(animation);
+
+                        final slideAnimation = TweenSequence<Offset>([
+                          TweenSequenceItem(
+                            tween: Tween<Offset>(
+                              begin: const Offset(0, 0.4),
+                              end: const Offset(0, 0.2),
+                            ).chain(CurveTween(curve: Curves.easeOut)),
+                            weight: 30,
+                          ),
+                          TweenSequenceItem(
+                            tween: Tween<Offset>(
+                              begin: const Offset(0, 0.2),
+                              end: const Offset(0, -0.02),
+                            ).chain(CurveTween(curve: Curves.easeOutCubic)),
+                            weight: 40,
+                          ),
+                          TweenSequenceItem(
+                            tween: Tween<Offset>(
+                              begin: const Offset(0, -0.02),
+                              end: Offset.zero,
+                            ).chain(CurveTween(curve: Curves.easeInOut)),
+                            weight: 30,
+                          ),
+                        ]).animate(animation);
+
+                        final fadeAnimation = TweenSequence<double>([
+                          TweenSequenceItem(
+                            tween: Tween<double>(
+                              begin: 0.0,
+                              end: 0.3,
+                            ).chain(CurveTween(curve: Curves.easeIn)),
+                            weight: 20,
+                          ),
+                          TweenSequenceItem(
+                            tween: Tween<double>(
+                              begin: 0.3,
+                              end: 1.0,
+                            ).chain(CurveTween(curve: Curves.easeOut)),
+                            weight: 80,
+                          ),
+                        ]).animate(animation);
+
+                        return FadeTransition(
+                          opacity: fadeAnimation,
+                          child: SlideTransition(
+                            position: slideAnimation,
+                            child: ScaleTransition(
+                              scale: scaleAnimation,
+                              child: child,
+                            ),
+                          ),
+                        );
+                      },
+                  child: TaskInboxDayTopBar(
+                    key: ValueKey(
+                      'inbox_day_bar_${_currentDate.day}_${_currentDate.weekday}',
+                    ),
+                    date: _currentDate,
+                  ),
+                ),
+                centerTitle: true,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 일반 모드 앱바
     return AppBar(
       backgroundColor: const Color(0xFFF7F7F7), // ✅ #F7F7F7 배경색
       elevation: 0, // 그림자 제거
@@ -475,14 +763,21 @@ class _DateDetailViewState extends State<DateDetailView>
   /// 이거는 이래서 → 시각적으로 명확한 날짜 정보를 제공한다
   /// ✅ 날짜 매개변수 추가: PageView에서 각 페이지마다 다른 날짜 표시
   Widget _buildBody(BuildContext context, DateTime date) {
+    // 인박스 모드일 때는 헤더를 리스트 안에 포함시켜 스크롤 가능하게 함
+    if (_isInboxMode) {
+      return _buildUnifiedList(date); // 헤더가 리스트 안에 포함됨
+    }
+
+    // 일반 모드일 때는 헤더를 고정
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // ===================================================================
         // ✅ 새로운 날짜 헤더 (Figma: Frame 830, Frame 893)
+        // 일반 디테일뷰: 상단 48px, 하단 32px, 좌우 20px
         // ===================================================================
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          padding: const EdgeInsets.fromLTRB(20, 48, 20, 32),
           child: DateDetailHeader(
             selectedDate: date,
             // onSettingsTap은 제거 - DateDetailHeader에서 직접 처리
@@ -507,21 +802,17 @@ class _DateDetailViewState extends State<DateDetailView>
   Widget _buildUnifiedList(DateTime date) {
     print('🎨 [_buildUnifiedList] 렌더링 시작: ${date.toString().split(' ')[0]}');
 
+    // 🔁 반복 규칙을 고려한 데이터 조회
     return StreamBuilder<List<ScheduleData>>(
-      stream: GetIt.I<AppDatabase>().watchByDay(date),
+      stream: GetIt.I<AppDatabase>().watchSchedulesWithRepeat(date),
       builder: (context, scheduleSnapshot) {
-        // 📄 페이지네이션: Task와 Habit은 화면에 보이는 것만 로드
+        // 🎯 반복 규칙을 고려한 Task 조회
         return StreamBuilder<List<TaskData>>(
-          stream: GetIt.I<AppDatabase>().watchTasksPaginated(
-            limit: _pageSize,
-            offset: _currentTaskOffset,
-          ),
+          stream: GetIt.I<AppDatabase>().watchTasksWithRepeat(date),
           builder: (context, taskSnapshot) {
+            // 🔁 반복 규칙을 고려한 Habit 조회
             return StreamBuilder<List<HabitData>>(
-              stream: GetIt.I<AppDatabase>().watchHabitsPaginated(
-                limit: _pageSize,
-                offset: _currentHabitOffset,
-              ),
+              stream: GetIt.I<AppDatabase>().watchHabitsWithRepeat(date),
               builder: (context, habitSnapshot) {
                 // 로딩 체크
                 if (!scheduleSnapshot.hasData ||
@@ -534,48 +825,134 @@ class _DateDetailViewState extends State<DateDetailView>
                 final tasks = taskSnapshot.data!;
                 final habits = habitSnapshot.data!;
 
+                debugPrint(
+                  '🔁 [UnifiedList] ${date.toString().split(' ')[0]} - 일정:${schedules.length}, 할일:${tasks.length}, 습관:${habits.length}',
+                );
+
                 // 이거를 해서 → 완료된 항목과 미완료 항목 분리
-                final completedTasks = tasks.where((t) => t.completed).toList();
+                final completedTasksCount = tasks
+                    .where((t) => t.completed)
+                    .length;
 
                 print(
-                  '✅ [UnifiedList] 일정:${schedules.length}, 할일:${tasks.length}, 습관:${habits.length}, 완료:${completedTasks.length}',
+                  '✅ [UnifiedList] 일정:${schedules.length}, 할일:${tasks.length}, 습관:${habits.length}, 완료:${completedTasksCount}',
                 );
 
                 // 🆕 이거를 설정하고 → FutureBuilder로 UnifiedListItem 리스트를 생성해서
                 // 이거를 해서 → DailyCardOrder 기반 또는 기본 순서로 표시한다
+                // 🎯 Future 캐시: 날짜 + 데이터 해시 기준으로 캐시하여 rebuild 시 중복 호출 방지
+                // ✅ 수정된 내용도 반영하기 위해 각 아이템의 제목 해시를 포함
+                final scheduleHash = schedules
+                    .map(
+                      (s) =>
+                          '${s.id}_${s.summary}_${s.start}_${s.end}_${s.colorId}_${s.repeatRule}_${s.alertSetting}',
+                    )
+                    .join('|');
+                final taskHash = tasks
+                    .map(
+                      (t) =>
+                          '${t.id}_${t.title}_${t.completed}_${t.dueDate}_${t.executionDate}_${t.colorId}_${t.repeatRule}_${t.reminder}',
+                    )
+                    .join('|');
+                final habitHash = habits
+                    .map(
+                      (h) =>
+                          '${h.id}_${h.title}_${h.colorId}_${h.repeatRule}_${h.reminder}',
+                    )
+                    .join('|');
+                final cacheKey =
+                    '${date.toString().split(' ')[0]}_${scheduleHash.hashCode}_${taskHash.hashCode}_${habitHash.hashCode}_$completedTasksCount';
+                // 데이터가 변경되면 (해시가 다르면) 캐시 초기화
+                if (!_itemListCache.containsKey(cacheKey)) {
+                  _itemListCache.clear(); // 기존 캐시 모두 삭제
+                  _itemListCache[cacheKey] = _buildUnifiedItemList(
+                    date,
+                    schedules,
+                    tasks,
+                    habits,
+                  );
+                }
+
                 return FutureBuilder<List<UnifiedListItem>>(
-                  future: _buildUnifiedItemList(date, schedules, tasks, habits),
+                  future: _itemListCache[cacheKey],
                   builder: (context, itemsSnapshot) {
                     if (!itemsSnapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
                     }
 
-                    final items = itemsSnapshot.data!;
+                    var items = itemsSnapshot.data!;
+
+                    // ✅ 데이터가 없을 때 메시지 표시
+                    if (items.isEmpty) {
+                      return Center(
+                        child: Text(
+                          '現在データがありません',
+                          style: TextStyle(
+                            fontFamily: 'LINE Seed JP App_TTF',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w400,
+                            color: Color(0xFF999999),
+                            letterSpacing: -0.075,
+                          ),
+                        ),
+                      );
+                    }
+
+                    // 🎯 인박스 모드일 때 헤더를 리스트 맨 앞에 추가
+                    if (_isInboxMode &&
+                        (items.isEmpty ||
+                            items.first.type != UnifiedItemType.inboxHeader)) {
+                      items = [
+                        UnifiedListItem.inboxHeader(
+                          sortOrder: -1000,
+                        ), // 맨 앞에 위치
+                        ...items,
+                      ];
+                    }
+
+                    // 🎯 드래그 호버 시 플레이스홀더 삽입 (candidateData 기반으로 직접 체크)
+                    // NOTE: DragTarget builder에서 candidateData를 체크하므로 여기서는 불필요
+
                     print('📋 [_buildUnifiedList] 아이템 로드 완료: ${items.length}개');
 
-                    // 🚀 AnimatedReorderableListView 구현!
-                    // 이거를 설정하고 → AnimatedReorderableListView로 교체해서
-                    // 이거를 해서 → 드래그앤드롭 재정렬 + iOS 애니메이션을 적용하고
-                    // 이거는 이래서 → 기존 카드 컴포넌트는 그대로 재사용한다
-                    return AnimatedReorderableListView(
-                      items: items,
+                    // 🚀 ReorderableStaggeredScrollView.grid 구현 (패키지 교체)
+                    return ReorderableStaggeredScrollView.grid(
+                      crossAxisCount: 1, // 기본 1컬럼 (리스트뷰와 동일)
+                      shrinkWrap: false, // 외부 스크롤 사용
+                      physics: const NeverScrollableScrollPhysics(), // 스크롤 비활성화 (상위에서 제어)
+                      padding: EdgeInsets.zero,
+                      
+                      // ✅ children: itemBuilder를 .map()으로 변환
+                      children: items.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final item = entry.value;
 
-                      // 🔧 itemBuilder: 각 아이템을 카드로 렌더링
-                      // 이거를 설정하고 → 타입별로 분기 처리해서
-                      // 이거를 해서 → 기존 카드 컴포넌트를 그대로 사용한다
-                      itemBuilder: (context, index) {
-                        final item = items[index];
-                        print(
-                          '  → [itemBuilder] index=$index, type=${item.type}, id=${item.actualId}',
+                        // 🎯 첫 번째 아이템에서 Scrollable context 캡처
+                        // NOTE: BuildContext를 직접 전달할 수 없으므로 생략
+                        if (index == 0 && _scrollableContext == null) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            print('⚠️ [ScrollContext] ReorderableStaggeredScrollView에서는 context 캡처 불가 (향후 대안 필요)');
+                          });
+                        }
+
+                        print('  → [children] index=$index, type=${item.type}, id=${item.actualId}');
+
+                        // 타입별 카드 렌더링 → ReorderableStaggeredScrollViewGridItem으로 래핑
+                        return ReorderableStaggeredScrollViewGridItem(
+                          key: ValueKey(item.uniqueId), // 기존 key 유지
+                          crossAxisCellCount: 1, // 1컬럼 차지 (기존 ListView와 동일)
+                          mainAxisCellCount: 1, // 기본 높이
+                          
+                          // 기존 itemBuilder에서 반환하던 위젯 그대로 사용
+                          widget: _buildCardByType(
+                            item,
+                            date,
+                            tasks.where((t) => t.completed).toList(),
+                            index,
+                          ),
                         );
+                      }).toList(),
 
-                        // 타입별 카드 렌더링
-                        return _buildCardByType(item, date, completedTasks);
-                      },
-
-                      // � onReorderStart: 드래그 시작 시 제약 확인
-                      // 이거를 설정하고 → 일정이 divider 아래로 가려는지 확인해서
-                      // 이거를 해서 → 무효한 시도면 상태를 표시한다
                       onReorderStart: (index) {
                         final item = items[index];
                         print(
@@ -654,10 +1031,11 @@ class _DateDetailViewState extends State<DateDetailView>
                       removeDuration: const Duration(milliseconds: 250),
 
                       // 🎯 드래그 시작 딜레이 (길게 누르기)
-                      // 이거를 설정하고 → 500ms로 설정해서
-                      // 이거를 해서 → Slidable 스와이프와 충돌하지 않도록 한다
-                      dragStartDelay: const Duration(milliseconds: 500),
-
+                      // 🎯 인박스에서 드래그 중일 때만 재정렬 비활성화
+                      // 리스트 아이템 직접 드래그는 항상 가능
+                      dragStartDelay: _isDraggingFromInbox
+                          ? const Duration(days: 365) // 인박스 드래그 중: 비활성화
+                          : const Duration(milliseconds: 500), // 일반: 500ms 딜레이
                       // 🎭 enterTransition: 아이템 추가 애니메이션
                       // 이거를 설정하고 → iOS 스타일 ScaleIn + FadeIn으로
                       // 이거를 해서 → 부드럽게 나타나도록 한다
@@ -747,6 +1125,7 @@ class _DateDetailViewState extends State<DateDetailView>
     UnifiedListItem item,
     DateTime date,
     List<TaskData> completedTasks,
+    int index, // 🎯 플레이스홀더 위치 계산용 index
   ) {
     // 🔑 Key 설정 (AnimatedReorderableListView 필수!)
     // 이거를 설정하고 → ValueKey(uniqueId)로 설정해서
@@ -764,52 +1143,111 @@ class _DateDetailViewState extends State<DateDetailView>
         // 🚫 Divider 제약 위반 시 흔들림 + 빨간색 효과
         final isInvalid = _isReorderingScheduleBelowDivider;
 
-        return AnimatedContainer(
+        return DragTarget<TaskData>(
           key: key,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.elasticOut,
-          // 좌우 흔들림 효과 (offset 대신 padding으로 구현)
-          padding: EdgeInsets.only(
-            bottom: 4,
-            left: isInvalid ? 20 : 24,
-            right: isInvalid ? 28 : 24,
-          ),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              // 빨간색 테두리 효과
-              border: isInvalid
-                  ? Border.all(color: Colors.red.withOpacity(0.6), width: 2)
-                  : null,
-            ),
-            child: GestureDetector(
-              onTap: () => _openScheduleDetail(schedule),
-              child: SlidableScheduleCard(
-                groupTag: 'unified_list',
-                scheduleId: schedule.id,
-                onComplete: () async {
-                  await GetIt.I<AppDatabase>().completeSchedule(schedule.id);
-                  print('✅ [ScheduleCard] 완료: ${schedule.summary}');
-                },
-                onDelete: () async {
-                  await GetIt.I<AppDatabase>().deleteSchedule(schedule.id);
-                  // 🗑️ DailyCardOrder에서도 삭제
-                  await GetIt.I<AppDatabase>().deleteCardFromAllOrders(
-                    'schedule',
-                    schedule.id,
-                  );
-                  print('🗑️ [ScheduleCard] 삭제: ${schedule.summary}');
-                },
-                child: ScheduleCard(
-                  start: schedule.start,
-                  end: schedule.end,
-                  summary: schedule.summary,
-                  colorId: schedule.colorId,
-                ),
+          onWillAcceptWithDetails: (details) {
+            // 🎯 인박스에서 드래그 시작됨
+            if (!_isDraggingFromInbox) {
+              setState(() {
+                _isDraggingFromInbox = true;
+              });
+            }
+            return true;
+          },
+          onMove: (details) {
+            // 🎯 드래그 중 자동 스크롤 (context 전달)
+            _handleAutoScroll(details.offset.dy, context);
+          },
+          onAcceptWithDetails: (details) async {
+            final droppedTask = details.data;
+            await GetIt.I<AppDatabase>().updateTaskDate(droppedTask.id, date);
+            HapticFeedback.heavyImpact();
+            // 🎯 드래그 완료 - 상태 초기화
+            setState(() {
+              _isDraggingFromInbox = false;
+            });
+          },
+          builder: (context, candidateData, rejectedData) {
+            // ✅ candidateData만으로 호버 상태 판단
+            final isHovering = candidateData.isNotEmpty;
+
+            return RepaintBoundary(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 🎯 호버 시 빠르게 공간 생성
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    curve: Curves.easeOut,
+                    height: isHovering ? 64 : 0,
+                  ),
+                  // 실제 카드
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.elasticOut,
+                    // 좌우 흔들림 효과 (offset 대신 padding으로 구현)
+                    padding: EdgeInsets.only(
+                      bottom: 4,
+                      left: isInvalid ? 20 : 24,
+                      right: isInvalid ? 28 : 24,
+                    ),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(24),
+                        // 빨간색 테두리 효과
+                        border: isInvalid
+                            ? Border.all(
+                                color: Colors.red.withOpacity(0.6),
+                                width: 2,
+                              )
+                            : null,
+                      ),
+                      child: GestureDetector(
+                        onTap: () => _openScheduleDetail(schedule),
+                        child: SlidableScheduleCard(
+                          groupTag: 'unified_list',
+                          scheduleId: schedule.id,
+                          repeatRule: schedule.repeatRule, // 🔄 반복 규칙 전달
+                          showConfirmDialog: true, // ✅ 삭제 확인 모달 표시
+                          onComplete: () async {
+                            await GetIt.I<AppDatabase>().completeSchedule(
+                              schedule.id,
+                            );
+                            print('✅ [ScheduleCard] 완료: ${schedule.summary}');
+                          },
+                          onDelete: () async {
+                            await GetIt.I<AppDatabase>().deleteSchedule(
+                              schedule.id,
+                            );
+                            // 🗑️ DailyCardOrder에서도 삭제
+                            await GetIt.I<AppDatabase>()
+                                .deleteCardFromAllOrders(
+                                  'schedule',
+                                  schedule.id,
+                                );
+                            print('🗑️ [ScheduleCard] 삭제: ${schedule.summary}');
+                            // ✅ 토스트 표시
+                            if (context.mounted) {
+                              showActionToast(context, type: ToastType.delete);
+                            }
+                          },
+                          child: ScheduleCard(
+                            start: schedule.start,
+                            end: schedule.end,
+                            summary: schedule.summary,
+                            colorId: schedule.colorId,
+                            repeatRule: schedule.repeatRule,
+                            alertSetting: schedule.alertSetting,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ),
+            );
+          },
         );
 
       // ====================================================================
@@ -817,34 +1255,93 @@ class _DateDetailViewState extends State<DateDetailView>
       // ====================================================================
       case UnifiedItemType.task:
         final task = item.data as TaskData;
-        return Padding(
+        return DragTarget<TaskData>(
           key: key,
-          padding: const EdgeInsets.only(bottom: 4, left: 24, right: 24),
-          child: SlidableTaskCard(
-            groupTag: 'unified_list',
-            taskId: task.id,
-            onTap: () => _openTaskDetail(task),
-            onComplete: () async {
-              await GetIt.I<AppDatabase>().completeTask(task.id);
-              print('✅ [TaskCard] 완료 토글: ${task.title}');
-            },
-            onDelete: () async {
-              await GetIt.I<AppDatabase>().deleteTask(task.id);
-              // 🗑️ DailyCardOrder에서도 삭제
-              await GetIt.I<AppDatabase>().deleteCardFromAllOrders(
-                'task',
-                task.id,
-              );
-              print('🗑️ [TaskCard] 삭제: ${task.title}');
-            },
-            child: TaskCard(
-              task: task,
-              onToggle: () async {
-                await GetIt.I<AppDatabase>().completeTask(task.id);
-                print('✅ [TaskCard] 체크박스 완료 토글: ${task.title}');
-              },
-            ),
-          ),
+          onWillAcceptWithDetails: (details) {
+            // 🎯 인박스에서 드래그 시작됨
+            if (!_isDraggingFromInbox) {
+              setState(() {
+                _isDraggingFromInbox = true;
+              });
+            }
+            return true;
+          },
+          onMove: (details) {
+            // 🎯 드래그 중 자동 스크롤 (context 전달)
+            _handleAutoScroll(details.offset.dy, context);
+          },
+          onAcceptWithDetails: (details) async {
+            final droppedTask = details.data;
+            await GetIt.I<AppDatabase>().updateTaskDate(droppedTask.id, date);
+            HapticFeedback.heavyImpact();
+            // 🎯 드래그 완료 - 상태 초기화
+            setState(() {
+              _isDraggingFromInbox = false;
+            });
+          },
+          builder: (context, candidateData, rejectedData) {
+            final isHovering = candidateData.isNotEmpty;
+
+            return RepaintBoundary(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 🎯 호버 시 빠르게 공간 생성
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    curve: Curves.easeOut,
+                    height: isHovering ? 64 : 0,
+                  ),
+                  // 실제 카드
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      bottom: 4,
+                      left: 24,
+                      right: 24,
+                    ),
+                    child: SlidableTaskCard(
+                      groupTag: 'unified_list',
+                      taskId: task.id,
+                      repeatRule: task.repeatRule, // 🔄 반복 규칙 전달
+                      showConfirmDialog: true, // ✅ 삭제 확인 모달 표시
+                      onTap: () => _openTaskDetail(task),
+                      onComplete: () async {
+                        await GetIt.I<AppDatabase>().completeTask(task.id);
+                        print('✅ [TaskCard] 완료 토글: ${task.title}');
+                      },
+                      onDelete: () async {
+                        await GetIt.I<AppDatabase>().deleteTask(task.id);
+                        // 🗑️ DailyCardOrder에서도 삭제
+                        await GetIt.I<AppDatabase>().deleteCardFromAllOrders(
+                          'task',
+                          task.id,
+                        );
+                        print('🗑️ [TaskCard] 삭제: ${task.title}');
+                        // ✅ 토스트 표시
+                        if (context.mounted) {
+                          showActionToast(context, type: ToastType.delete);
+                        }
+                      },
+                      child: TaskCard(
+                        task: task,
+                        onToggle: () async {
+                          if (task.completed) {
+                            await GetIt.I<AppDatabase>().uncompleteTask(
+                              task.id,
+                            );
+                            print('🔄 [TaskCard] 체크박스 완료 해제: ${task.title}');
+                          } else {
+                            await GetIt.I<AppDatabase>().completeTask(task.id);
+                            print('✅ [TaskCard] 체크박스 완료 처리: ${task.title}');
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         );
 
       // ====================================================================
@@ -852,44 +1349,122 @@ class _DateDetailViewState extends State<DateDetailView>
       // ====================================================================
       case UnifiedItemType.habit:
         final habit = item.data as HabitData;
-        return Padding(
+        return DragTarget<TaskData>(
           key: key,
-          padding: const EdgeInsets.only(bottom: 4, left: 24, right: 24),
-          child: GestureDetector(
-            onTap: () => _showHabitDetailModal(habit, date),
-            child: SlidableHabitCard(
-              groupTag: 'unified_list',
-              habitId: habit.id,
-              onComplete: () async {
-                await GetIt.I<AppDatabase>().recordHabitCompletion(
-                  habit.id,
-                  date,
-                );
-                print('✅ [HabitCard] 완료 기록: ${habit.title}');
-              },
-              onDelete: () async {
-                await GetIt.I<AppDatabase>().deleteHabit(habit.id);
-                // 🗑️ DailyCardOrder에서도 삭제
-                await GetIt.I<AppDatabase>().deleteCardFromAllOrders(
-                  'habit',
-                  habit.id,
-                );
-                print('🗑️ [HabitCard] 삭제: ${habit.title}');
-              },
-              child: HabitCard(
-                habit: habit,
-                isCompleted: false, // TODO: HabitCompletion 확인
-                onToggle: () async {
-                  await GetIt.I<AppDatabase>().recordHabitCompletion(
-                    habit.id,
-                    date,
-                  );
-                  print('✅ [HabitCard] 체크박스 완료 기록: ${habit.title}');
-                },
-                onTap: () {
-                  print('🔁 [HabitCard] 탭: ${habit.title}');
-                  _showHabitDetailModal(habit, date);
-                },
+          onWillAcceptWithDetails: (details) {
+            // 🎯 인박스에서 드래그 시작됨
+            if (!_isDraggingFromInbox) {
+              setState(() {
+                _isDraggingFromInbox = true;
+              });
+            }
+            return true;
+          },
+          onMove: (details) {
+            // 🎯 드래그 중 자동 스크롤 (context 전달)
+            _handleAutoScroll(details.offset.dy, context);
+          },
+          onAcceptWithDetails: (details) async {
+            final droppedTask = details.data;
+            await GetIt.I<AppDatabase>().updateTaskDate(droppedTask.id, date);
+            HapticFeedback.heavyImpact();
+            // 🎯 드래그 완료 - 상태 초기화
+            setState(() {
+              _isDraggingFromInbox = false;
+            });
+          },
+          builder: (context, candidateData, rejectedData) {
+            final isHovering = candidateData.isNotEmpty;
+
+            return RepaintBoundary(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 🎯 호버 시 빠르게 공간 생성
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    curve: Curves.easeOut,
+                    height: isHovering ? 64 : 0,
+                  ),
+                  // 실제 카드
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      bottom: 4,
+                      left: 24,
+                      right: 24,
+                    ),
+                    child: GestureDetector(
+                      onTap: () => _showHabitDetailModal(habit, date),
+                      child: SlidableHabitCard(
+                        groupTag: 'unified_list',
+                        habitId: habit.id,
+                        repeatRule: habit.repeatRule, // 🔄 반복 규칙 전달
+                        showConfirmDialog: true, // ✅ 삭제 확인 모달 표시
+                        onComplete: () async {
+                          await GetIt.I<AppDatabase>().recordHabitCompletion(
+                            habit.id,
+                            date,
+                          );
+                          print('✅ [HabitCard] 완료 기록: ${habit.title}');
+                        },
+                        onDelete: () async {
+                          await GetIt.I<AppDatabase>().deleteHabit(habit.id);
+                          // 🗑️ DailyCardOrder에서도 삭제
+                          await GetIt.I<AppDatabase>().deleteCardFromAllOrders(
+                            'habit',
+                            habit.id,
+                          );
+                          print('🗑️ [HabitCard] 삭제: ${habit.title}');
+                          // ✅ 토스트 표시
+                          if (context.mounted) {
+                            showActionToast(context, type: ToastType.delete);
+                          }
+                        },
+                        child: HabitCard(
+                          habit: habit,
+                          isCompleted: false, // TODO: HabitCompletion 확인
+                          onToggle: () async {
+                            await GetIt.I<AppDatabase>().recordHabitCompletion(
+                              habit.id,
+                              date,
+                            );
+                            print('✅ [HabitCard] 체크박스 완료 기록: ${habit.title}');
+                          },
+                          onTap: () {
+                            print('🔁 [HabitCard] 탭: ${habit.title}');
+                            _showHabitDetailModal(habit, date);
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+
+      // ====================================================================
+      // 📋 인박스 헤더 (Inbox Header)
+      // 인박스 모드에서 리스트 맨 위에 표시되는 헤더
+      // 상단 42px, 하단 32px, 좌우 32px 패딩 (좌우는 외부 24px + 내부 8px = 32px)
+      // ====================================================================
+      case UnifiedItemType.inboxHeader:
+        return Container(
+          key: key,
+          padding: const EdgeInsets.fromLTRB(32, 42, 32, 32),
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 400),
+            opacity: 1.0,
+            child: const Text(
+              '1日の流れを\n表現しよ',
+              style: TextStyle(
+                fontFamily: 'LINE Seed JP App_TTF',
+                fontWeight: FontWeight.w700,
+                fontSize: 19,
+                height: 1.4,
+                letterSpacing: -0.005 * 19,
+                color: Color(0xFFCFCFCF),
               ),
             ),
           ),
@@ -907,8 +1482,14 @@ class _DateDetailViewState extends State<DateDetailView>
 
       // ====================================================================
       // 📦 완료 섹션 (Completed)
+      // 📋 인박스 모드에서는 숨김
       // ====================================================================
       case UnifiedItemType.completed:
+        // 인박스 모드에서는 빈 컨테이너 반환
+        if (_isInboxMode) {
+          return SizedBox.shrink(key: key);
+        }
+
         return Padding(
           key: key,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -920,6 +1501,16 @@ class _DateDetailViewState extends State<DateDetailView>
             },
             isExpanded: false,
           ),
+        );
+
+      // ====================================================================
+      // 🎯 드래그 플레이스홀더 (Placeholder)
+      // ====================================================================
+      case UnifiedItemType.placeholder:
+        return SizedBox(
+          key: key,
+          height: 64, // 카드 높이만큼 투명한 공간
+          width: double.infinity,
         );
     }
   }
@@ -978,6 +1569,7 @@ class _DateDetailViewState extends State<DateDetailView>
                                   child: SlidableScheduleCard(
                                     groupTag: 'unified_list',
                                     scheduleId: schedule.id,
+                                    repeatRule: schedule.repeatRule, // 🔄 반복 규칙 전달
                                     onComplete: () async {
                                       await GetIt.I<AppDatabase>()
                                           .completeSchedule(schedule.id);
@@ -992,6 +1584,8 @@ class _DateDetailViewState extends State<DateDetailView>
                                       end: schedule.end,
                                       summary: schedule.summary,
                                       colorId: schedule.colorId,
+                                      repeatRule: schedule.repeatRule,
+                                      alertSetting: schedule.alertSetting,
                                     ),
                                   ),
                                 ),
@@ -1017,8 +1611,66 @@ class _DateDetailViewState extends State<DateDetailView>
                       ),
 
                     // ===============================================
-                    // 3. 할일 섹션 (추가순)
+                    // 3. 할일 섹션 (추가순) + 🎯 DragTarget 추가
                     // ===============================================
+                    // 🎯 빈 리스트일 때도 DragTarget 표시
+                    if (incompleteTasks.isEmpty)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: DragTarget<TaskData>(
+                            onAcceptWithDetails: (details) async {
+                              final droppedTask = details.data;
+                              print('✅ [DateDetail] 빈 리스트에 태스크 드롭: "${droppedTask.title}"');
+                              
+                              await GetIt.I<AppDatabase>().updateTaskDate(
+                                droppedTask.id,
+                                widget.selectedDate,
+                              );
+                              
+                              HapticFeedback.heavyImpact();
+                            },
+                            onWillAcceptWithDetails: (details) {
+                              print('🎯 [DateDetail] 빈 리스트 onWillAccept');
+                              return true;
+                            },
+                            onMove: (details) {
+                              print('👆 [DateDetail] 빈 리스트 onMove: ${details.offset}');
+                            },
+                            builder: (context, candidateData, rejectedData) {
+                              final isHovering = candidateData.isNotEmpty;
+                              print('🔄 [DateDetail] 빈 리스트 builder: hovering=$isHovering');
+                              
+                              return Container(
+                                height: 80,
+                                margin: const EdgeInsets.only(bottom: 4),
+                                decoration: BoxDecoration(
+                                  color: isHovering 
+                                    ? const Color(0xFF566099).withOpacity(0.1)
+                                    : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: isHovering
+                                    ? Border.all(
+                                        color: const Color(0xFF566099),
+                                        width: 2,
+                                      )
+                                    : null,
+                                ),
+                                child: Center(
+                                  child: isHovering
+                                    ? const Icon(
+                                        Icons.add,
+                                        color: Color(0xFF566099),
+                                        size: 32,
+                                      )
+                                    : const SizedBox.shrink(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    
                     if (incompleteTasks.isNotEmpty)
                       SliverPadding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -1028,44 +1680,93 @@ class _DateDetailViewState extends State<DateDetailView>
                             index,
                           ) {
                             final task = incompleteTasks[index];
-                            // ✅ RepaintBoundary + ValueKey로 성능 최적화
-                            return RepaintBoundary(
-                              key: ValueKey('task_${task.id}'),
-                              child: Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: SlidableTaskCard(
-                                  groupTag: 'unified_list',
-                                  taskId: task.id,
-                                  onTap: () =>
-                                      _openTaskDetail(task), // ✅ onTap 추가!
-                                  onComplete: () async {
-                                    // 이거를 설정하고 → 완료 토글
-                                    await GetIt.I<AppDatabase>().completeTask(
-                                      task.id,
-                                    );
-                                    print('✅ [TaskCard] 완료 토글: ${task.title}');
-                                  },
-                                  onDelete: () async {
-                                    // 이거를 해서 → 할일 삭제 (나중에 Inbox로 이동 기능 추가 예정)
-                                    await GetIt.I<AppDatabase>().deleteTask(
-                                      task.id,
-                                    );
-                                    print('🗑️ [TaskCard] 삭제: ${task.title}');
-                                  },
-                                  child: TaskCard(
-                                    task: task,
-                                    onToggle: () async {
-                                      // 이거를 설정하고 → 체크박스 클릭 시에도 완료 토글
-                                      await GetIt.I<AppDatabase>().completeTask(
-                                        task.id,
-                                      );
-                                      print(
-                                        '✅ [TaskCard] 체크박스 완료 토글: ${task.title}',
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
+                            
+                            // 🎯 각 Task 카드를 DragTarget으로 감싸기
+                            return DragTarget<TaskData>(
+                              onAcceptWithDetails: (details) async {
+                                final droppedTask = details.data;
+                                print('✅ [DateDetail] 태스크 드롭: "${droppedTask.title}" → ${widget.selectedDate}');
+                                
+                                // ✅ DB 업데이트
+                                await GetIt.I<AppDatabase>().updateTaskDate(
+                                  droppedTask.id,
+                                  widget.selectedDate,
+                                );
+                                
+                                HapticFeedback.heavyImpact();
+                              },
+                              onWillAcceptWithDetails: (details) {
+                                print('🎯 [DateDetail] DragTarget onWillAccept: Task 리스트');
+                                return true;
+                              },
+                              builder: (context, candidateData, rejectedData) {
+                                final isHovering = candidateData.isNotEmpty;
+                                
+                                return Column(
+                                  children: [
+                                    // 🎯 호버링 중일 때 공간 표시 (자연스러운 삽입 위치)
+                                    if (isHovering && index == 0)
+                                      Container(
+                                        height: 60,
+                                        margin: const EdgeInsets.only(bottom: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF566099).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(
+                                            color: const Color(0xFF566099),
+                                            width: 2,
+                                            style: BorderStyle.solid,
+                                          ),
+                                        ),
+                                        child: const Center(
+                                          child: Icon(
+                                            Icons.add,
+                                            color: Color(0xFF566099),
+                                            size: 32,
+                                          ),
+                                        ),
+                                      ),
+                                    
+                                    // ✅ 기존 Task 카드
+                                    RepaintBoundary(
+                                      key: ValueKey('task_${task.id}'),
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(bottom: 4),
+                                        child: SlidableTaskCard(
+                                          groupTag: 'unified_list',
+                                          taskId: task.id,
+                                          repeatRule: task.repeatRule, // 🔄 반복 규칙 전달
+                                          onTap: () => _openTaskDetail(task),
+                                          onComplete: () async {
+                                            await GetIt.I<AppDatabase>().completeTask(task.id);
+                                            print('✅ [TaskCard] 완료 토글: ${task.title}');
+                                          },
+                                          onDelete: () async {
+                                            await GetIt.I<AppDatabase>().deleteTask(task.id);
+                                            print('🗑️ [TaskCard] 삭제: ${task.title}');
+                                            // ✅ 토스트 표시
+                                            if (context.mounted) {
+                                              showActionToast(context, type: ToastType.delete);
+                                            }
+                                          },
+                                          child: TaskCard(
+                                            task: task,
+                                            onToggle: () async {
+                                              if (task.completed) {
+                                                await GetIt.I<AppDatabase>().uncompleteTask(task.id);
+                                                print('🔄 [TaskCard] 체크박스 완료 해제: ${task.title}');
+                                              } else {
+                                                await GetIt.I<AppDatabase>().completeTask(task.id);
+                                                print('✅ [TaskCard] 체크박스 완료 처리: ${task.title}');
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             );
                           }, childCount: incompleteTasks.length),
                         ),
@@ -1084,53 +1785,99 @@ class _DateDetailViewState extends State<DateDetailView>
                           ) {
                             final habit = habits[index];
                             // ✅ RepaintBoundary + ValueKey로 성능 최적화
-                            return RepaintBoundary(
-                              key: ValueKey('habit_${habit.id}'),
-                              child: Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: GestureDetector(
-                                  onTap: () => _showHabitDetailModal(habit, date),
-                                  child: SlidableHabitCard(
-                                    groupTag: 'unified_list',
-                                    habitId: habit.id,
-                                    onComplete: () async {
-                                      // 이거를 해서 → 오늘 날짜로 완료 기록
-                                      await GetIt.I<AppDatabase>()
-                                          .recordHabitCompletion(habit.id, date);
-                                      print(
-                                        '✅ [HabitCard] 완료 기록: ${habit.title}',
-                                      );
-                                    },
-                                    onDelete: () async {
-                                      // 이거라면 → 습관 삭제
-                                      await GetIt.I<AppDatabase>().deleteHabit(
-                                        habit.id,
-                                      );
-                                      print('🗑️ [HabitCard] 삭제: ${habit.title}');
-                                    },
-                                    child: HabitCard(
-                                    habit: habit,
-                                    isCompleted:
-                                        false, // TODO: HabitCompletion 확인
-                                    onToggle: () async {
-                                      // 이거를 설정하고 → 체크박스 클릭 시에도 완료 기록
-                                      await GetIt.I<AppDatabase>()
-                                          .recordHabitCompletion(
-                                            habit.id,
-                                            date,
-                                          );
-                                      print(
-                                        '✅ [HabitCard] 체크박스 완료 기록: ${habit.title}',
-                                      );
-                                    },
-                                    onTap: () {
-                                      print('🔁 [HabitCard] 탭: ${habit.title}');
-                                      // ✅ Wolt 습관 상세 모달 표시
-                                      _showHabitDetailModal(habit, date);
-                                    },
-                                  ),
-                                ),
-                              ),
+                            return DragTarget<TaskData>(
+                              onWillAcceptWithDetails: (details) {
+                                print('📌 습관 위로 Drag Hover: ${details.data.title} -> ${habit.title}');
+                                return true;
+                              },
+                              onAcceptWithDetails: (details) async {
+                                final droppedTask = details.data;
+                                print('✅ 습관 위에 Drop: ${droppedTask.title} -> ${habit.title}');
+                                await GetIt.I<AppDatabase>()
+                                    .updateTaskDate(droppedTask.id, widget.selectedDate);
+                                HapticFeedback.heavyImpact();
+                              },
+                              builder: (context, candidateData, rejectedData) {
+                                final isHovering = candidateData.isNotEmpty;
+                                return RepaintBoundary(
+                                  key: ValueKey('habit_${habit.id}'),
+                                  child: Column(
+                                    children: [
+                                      // 드래그 호버 시 공간 표시
+                                      if (isHovering)
+                                        Container(
+                                          height: 60,
+                                          margin: const EdgeInsets.only(bottom: 8),
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: const Color(0xFF566099),
+                                              width: 2,
+                                            ),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: const Center(
+                                            child: Icon(
+                                              Icons.add_circle_outline,
+                                              color: Color(0xFF566099),
+                                              size: 32,
+                                            ),
+                                          ),
+                                        ),
+                                      Padding(
+                                        padding: const EdgeInsets.only(bottom: 4),
+                                        child: GestureDetector(
+                                          onTap: () => _showHabitDetailModal(habit, date),
+                                          child: SlidableHabitCard(
+                                            groupTag: 'unified_list',
+                                            habitId: habit.id,
+                                            repeatRule: habit.repeatRule, // 🔄 반복 규칙 전달
+                                            showConfirmDialog: true, // ✅ 삭제 확인 모달 표시
+                                            onComplete: () async {
+                                              // 이거를 해서 → 오늘 날짜로 완료 기록
+                                              await GetIt.I<AppDatabase>()
+                                                  .recordHabitCompletion(habit.id, date);
+                                              print(
+                                                '✅ [HabitCard] 완료 기록: ${habit.title}',
+                                              );
+                                            },
+                                            onDelete: () async {
+                                              // 이거라면 → 습관 삭제
+                                              await GetIt.I<AppDatabase>().deleteHabit(
+                                                habit.id,
+                                              );
+                                              print('🗑️ [HabitCard] 삭제: ${habit.title}');
+                                              // ✅ 토스트 표시
+                                              if (context.mounted) {
+                                                showActionToast(context, type: ToastType.delete);
+                                              }
+                                            },
+                                            child: HabitCard(
+                                            habit: habit,
+                                            isCompleted:
+                                                false, // TODO: HabitCompletion 확인
+                                            onToggle: () async {
+                                              // 이거를 설정하고 → 체크박스 클릭 시에도 완료 기록
+                                              await GetIt.I<AppDatabase>()
+                                                  .recordHabitCompletion(
+                                                    habit.id,
+                                                    date,
+                                                  );
+                                              print(
+                                                '✅ [HabitCard] 체크박스 완료 기록: ${habit.title}',
+                                              );
+                                            },
+                                            onTap: () {
+                                              print('🔁 [HabitCard] 탭: ${habit.title}');
+                                              // ✅ Wolt 습관 상세 모달 표시
+                                              _showHabitDetailModal(habit, date);
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             );
                           }, childCount: habits.length),
                         ),

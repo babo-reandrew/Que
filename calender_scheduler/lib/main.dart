@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart' as provider; // ✅ prefix 추가
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // ✅ Riverpod 추가
+import 'package:flutter_persistent_keyboard_height/flutter_persistent_keyboard_height.dart'; // ✅ 키보드 높이 유지
 import 'package:calender_scheduler/config/app_routes.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:calender_scheduler/Database/schedule_database.dart';
@@ -10,7 +11,7 @@ import 'package:calender_scheduler/providers/schedule_form_controller.dart';
 import 'package:calender_scheduler/providers/task_form_controller.dart';
 import 'package:calender_scheduler/providers/habit_form_controller.dart';
 import 'package:calender_scheduler/design_system/wolt_theme.dart';
-import 'package:calender_scheduler/utils/sample_data_helper.dart'; // ✅ 샘플 데이터 헬퍼 추가
+// import 'package:calender_scheduler/utils/sample_data_helper.dart'; // ✅ 샘플 데이터 헬퍼 - 비활성화
 
 // ===================================================================
 // ⭐️ Main Entry Point: 앱의 진입점
@@ -62,28 +63,28 @@ void main() async {
   print('📊 [main.dart] 오늘 일정 조회 완료: ${resp.length}개');
 
   // ===================================================================
-  // 6. ✅ 샘플 데이터 생성 (Task, Habit 테스트용)
+  // 6. ✅ 샘플 데이터 생성 (Task, Habit 테스트용) - 비활성화
   // ===================================================================
   // 이거를 설정하고 → 앱 첫 실행 시 샘플 데이터를 생성해서
   // 이거를 해서 → TaskCard와 HabitCard UI를 바로 테스트할 수 있다
   // TODO: 실제 배포 시에는 이 코드를 제거하거나 디버그 모드에서만 실행
-  try {
-    await SampleDataHelper.createAllSampleData(database);
-  } catch (e) {
-    print('⚠️ [main.dart] 샘플 데이터 생성 실패 (이미 존재할 수 있음): $e');
-  }
+  // try {
+  //   await SampleDataHelper.createAllSampleData(database);
+  // } catch (e) {
+  //   print('⚠️ [main.dart] 샘플 데이터 생성 실패 (이미 존재할 수 있음): $e');
+  // }
 
   // ===================================================================
-  // 🧪 오늘 날짜 테스트 데이터 추가 (동적 일정 개수 테스트용)
+  // 🧪 오늘 날짜 테스트 데이터 추가 (동적 일정 개수 테스트용) - 비활성화
   // ===================================================================
   // 이거를 설정하고 → 오늘 날짜에 5개의 테스트 일정을 추가해서
   // 이거를 해서 → 셀 높이 기반 동적 일정 개수 계산을 테스트한다
-  try {
-    await SampleDataHelper.createTodayTestSchedules(database);
-    print('✅ [main.dart] 오늘 날짜 테스트 일정 5개 추가 완료');
-  } catch (e) {
-    print('⚠️ [main.dart] 오늘 날짜 테스트 일정 추가 실패: $e');
-  }
+  // try {
+  //   await SampleDataHelper.createTodayTestSchedules(database);
+  //   print('✅ [main.dart] 오늘 날짜 테스트 일정 5개 추가 완료');
+  // } catch (e) {
+  //   print('⚠️ [main.dart] 오늘 날짜 테스트 일정 추가 실패: $e');
+  // }
 
   // ===================================================================
   // 6. 앱 실행
@@ -132,6 +133,15 @@ class CalendarSchedulerApp extends StatelessWidget {
             // 이거는 이래서 → Figma 디자인 토큰이 전역적으로 적용된다
             // 이거라면 → 바텀시트 스타일 변경 시 wolt_theme.dart만 수정하면 된다
           ),
+
+          // ===================================================================
+          // ⭐️ 키보드 높이 유지: 키보드 내려가도 높이 유지
+          // ===================================================================
+          builder: (context, child) =>
+              PersistentKeyboardHeightProvider(child: child!),
+          // 이거를 설정하고 → 키보드 높이를 자동으로 측정하고 저장해서
+          // 이거를 해서 → 키보드가 내려가도 그 높이를 유지한다
+          // 이거는 이래서 → 追加 버튼 클릭 시 입력창이 고정된 위치에 유지된다
 
           // ===================================================================
           // ⭐️ 라우트 중앙화: 모든 화면 전환을 한 곳에서 관리

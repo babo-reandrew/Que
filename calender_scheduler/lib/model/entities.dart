@@ -23,6 +23,11 @@ class Task extends Table {
   // 이거를 해서 → 마감일이 없는 할일도 허용한다
   DateTimeColumn get dueDate => dateTime().nullable()();
 
+  // 이거를 설정하고 → 실행일을 nullable DateTime으로 설정해서
+  // 이거를 해서 → 실행일이 지정된 할일을 DetailView에 표시하고
+  // 이거는 이래서 → 실행일이 없으면 Inbox에만 표시된다
+  DateTimeColumn get executionDate => dateTime().nullable()();
+
   // 이거를 설정하고 → 목록 ID를 텍스트로 설정해서
   // 이거를 해서 → 여러 목록(Inbox, 프로젝트 등)으로 분류한다
   // 이거는 이래서 → 기본값은 'inbox'
