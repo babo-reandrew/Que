@@ -916,7 +916,23 @@ class _DateDetailViewState extends State<DateDetailView>
 
                     print('📋 [_buildUnifiedList] 아이템 로드 완료: ${items.length}개');
 
-                    // 🚀 AnimatedReorderableListView 구현!
+                    // 🎯 완료된 Task 리스트 생성
+                    final completedTasks = tasks.where((t) => t.completed).toList();
+
+                    // 🎯 종일 일정이 있는지 확인
+                    final hasAllDaySchedule = items.any((item) => 
+                      item.type == UnifiedItemType.schedule && 
+                      _isAllDaySchedule(item.data as ScheduleData)
+                    );
+
+                    print('🎨 [_buildUnifiedList] 종일 일정 존재 여부: $hasAllDaySchedule');
+
+                    // 🎯 종일 일정이 있으면 2컬럼 그리드, 없으면 기존 ListView
+                    if (hasAllDaySchedule) {
+                      return _build2ColumnGrid(items, date, completedTasks);
+                    }
+
+                    // 🚀 AnimatedReorderableListView 구현! (종일 일정 없을 때)
                     return AnimatedReorderableListView(
                       items: items,
 
@@ -2247,5 +2263,39 @@ class _DateDetailViewState extends State<DateDetailView>
            start.minute == 0 && 
            end.hour == 23 && 
            end.minute == 59;
+  }
+
+  /// 🎨 2컬럼 그리드 레이아웃 (종일 일정이 있을 때만 사용)
+  /// 이거를 설정하고 → StaggeredGrid.count로 2컬럼 그리드를 만들어서
+  /// 이거를 해서 → 종일 일정은 2컬럼 전체를 사용하고, 나머지는 1컬럼을 사용한다
+  Widget _build2ColumnGrid(
+    List<UnifiedListItem> items,
+    DateTime date,
+    List<TaskData> completedTasks,
+  ) {
+    print('🎨 [_build2ColumnGrid] 2컬럼 그리드 렌더링 시작: ${items.length}개');
+
+    return StaggeredGrid.count(
+      crossAxisCount: 2,
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
+      children: List.generate(items.length, (index) {
+        final item = items[index];
+        
+        // 🎯 종일 일정은 2컬럼 전체 사용, 나머지는 1컬럼
+        final crossAxisCellCount = item.type == UnifiedItemType.schedule &&
+                _isAllDaySchedule(item.data as ScheduleData)
+            ? 2
+            : 1;
+
+        print('  → [Grid] index=$index, type=${item.type}, cols=$crossAxisCellCount');
+
+        return StaggeredGridTile.count(
+          crossAxisCellCount: crossAxisCellCount,
+          mainAxisCellCount: 1,
+          child: _buildCardByType(item, date, completedTasks, index),
+        );
+      }),
+    );
   }
 } // _DateDetailViewState 끝
