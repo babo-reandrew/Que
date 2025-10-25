@@ -365,24 +365,30 @@ class AnimatedReorderableListView<E extends Object> extends StatefulWidget {
   /// Defaults to true.
   final bool enableSwap;
 
-  /// 🎯 A callback to determine if an item requires special handling (e.g., full-width layout).
+  /// 🎯 A callback to determine how many columns an item should span in a grid layout.
   ///
-  /// This is useful for implementing features like 2-column layouts where some items
-  /// (e.g., all-day events) should span across multiple columns.
+  /// This is useful for implementing dynamic 2-column layouts where:
+  /// - When there's only 1 item, it spans full width (returns 2)
+  /// - When there are multiple items, all-day events span 2 columns, normal schedules span 1 column
   ///
-  /// If null, all items are treated normally.
+  /// Returns:
+  /// - `2`: Item spans 2 columns (full width)
+  /// - `1`: Item spans 1 column (half width in 2-column grid)
+  ///
+  /// If null, all items are treated as spanning 1 column.
   ///
   /// Example:
   /// ```dart
-  /// isSpecialItem: (item) {
+  /// getCrossAxisCellCount: (item) {
+  ///   if (items.length == 1) return 2;  // Single item: full width
   ///   if (item.type == UnifiedItemType.schedule) {
   ///     final schedule = item.data as ScheduleData;
-  ///     return _isAllDaySchedule(schedule);
+  ///     return _isAllDaySchedule(schedule) ? 2 : 1;
   ///   }
-  ///   return false;
+  ///   return 1;
   /// },
   /// ```
-  final bool Function(E item)? isSpecialItem;
+  final int Function(E item)? getCrossAxisCellCount;
 
   /// Creates a [AnimatedReorderableListView] that enables users to interactively reorder items through dragging,
   /// with animated insertion and removal of items.
@@ -419,7 +425,7 @@ class AnimatedReorderableListView<E extends Object> extends StatefulWidget {
     this.nonDraggableItems = const [],
     this.lockedItems = const [],
     this.enableSwap = true,
-    this.isSpecialItem, // 🎯 선택적 파라미터
+    this.getCrossAxisCellCount, // 🎯 선택적 파라미터
   }) : super(key: key);
 
   /// The state from the closest instance of this class that encloses the given
@@ -511,7 +517,7 @@ class AnimatedReorderableListViewState<E extends Object>
               nonDraggableItems: widget.nonDraggableItems,
               lockedItems: widget.lockedItems,
               enableSwap: widget.enableSwap,
-              isSpecialItem: widget.isSpecialItem, // 🎯 전달
+              getCrossAxisCellCount: widget.getCrossAxisCellCount, // 🎯 전달
             ),
           ),
         ]);
