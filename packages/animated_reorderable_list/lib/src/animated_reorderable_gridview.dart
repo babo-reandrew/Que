@@ -347,6 +347,24 @@ class AnimatedReorderableGridView<E extends Object> extends StatefulWidget {
   /// Defaults to true.
   final bool enableSwap;
 
+  /// 🎯 A callback to determine how many columns an item should span.
+  ///
+  /// This is useful for implementing features like 2-column layouts where some items
+  /// (e.g., all-day events) should span across the full width.
+  ///
+  /// If null, all items will span 1 column (default behavior).
+  ///
+  /// Example:
+  /// ```dart
+  /// getCrossAxisCellCount: (item) {
+  ///   if (item.type == ItemType.schedule) {
+  ///     return item.isAllDay ? 2 : 1; // All-day: 2 columns, Normal: 1 column
+  ///   }
+  ///   return 1;
+  /// }
+  /// ```
+  final int Function(E item)? getCrossAxisCellCount;
+
   /// Creates a [AnimatedReorderableGridView] that enables users to interactively reorder items through dragging,
   /// with animated insertion and removal of items.
   const AnimatedReorderableGridView(
@@ -381,7 +399,8 @@ class AnimatedReorderableGridView<E extends Object> extends StatefulWidget {
       this.dragStartDelay = const Duration(milliseconds: 500),
       this.nonDraggableItems = const [],
       this.lockedItems = const [],
-      this.enableSwap = true})
+      this.enableSwap = true,
+      this.getCrossAxisCellCount}) // 🎯 추가
       : super(key: key);
 
   /// The state from the closest instance of this class that encloses the given

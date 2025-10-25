@@ -66,6 +66,7 @@ dependencies:  #이건 실제로 배포할 때만 패키징
   photo_manager: ^3.5.0  # 📸 사진 앨범 접근 및 관리
   image_picker: ^1.1.2  # 📷 카메라로 사진 촬영
   reorderable_staggered_scroll_view: ^0.0.2
+  flutter_staggered_grid_view: ^0.7.0  # 🎯 Colspan 지원 그리드 (2컬럼 레이아웃용)
 
 dev_dependencies: #이건 개발을 할 때에만 패키징
   flutter_test:

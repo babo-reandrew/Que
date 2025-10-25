@@ -3,6 +3,7 @@ import 'package:flutter/services.dart'; // ✅ HapticFeedback
 import 'package:flutter/physics.dart'; // ✅ SpringSimulation 사용
 import 'package:smooth_sheets/smooth_sheets.dart'; // ✅ smooth_sheets 추가
 import 'package:animated_reorderable_list/animated_reorderable_list.dart'; // 🆕 드래그 재정렬
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart'; // 🎯 2컬럼 Colspan 레이아웃
 import '../component/toast/action_toast.dart'; // ✅ 토스트 추가
 import '../component/schedule_card.dart';
 import '../component/create_entry_bottom_sheet.dart';
