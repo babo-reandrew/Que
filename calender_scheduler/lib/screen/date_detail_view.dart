@@ -2207,4 +2207,73 @@ class _DateDetailViewState extends State<DateDetailView>
       print('❌ [_saveDailyCardOrder] 저장 실패: $e');
     }
   }
+
+  // ============================================================================
+  // 🆕 2컬럼 레이아웃 헬퍼 함수들
+  // ============================================================================
+
+  /// 종일 일정 확인
+  /// 이거를 설정하고 → ScheduleData의 시간을 체크해서
+  /// 이거를 해서 → 0:00~23:59인지 확인하고
+  /// 이거는 이래서 → 종일 일정 여부를 반환한다
+  bool _isAllDaySchedule(ScheduleData schedule) {
+    final start = schedule.start;
+    final end = schedule.end;
+    
+    // 0시 0분 ~ 23시 59분이면 종일
+    return start.hour == 0 && 
+           start.minute == 0 && 
+           end.hour == 23 && 
+           end.minute == 59;
+  }
+
+  /// 일정 아이템만 필터링
+  /// 이거를 설정하고 → UnifiedListItem에서 일정만 추출해서
+  /// 이거를 해서 → 일정 리스트만 반환한다
+  List<UnifiedListItem> _getScheduleItems(List<UnifiedListItem> items) {
+    return items
+        .where((item) => item.type == UnifiedItemType.schedule)
+        .toList();
+  }
+
+  /// 종일 일정 찾기
+  /// 이거를 설정하고 → 일정 리스트에서 종일 일정을 찾아서
+  /// 이거를 해서 → 첫 번째 종일 일정을 반환한다 (없으면 null)
+  UnifiedListItem? _findAllDaySchedule(List<UnifiedListItem> scheduleItems) {
+    for (var item in scheduleItems) {
+      final schedule = item.data as ScheduleData;
+      if (_isAllDaySchedule(schedule)) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  /// 일반 일정들 (종일 제외)
+  /// 이거를 설정하고 → 종일 일정을 제외한 나머지 일정만 반환해서
+  /// 이거를 해서 → 우측 컬럼에 표시할 일정 리스트를 만든다
+  List<UnifiedListItem> _getNormalSchedules(
+    List<UnifiedListItem> scheduleItems,
+    UnifiedListItem? allDaySchedule,
+  ) {
+    if (allDaySchedule == null) return scheduleItems;
+    
+    return scheduleItems
+        .where((item) => item.uniqueId != allDaySchedule.uniqueId)
+        .toList();
+  }
+
+  /// Divider 이후 아이템들 (할일, 습관, 완료섹션)
+  /// 이거를 설정하고 → Divider 이후의 모든 아이템을 반환해서
+  /// 이거를 해서 → 점선 아래 영역을 구성한다
+  List<UnifiedListItem> _getBelowDividerItems(List<UnifiedListItem> items) {
+    final dividerIndex = items.indexWhere(
+      (item) => item.type == UnifiedItemType.divider,
+    );
+    
+    if (dividerIndex == -1) return [];
+    
+    // Divider 이후 모든 아이템 반환
+    return items.sublist(dividerIndex + 1);
+  }
 } // _DateDetailViewState 끝
