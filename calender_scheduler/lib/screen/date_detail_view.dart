@@ -68,6 +68,11 @@ class _DateDetailViewState extends State<DateDetailView>
   // 🚫 Divider 제약을 위한 변수
   bool _isReorderingScheduleBelowDivider = false; // 일정이 divider 아래로 이동 시도 중
 
+  // 📄 페이지네이션 변수
+  static const int _pageSize = 20; // 한 번에 로드할 아이템 수
+  int _currentTaskOffset = 0; // 현재 Task 오프셋
+  int _currentHabitOffset = 0; // 현재 Habit 오프셋
+
   // 무한 스크롤을 위한 중앙 인덱스 (충분히 큰 수)
   static const int _centerIndex = 1000000;
 
@@ -88,6 +93,9 @@ class _DateDetailViewState extends State<DateDetailView>
     _pageController = PageController(initialPage: _centerIndex);
     // ✅ 리스트 스크롤 컨트롤러 초기화 (리스트 최상단 감지용)
     _scrollController = ScrollController();
+
+    // 📄 페이지네이션: 스크롤 리스너 추가 (하단 도달 시 다음 페이지 로드)
+    _scrollController.addListener(_onScroll);
 
     // ✅ Pull-to-dismiss 스프링 애니메이션 컨트롤러 (unbounded)
     // Safari 스타일: 물리 기반 스프링 시뮬레이션 사용
@@ -143,6 +151,22 @@ class _DateDetailViewState extends State<DateDetailView>
   DateTime _getDateForIndex(int index) {
     final daysDiff = index - _centerIndex;
     return widget.selectedDate.add(Duration(days: daysDiff));
+  }
+
+  /// 📄 스크롤 리스너: 하단 도달 시 다음 페이지 로드
+  /// 이거를 설정하고 → 스크롤이 하단에 도달하면 감지해서
+  /// 이거를 해서 → offset을 증가시켜 다음 페이지를 로드하고
+  /// 이거는 이래서 → 무한 스크롤이 가능하다
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      // 하단 200px 이전에 다음 페이지 로드 시작
+      print('📄 [Pagination] 하단 도달 → 다음 페이지 로드');
+      setState(() {
+        _currentTaskOffset += _pageSize;
+        _currentHabitOffset += _pageSize;
+      });
+    }
   }
 
   /// 🎯 드래그 시 자동 스크롤 (AnimatedReorderableListView 네이티브 동작)
@@ -891,44 +915,218 @@ class _DateDetailViewState extends State<DateDetailView>
 
                     print('📋 [_buildUnifiedList] 아이템 로드 완료: ${items.length}개');
 
-                    // ========================================================================
-                    // 🆕 2컬럼 레이아웃: 종일 일정 분리
-                    // ========================================================================
-                    final scheduleItems = _getScheduleItems(items);
-                    final allDaySchedule = _findAllDaySchedule(scheduleItems);
-                    final normalSchedules = _getNormalSchedules(scheduleItems, allDaySchedule);
-                    final belowDividerItems = _getBelowDividerItems(items);
+                    // 🚀 AnimatedReorderableListView 구현!
+                    return AnimatedReorderableListView(
+                      items: items,
 
-                    print('🎨 [2Column] 종일:${allDaySchedule != null ? 1 : 0}, 일반:${normalSchedules.length}, Divider아래:${belowDividerItems.length}');
+                      // 🔧 itemBuilder: 각 아이템을 카드로 렌더링
+                      itemBuilder: (context, index) {
+                        // 🎯 첫 번째 아이템에서 Scrollable context 캡처
+                        if (index == 0 && _scrollableContext == null) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            try {
+                              final scrollableState = Scrollable.maybeOf(
+                                context,
+                              );
+                              if (scrollableState != null &&
+                                  scrollableState.position.maxScrollExtent !=
+                                      double.infinity &&
+                                  scrollableState.position.maxScrollExtent <
+                                      100000000) {
+                                _scrollableContext = context;
+                                print(
+                                  '✅ [ScrollContext] 저장 완료: max=${scrollableState.position.maxScrollExtent}',
+                                );
+                              } else {
+                                print(
+                                  '❌ [ScrollContext] 부적절한 Scrollable: max=${scrollableState?.position.maxScrollExtent}',
+                                );
+                              }
+                            } catch (e) {
+                              print('❌ [ScrollContext] 저장 실패: $e');
+                            }
+                          });
+                        }
 
-                    // ========================================================================
-                    // 🎯 2컬럼 레이아웃 구현: SingleChildScrollView + Column
-                    // ========================================================================
-                    return SingleChildScrollView(
-                      controller: _scrollController,
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // ===== 점선 위: 일정 영역 =====
-                          if (scheduleItems.isNotEmpty)
-                            _buildScheduleSection(allDaySchedule, normalSchedules, date, items),
+                        final item = items[index];
+                        print(
+                          '  → [itemBuilder] index=$index, type=${item.type}, id=${item.actualId}',
+                        );
 
-                          // ===== 점선 구분선 =====
-                          if (scheduleItems.isNotEmpty && belowDividerItems.isNotEmpty)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                              child: DashedDivider(),
-                            ),
+                        // 타입별 카드 렌더링 (index 전달)
+                        return _buildCardByType(
+                          item,
+                          date,
+                          tasks.where((t) => t.completed).toList(),
+                          index,
+                        );
+                      },
 
-                          // ===== 점선 아래: 할일/습관 영역 =====
-                          if (belowDividerItems.isNotEmpty)
-                            _buildBelowDividerSection(belowDividerItems, date, tasks.where((t) => t.completed).toList(), items),
+                      onReorderStart: (index) {
+                        final item = items[index];
+                        print(
+                          '🎯 [onReorderStart] index=$index, type=${item.type}',
+                        );
+                      },
 
-                          // 하단 여백
-                          const SizedBox(height: 100),
-                        ],
-                      ),
+                      // ✅ onReorderEnd: 드래그 종료 시 상태 초기화
+                      onReorderEnd: (index) {
+                        print('🏁 [onReorderEnd] index=$index');
+                        setState(() {
+                          _isReorderingScheduleBelowDivider = false;
+                        });
+                      },
+
+                      // �🔄 onReorder: 재정렬 핸들러
+                      // 이거를 설정하고 → 드래그앤드롭 시 호출되어
+                      // 이거를 해서 → sortOrder 재계산 및 DB 저장한다
+                      onReorder: (oldIndex, newIndex) {
+                        // 🚫 Divider 제약 확인
+                        final item = items[oldIndex];
+                        final dividerIndex = items.indexWhere(
+                          (i) => i.type == UnifiedItemType.divider,
+                        );
+
+                        // 일정이 divider 아래로 이동하려는 경우 차단!
+                        if (item.type == UnifiedItemType.schedule &&
+                            dividerIndex != -1) {
+                          final targetIndex = newIndex > oldIndex
+                              ? newIndex - 1
+                              : newIndex;
+
+                          if (targetIndex > dividerIndex) {
+                            print(
+                              '🚫 [onReorder] 일정을 divider 아래로 이동 불가! oldIndex=$oldIndex, newIndex=$newIndex, dividerIndex=$dividerIndex',
+                            );
+
+                            // 거부 효과: 상태 업데이트 + Haptic
+                            setState(() {
+                              _isReorderingScheduleBelowDivider = true;
+                            });
+
+                            HapticFeedback.heavyImpact(); // 강한 햅틱
+
+                            // 100ms 후 FutureBuilder 재실행으로 원래 순서 복구
+                            Future.delayed(
+                              const Duration(milliseconds: 100),
+                              () {
+                                if (mounted) {
+                                  setState(() {
+                                    _isReorderingScheduleBelowDivider = false;
+                                    // 이 setState가 FutureBuilder를 다시 실행시켜서
+                                    // DB에서 원래 순서를 다시 로드하게 만듦!
+                                  });
+                                }
+                              },
+                            );
+
+                            return; // 재정렬 중단! (_handleReorder 호출하지 않음)
+                          }
+                        }
+
+                        // 정상적인 재정렬
+                        _handleReorder(items, oldIndex, newIndex);
+                      },
+
+                      // 🔑 isSameItem: 동일 아이템 비교
+                      // 이거를 설정하고 → uniqueId로 비교해서
+                      // 이거를 해서 → 애니메이션이 정확히 작동하도록 한다
+                      isSameItem: (a, b) => a.uniqueId == b.uniqueId,
+
+                      // 🎨 iOS 18 스타일 애니메이션 설정
+                      // 이거를 설정하고 → 300ms duration으로 설정해서
+                      // 이거를 해서 → 부드러운 애니메이션을 구현한다
+                      insertDuration: const Duration(milliseconds: 300),
+                      removeDuration: const Duration(milliseconds: 250),
+
+                      // 🎯 드래그 시작 딜레이 (길게 누르기)
+                      // 🎯 인박스에서 드래그 중일 때만 재정렬 비활성화
+                      // 리스트 아이템 직접 드래그는 항상 가능
+                      dragStartDelay: _isDraggingFromInbox
+                          ? const Duration(days: 365) // 인박스 드래그 중: 비활성화
+                          : const Duration(milliseconds: 500), // 일반: 500ms 딜레이
+                      
+                      // 🎯 종일 일정 감지 (2컬럼 레이아웃용)
+                      isSpecialItem: (item) {
+                        if (item.type == UnifiedItemType.schedule) {
+                          final schedule = item.data as ScheduleData;
+                          final isAllDay = _isAllDaySchedule(schedule);
+                          print('🎯 [isSpecialItem] schedule=${schedule.summary}, isAllDay=$isAllDay');
+                          return isAllDay;
+                        }
+                        return false;
+                      },
+                      
+                      // 🎭 enterTransition: 아이템 추가 애니메이션
+                      // 이거를 설정하고 → iOS 스타일 ScaleIn + FadeIn으로
+                      // 이거를 해서 → 부드럽게 나타나도록 한다
+                      enterTransition: [
+                        ScaleIn(
+                          duration: const Duration(milliseconds: 300),
+                          curve: const Cubic(0.25, 0.1, 0.25, 1.0), // iOS 곡선
+                          begin: 0.95,
+                          end: 1.0,
+                        ),
+                        FadeIn(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeOut,
+                        ),
+                      ],
+
+                      // 🎭 exitTransition: 아이템 제거 애니메이션
+                      // 이거를 설정하고 → iOS 스타일 ScaleIn + FadeIn으로
+                      // 이거를 해서 → 부드럽게 사라지도록 한다
+                      exitTransition: [
+                        ScaleIn(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeIn,
+                          begin: 1.0,
+                          end: 0.95,
+                        ),
+                        FadeIn(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeIn,
+                        ),
+                      ],
+
+                      // 🎨 proxyDecorator: 드래그 중 카드 스타일
+                      // 이거를 설정하고 → 드래그 시 확대 + 회전 + 그림자 효과를 추가해서
+                      // 이거를 해서 → iOS 스타일 드래그 애니메이션을 구현한다
+                      proxyDecorator: (child, index, animation) {
+                        return AnimatedBuilder(
+                          animation: animation,
+                          builder: (context, child) {
+                            // 1️⃣ 확대 효과 (3%)
+                            final scale = 1.0 + (animation.value * 0.03);
+
+                            // 2️⃣ 회전 효과 (3도)
+                            final rotation = animation.value * 0.05; // 약 3도
+
+                            return Transform.scale(
+                              scale: scale,
+                              child: Transform.rotate(
+                                angle: rotation,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(24),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(
+                                          0x14111111,
+                                        ), // #111111 8% opacity
+                                        offset: const Offset(0, 4), // y: 4
+                                        blurRadius: 20, // blur: 20
+                                      ),
+                                    ],
+                                  ),
+                                  child: child,
+                                ),
+                              ),
+                            );
+                          },
+                          child: child,
+                        );
+                      },
                     );
                   },
                 );
@@ -938,308 +1136,6 @@ class _DateDetailViewState extends State<DateDetailView>
         );
       },
     );
-  }
-
-  // ============================================================================
-  // 🆕 2컬럼 레이아웃 빌더 함수들
-  // ============================================================================
-
-  /// 일정 섹션 빌더 (종일 + 일반 일정)
-  /// 이거를 설정하고 → 종일 일정이 있으면 Row로 2컬럼 배치해서
-  /// 이거를 해서 → 좌측 40% 종일, 우측 60% 일반 일정을 표시하고
-  /// 이거는 이래서 → Figma 디자인대로 2컬럼 레이아웃이 구현된다
-  Widget _buildScheduleSection(
-    UnifiedListItem? allDaySchedule,
-    List<UnifiedListItem> normalSchedules,
-    DateTime date,
-    List<UnifiedListItem> allItems,
-  ) {
-    // 종일 일정이 있으면 Row로 2컬럼
-    if (allDaySchedule != null) {
-      return Padding(
-        padding: const EdgeInsets.only(left: 24, right: 0), // 우측 패딩은 카드에 있음
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ===== 좌측: 종일 일정 (40%) =====
-            Expanded(
-              flex: 4,
-              child: _buildAllDayCard(allDaySchedule, normalSchedules.length, date),
-            ),
-
-            const SizedBox(width: 8), // 간격
-
-            // ===== 우측: 일반 일정들 (60%) =====
-            Expanded(
-              flex: 6,
-              child: _buildNormalScheduleList(normalSchedules, date, allItems),
-            ),
-          ],
-        ),
-      );
-    }
-    // 종일 일정이 없으면 일반 일정만 전체 너비로
-    else {
-      return _buildNormalScheduleList(normalSchedules, date, allItems);
-    }
-  }
-
-  /// 종일 카드 빌더
-  /// 이거를 설정하고 → 종일 일정 카드를 우측 일정 개수에 맞춰 높이 조절해서
-  /// 이거를 해서 → 좌우 카드가 같은 높이를 유지하도록 한다
-  Widget _buildAllDayCard(
-    UnifiedListItem allDaySchedule,
-    int normalScheduleCount,
-    DateTime date,
-  ) {
-    final cardHeight = 64.0; // 일반 카드 1개 높이
-    final spacing = 4.0; // 카드 간 간격
-    final totalHeight = normalScheduleCount > 0
-        ? (cardHeight * normalScheduleCount) + (spacing * (normalScheduleCount - 1))
-        : cardHeight;
-
-    return Container(
-      height: totalHeight,
-      child: _buildCardByType(
-        allDaySchedule,
-        date,
-        [],
-        0,
-      ),
-    );
-  }
-
-  /// 일반 일정 리스트 빌더 (AnimatedReorderableListView 사용)
-  /// 이거를 설정하고 → shrinkWrap: true로 설정하여 Column 안에서 사용 가능하게 하고
-  /// 이거를 해서 → 기존 드래그앤드롭 기능을 그대로 유지한다
-  Widget _buildNormalScheduleList(
-    List<UnifiedListItem> normalSchedules,
-    DateTime date,
-    List<UnifiedListItem> allItems,
-  ) {
-    if (normalSchedules.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return AnimatedReorderableListView(
-      items: normalSchedules,
-      shrinkWrap: true, // ⚠️ 필수! Column 안에서 사용 시
-      physics: const NeverScrollableScrollPhysics(), // 부모 스크롤에 위임
-
-      itemBuilder: (context, index) {
-        final item = normalSchedules[index];
-        return _buildCardByType(item, date, [], index);
-      },
-
-      onReorderStart: (index) {
-        print('🎯 [Schedule onReorderStart] index=$index');
-      },
-
-      onReorderEnd: (index) {
-        print('🏁 [Schedule onReorderEnd] index=$index');
-      },
-
-      onReorder: (oldIndex, newIndex) {
-        setState(() {
-          if (newIndex > oldIndex) {
-            newIndex -= 1;
-          }
-          final item = normalSchedules.removeAt(oldIndex);
-          normalSchedules.insert(newIndex, item);
-
-          // allItems에도 반영
-          _updateAllItemsOrder(allItems, normalSchedules);
-        });
-
-        _saveDailyCardOrder(allItems);
-        HapticFeedback.mediumImpact();
-      },
-
-      isSameItem: (a, b) => a.uniqueId == b.uniqueId,
-
-      insertDuration: const Duration(milliseconds: 300),
-      removeDuration: const Duration(milliseconds: 250),
-
-      dragStartDelay: const Duration(milliseconds: 500),
-
-      enterTransition: [
-        ScaleIn(
-          duration: const Duration(milliseconds: 300),
-          curve: const Cubic(0.25, 0.1, 0.25, 1.0),
-          begin: 0.95,
-          end: 1.0,
-        ),
-        FadeIn(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        ),
-      ],
-
-      exitTransition: [
-        ScaleIn(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeIn,
-          begin: 1.0,
-          end: 0.95,
-        ),
-        FadeIn(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeIn,
-        ),
-      ],
-
-      proxyDecorator: (child, index, animation) {
-        return AnimatedBuilder(
-          animation: animation,
-          builder: (context, child) {
-            final scale = 1.0 + (animation.value * 0.03);
-            final rotation = animation.value * 0.05;
-
-            return Transform.scale(
-              scale: scale,
-              child: Transform.rotate(
-                angle: rotation,
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0x14111111),
-                        offset: const Offset(0, 4),
-                        blurRadius: 20,
-                      ),
-                    ],
-                  ),
-                  child: child,
-                ),
-              ),
-            );
-          },
-          child: child,
-        );
-      },
-    );
-  }
-
-  /// Divider 아래 섹션 빌더 (할일, 습관, 완료)
-  /// 이거를 설정하고 → 점선 아래 모든 아이템을 AnimatedReorderableListView로 표시해서
-  /// 이거를 해서 → 할일/습관/완료 섹션도 재정렬 가능하도록 한다
-  Widget _buildBelowDividerSection(
-    List<UnifiedListItem> belowDividerItems,
-    DateTime date,
-    List<TaskData> completedTasks,
-    List<UnifiedListItem> allItems,
-  ) {
-    return AnimatedReorderableListView(
-      items: belowDividerItems,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-
-      itemBuilder: (context, index) {
-        final item = belowDividerItems[index];
-        return _buildCardByType(item, date, completedTasks, index);
-      },
-
-      onReorderStart: (index) {
-        print('🎯 [BelowDivider onReorderStart] index=$index');
-      },
-
-      onReorderEnd: (index) {
-        print('🏁 [BelowDivider onReorderEnd] index=$index');
-      },
-
-      onReorder: (oldIndex, newIndex) {
-        setState(() {
-          if (newIndex > oldIndex) {
-            newIndex -= 1;
-          }
-          final item = belowDividerItems.removeAt(oldIndex);
-          belowDividerItems.insert(newIndex, item);
-
-          // allItems에도 반영
-          _updateAllItemsOrder(allItems, belowDividerItems);
-        });
-
-        _saveDailyCardOrder(allItems);
-        HapticFeedback.mediumImpact();
-      },
-
-      isSameItem: (a, b) => a.uniqueId == b.uniqueId,
-
-      insertDuration: const Duration(milliseconds: 300),
-      removeDuration: const Duration(milliseconds: 250),
-
-      dragStartDelay: _isDraggingFromInbox
-          ? const Duration(days: 365)
-          : const Duration(milliseconds: 500),
-
-      enterTransition: [
-        ScaleIn(
-          duration: const Duration(milliseconds: 300),
-          curve: const Cubic(0.25, 0.1, 0.25, 1.0),
-          begin: 0.95,
-          end: 1.0,
-        ),
-        FadeIn(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        ),
-      ],
-
-      exitTransition: [
-        ScaleIn(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeIn,
-          begin: 1.0,
-          end: 0.95,
-        ),
-        FadeIn(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeIn,
-        ),
-      ],
-
-      proxyDecorator: (child, index, animation) {
-        return AnimatedBuilder(
-          animation: animation,
-          builder: (context, child) {
-            final scale = 1.0 + (animation.value * 0.03);
-            final rotation = animation.value * 0.05;
-
-            return Transform.scale(
-              scale: scale,
-              child: Transform.rotate(
-                angle: rotation,
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0x14111111),
-                        offset: const Offset(0, 4),
-                        blurRadius: 20,
-                      ),
-                    ],
-                  ),
-                  child: child,
-                ),
-              ),
-            );
-          },
-          child: child,
-        );
-      },
-    );
-  }
-
-  /// allItems 순서 업데이트 헬퍼
-  /// 이거를 설정하고 → 재정렬된 섹션의 순서를 allItems에 반영해서
-  /// 이거를 해서 → DB 저장 시 올바른 순서가 저장되도록 한다
-  void _updateAllItemsOrder(List<UnifiedListItem> allItems, List<UnifiedListItem> sectionItems) {
-    // sortOrder 재계산
-    for (int i = 0; i < allItems.length; i++) {
-      allItems[i] = allItems[i].copyWith(sortOrder: i);
-    }
   }
 
   /// 🎨 타입별 카드 렌더링 함수
@@ -2261,6 +2157,50 @@ class _DateDetailViewState extends State<DateDetailView>
     return items;
   }
 
+  /// 재정렬 핸들러
+  /// 이거를 설정하고 → 드래그앤드롭으로 아이템 순서가 바뀔 때 호출되어
+  /// 이거를 해서 → sortOrder를 재계산하고 DB에 저장하고
+  /// 이거는 이래서 → 앱을 재시작해도 순서가 유지된다
+  void _handleReorder(List<UnifiedListItem> items, int oldIndex, int newIndex) {
+    print('🔄 [Reorder] 시작: $oldIndex → $newIndex');
+
+    // 이거를 설정하고 → iOS 스타일 햅틱 피드백을 추가해서
+    // 이거를 해서 → 드래그 시작 시 촉각 피드백을 준다
+    HapticFeedback.mediumImpact();
+
+    setState(() {
+      // 이거를 설정하고 → newIndex 조정 로직을 적용해서
+      // 이거를 해서 → AnimatedReorderableListView의 동작과 일치시킨다
+      if (newIndex > oldIndex) {
+        newIndex -= 1;
+      }
+
+      // 이거를 설정하고 → 아이템을 이동시켜서
+      final item = items.removeAt(oldIndex);
+      items.insert(newIndex, item);
+      print('  → 아이템 이동: ${item.uniqueId} (type: ${item.type})');
+
+      // 이거를 설정하고 → 전체 리스트의 sortOrder를 재계산해서
+      // 이거를 해서 → 모든 아이템이 올바른 순서를 가지도록 한다
+      for (int i = 0; i < items.length; i++) {
+        items[i] = items[i].copyWith(sortOrder: i);
+      }
+      print('  → sortOrder 재계산 완료');
+    });
+
+    // 이거를 설정하고 → DB에 순서를 저장해서
+    // 이거를 해서 → 앱 재시작 시에도 순서가 유지된다
+    _saveDailyCardOrder(items);
+
+    // 이거를 설정하고 → 드롭 완료 시 가벼운 햅틱 피드백을 추가해서
+    // 이거를 해서 → 사용자에게 재정렬 완료를 알린다
+    Future.delayed(const Duration(milliseconds: 50), () {
+      HapticFeedback.lightImpact();
+    });
+
+    print('✅ [Reorder] 완료');
+  }
+
   /// DB에 순서 저장
   /// 이거를 설정하고 → UnifiedListItem 리스트를 DB 형식으로 변환해서
   /// 이거를 해서 → DailyCardOrder 테이블에 저장하고
@@ -2290,7 +2230,7 @@ class _DateDetailViewState extends State<DateDetailView>
   }
 
   // ============================================================================
-  // 🆕 2컬럼 레이아웃 헬퍼 함수들 (파일 끝에 위치)
+  // 🆕 2컬럼 레이아웃 헬퍼 함수들
   // ============================================================================
 
   /// 종일 일정 확인
@@ -2306,55 +2246,5 @@ class _DateDetailViewState extends State<DateDetailView>
            start.minute == 0 && 
            end.hour == 23 && 
            end.minute == 59;
-  }
-
-  /// 일정 아이템만 필터링
-  /// 이거를 설정하고 → UnifiedListItem에서 일정만 추출해서
-  /// 이거를 해서 → 일정 리스트만 반환한다
-  List<UnifiedListItem> _getScheduleItems(List<UnifiedListItem> items) {
-    return items
-        .where((item) => item.type == UnifiedItemType.schedule)
-        .toList();
-  }
-
-  /// 종일 일정 찾기
-  /// 이거를 설정하고 → 일정 리스트에서 종일 일정을 찾아서
-  /// 이거를 해서 → 첫 번째 종일 일정을 반환한다 (없으면 null)
-  UnifiedListItem? _findAllDaySchedule(List<UnifiedListItem> scheduleItems) {
-    for (var item in scheduleItems) {
-      final schedule = item.data as ScheduleData;
-      if (_isAllDaySchedule(schedule)) {
-        return item;
-      }
-    }
-    return null;
-  }
-
-  /// 일반 일정들 (종일 제외)
-  /// 이거를 설정하고 → 종일 일정을 제외한 나머지 일정만 반환해서
-  /// 이거를 해서 → 우측 컬럼에 표시할 일정 리스트를 만든다
-  List<UnifiedListItem> _getNormalSchedules(
-    List<UnifiedListItem> scheduleItems,
-    UnifiedListItem? allDaySchedule,
-  ) {
-    if (allDaySchedule == null) return scheduleItems;
-    
-    return scheduleItems
-        .where((item) => item.uniqueId != allDaySchedule.uniqueId)
-        .toList();
-  }
-
-  /// Divider 이후 아이템들 (할일, 습관, 완료섹션)
-  /// 이거를 설정하고 → Task, Habit, Completed 아이템만 반환해서
-  /// 이거를 해서 → 점선 아래 영역을 구성한다
-  List<UnifiedListItem> _getBelowDividerItems(List<UnifiedListItem> items) {
-    // divider, inboxHeader는 제외하고 Task/Habit/Completed만 반환
-    return items
-        .where((item) => 
-          item.type == UnifiedItemType.task ||
-          item.type == UnifiedItemType.habit ||
-          item.type == UnifiedItemType.completed
-        )
-        .toList();
   }
 } // _DateDetailViewState 끝
