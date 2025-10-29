@@ -8,7 +8,6 @@ import 'package:smooth_sheets/smooth_sheets.dart'; // ✅ smooth_sheets 추가
 import 'package:animated_reorderable_list/animated_reorderable_list.dart'; // 🆕 드래그 재정렬
 import 'package:flutter_svg/flutter_svg.dart'; // ✅ SVG 아이콘 추가
 import 'package:flutter_slidable/flutter_slidable.dart'; // ✅ Slidable 추가
-import 'package:super_drag_and_drop/super_drag_and_drop.dart'; // 🔥 super_drag_and_drop
 import '../component/toast/action_toast.dart'; // ✅ 토스트 추가
 import '../component/schedule_card.dart';
 import '../component/create_entry_bottom_sheet.dart';
@@ -29,7 +28,6 @@ import '../widgets/slidable_habit_card.dart'; // ✅ SlidableHabitCard 추가
 import '../widgets/dashed_divider.dart'; // ✅ DashedDivider 추가
 import '../Database/schedule_database.dart';
 import '../model/unified_list_item.dart'; // 🆕 통합 리스트 아이템 모델
-import '../services/drag_data.dart'; // 🔥 드래그 데이터 모델
 import 'package:get_it/get_it.dart';
 
 /// 선택된 날짜의 상세 스케줄을 리스트 형태로 표시하는 화면
@@ -371,7 +369,8 @@ class _DateDetailViewState extends State<DateDetailView>
                   ),
           ), // Scaffold
           // 🔥🔥🔥 인박스 모드일 때 전체 화면을 덮는 투명 레이어로 DismissiblePage 제스처 차단
-          if (_isInboxMode)
+          // ⚠️ 드래그 중일 때는 이 레이어를 비활성화해야 DragTarget이 이벤트를 받을 수 있음!
+          if (_isInboxMode && !_isDraggingFromInbox)
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque, // 🔥 불투명하게 모든 제스처 캡처
@@ -972,7 +971,7 @@ class _DateDetailViewState extends State<DateDetailView>
 
                     var items = itemsSnapshot.data!;
 
-                    // ✅ 데이터가 없을 때 메시지 표시 + DropRegion으로 전체 영역 드롭 가능
+                    // ✅ 데이터가 없을 때 메시지 표시 + DragTarget으로 전체 영역 드롭 가능
                     if (items.isEmpty) {
                       // 🎯 SafeArea를 제외한 전체 화면 높이 계산
                       final mediaQuery = MediaQuery.of(context);
@@ -982,20 +981,16 @@ class _DateDetailViewState extends State<DateDetailView>
                       final availableHeight =
                           totalHeight - safeAreaTop - safeAreaBottom;
 
-                      return DropRegion(
-                        formats: Formats.standardFormats,
-                        onDropOver: (event) {
-                          return DropOperation.copy;
-                        },
-                        onDropEnter: (event) {
-                          print('🎯 [Empty Area] 드롭 영역 진입');
-                          if (mounted) {
+                      return DragTarget<TaskData>(
+                        onWillAcceptWithDetails: (details) => true,
+                        onMove: (details) {
+                          if (mounted && !_isDraggingFromInbox) {
                             setState(() {
                               _isDraggingFromInbox = true;
                             });
                           }
                         },
-                        onDropLeave: (event) {
+                        onLeave: (data) {
                           print('👋 [Empty Area] 드롭 영역 이탈');
                           if (mounted) {
                             setState(() {
@@ -1003,122 +998,93 @@ class _DateDetailViewState extends State<DateDetailView>
                             });
                           }
                         },
-                        onPerformDrop: (event) async {
+                        onAcceptWithDetails: (details) async {
+                          final task = details.data;
                           print('✅ [Empty Area] 빈 화면에 드롭 완료');
+                          print('💾 [Empty Area] Task 드롭: ${task.title} → $date');
 
-                          // 🎯 드래그 데이터 읽기
-                          final item = event.session.items.first;
-                          final reader = item.dataReader!;
+                          // 🎯 즉시 햅틱
+                          HapticFeedback.heavyImpact();
 
-                          if (reader.canProvide(Formats.plainText)) {
-                            // 🔥 Completer로 동기화
-                            final completer = Completer<String?>();
+                          // 🎯 DB 업데이트: 날짜 + sortOrder (빈 화면은 맨 위)
+                          await GetIt.I<AppDatabase>().updateTaskDate(
+                            task.id,
+                            date,
+                          );
+                          await GetIt.I<AppDatabase>().updateCardOrder(
+                            date,
+                            'task',
+                            task.id,
+                            0,
+                          );
 
-                            reader.getValue<String>(Formats.plainText, (value) {
-                              completer.complete(value);
+                          print('✅ [Empty Area] DB 업데이트 완료 (sortOrder=0, 맨 위)');
+
+                          // 🔥 인박스 바텀시트 투명도 복구 (위젯 재생성 안함)
+                          if (mounted) {
+                            setState(() {
+                              _isDraggingFromInbox = false;
                             });
-
-                            final value = await completer.future;
-
-                            if (value != null) {
-                              try {
-                                // 🎯 JSON 디코딩
-                                final dragData = DragTaskData.decode(value);
-                                print(
-                                  '💾 [Empty Area] Task 드롭: ${dragData.title} → $date',
-                                );
-
-                                // 🎯 즉시 햅틱
-                                HapticFeedback.heavyImpact();
-
-                                // 🎯 DB 업데이트: 날짜 + sortOrder (빈 화면은 맨 위)
-                                await GetIt.I<AppDatabase>().updateTaskDate(
-                                  dragData.taskId,
-                                  date,
-                                );
-                                await GetIt.I<AppDatabase>().updateCardOrder(
-                                  date,
-                                  'task',
-                                  dragData.taskId,
-                                  0,
-                                );
-
-                                print(
-                                  '✅ [Empty Area] DB 업데이트 완료 (sortOrder=0, 맨 위)',
-                                );
-
-                                // 🔥 인박스 바텀시트 투명도 복구 (위젯 재생성 안함)
-                                if (mounted) {
-                                  setState(() {
-                                    _isDraggingFromInbox = false;
-                                  });
-                                }
-                              } catch (e) {
-                                print('❌ [Empty Area] 드롭 처리 실패: $e');
-                                if (mounted) {
-                                  setState(() {
-                                    _isDraggingFromInbox = false;
-                                    // 🎯 에러 시에도 인박스 모드는 유지
-                                  });
-                                }
-                              }
-                            }
                           }
                         },
-                        child: Container(
-                          // 🎯 SafeArea 제외한 전체 화면 높이로 설정
-                          height: availableHeight,
-                          width: double.infinity,
-                          decoration: _isDraggingFromInbox
-                              ? BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.1),
-                                  border: Border.all(
-                                    color: Colors.blue.withOpacity(0.3),
-                                    width: 2,
-                                  ),
-                                )
-                              : null,
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                // 🎯 드래그 중이면 드롭 메시지 표시
-                                if (_isDraggingFromInbox)
-                                  Column(
-                                    children: [
-                                      Icon(
-                                        Icons.add_circle_outline,
-                                        color: Colors.blue,
-                                        size: 48,
-                                      ),
-                                      SizedBox(height: 16),
-                                      Text(
-                                        'ここにドロップ',
-                                        style: TextStyle(
-                                          fontFamily: 'LINE Seed JP App_TTF',
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.blue,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                // 기본 메시지
-                                if (!_isDraggingFromInbox)
-                                  Text(
-                                    '現在データがありません',
-                                    style: TextStyle(
-                                      fontFamily: 'LINE Seed JP App_TTF',
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w400,
-                                      color: Color(0xFF999999),
-                                      letterSpacing: -0.075,
+                        builder: (context, candidateData, rejectedData) {
+                          final isHovered = candidateData.isNotEmpty || _isDraggingFromInbox;
+
+                          return Container(
+                            // 🎯 SafeArea 제외한 전체 화면 높이로 설정
+                            height: availableHeight,
+                            width: double.infinity,
+                            decoration: isHovered
+                                ? BoxDecoration(
+                                    color: Colors.blue.withOpacity(0.1),
+                                    border: Border.all(
+                                      color: Colors.blue.withOpacity(0.3),
+                                      width: 2,
                                     ),
-                                  ),
-                              ],
+                                  )
+                                : null,
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // 🎯 드래그 중이면 드롭 메시지 표시
+                                  if (isHovered)
+                                    Column(
+                                      children: [
+                                        Icon(
+                                          Icons.add_circle_outline,
+                                          color: Colors.blue,
+                                          size: 48,
+                                        ),
+                                        SizedBox(height: 16),
+                                        Text(
+                                          'ここにドロップ',
+                                          style: TextStyle(
+                                            fontFamily: 'LINE Seed JP App_TTF',
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.blue,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  // 기본 메시지
+                                  if (!isHovered)
+                                    Text(
+                                      '現在データがありません',
+                                      style: TextStyle(
+                                        fontFamily: 'LINE Seed JP App_TTF',
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w400,
+                                        color: Color(0xFF999999),
+                                        letterSpacing: -0.075,
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       );
                     }
 
@@ -1701,13 +1667,13 @@ class _DateDetailViewState extends State<DateDetailView>
     // 🔥 인박스에서 드롭 시 전체 리스트 재정렬 헬퍼 함수
     Future<void> _handleInboxDrop(
       int dropIndex,
-      DragTaskData dragData,
+      TaskData task,
       DateTime date,
     ) async {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       print('🔥 [인박스 드롭 처리 시작]');
-      print('   • Task ID: ${dragData.taskId}');
-      print('   • Task 제목: ${dragData.title}');
+      print('   • Task ID: ${task.id}');
+      print('   • Task 제목: ${task.title}');
       print('   • UI 드롭 위치 (index): $dropIndex');
       print('   • 대상 날짜: ${date.toString().split(' ')[0]}');
       print('');
@@ -1761,8 +1727,8 @@ class _DateDetailViewState extends State<DateDetailView>
 
       // [1단계] Task 날짜 변경
       print('💾 [1단계] Task 날짜 변경');
-      await GetIt.I<AppDatabase>().updateTaskDate(dragData.taskId, date);
-      print('   ✅ Task #${dragData.taskId} 날짜 변경 완료');
+      await GetIt.I<AppDatabase>().updateTaskDate(task.id, date);
+      print('   ✅ Task #${task.id} 날짜 변경 완료');
       print('');
 
       // [2단계] 전체 리스트 재구성
@@ -1773,7 +1739,7 @@ class _DateDetailViewState extends State<DateDetailView>
 
       // 🔥 DB에서 실제 Task 데이터 다시 로드 (필수 파라미터 포함)
       final taskFromDb = await GetIt.I<AppDatabase>().getTaskById(
-        dragData.taskId,
+        task.id,
       );
       if (taskFromDb == null) {
         print('   ❌ Task를 DB에서 찾을 수 없음');
@@ -1811,7 +1777,7 @@ class _DateDetailViewState extends State<DateDetailView>
       print('📋 [재계산된 전체 순서]:');
       for (int i = 0; i < updatedItems.length; i++) {
         final marker =
-            updatedItems[i].uniqueId.contains('task_${dragData.taskId}')
+            updatedItems[i].uniqueId.contains('task_${task.id}')
             ? '🔥 [방금 추가!]'
             : '';
         final typeEmoji = updatedItems[i].type == UnifiedItemType.schedule
@@ -1832,7 +1798,7 @@ class _DateDetailViewState extends State<DateDetailView>
       await _saveDailyCardOrder(updatedItems);
 
       print('✅ [인박스 드롭 처리 완료!]');
-      print('   • Task ID: ${dragData.taskId}');
+      print('   • Task ID: ${task.id}');
       print('   • 최종 위치: $actualDataIndex');
       print('   • 날짜: ${date.toString().split(' ')[0]}');
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -1884,28 +1850,18 @@ class _DateDetailViewState extends State<DateDetailView>
             // 🎯 카드 사이 드롭존 (카드 위쪽)
             _buildBetweenCardDropZone(index, date, isBetweenHovered),
 
-            // 🔥 실제 카드 (DropRegion으로 감싸기)
-            DropRegion(
-              formats: Formats.standardFormats,
-              onDropOver: (event) {
+            // 🔥 실제 카드 (DragTarget으로 감싸기)
+            DragTarget<TaskData>(
+              onWillAcceptWithDetails: (details) => true,
+              onMove: (details) {
                 if (mounted && _hoveredCardIndex != index) {
-                  print('🔵 [파란색 박스 표시] Schedule 카드 #$index 위에 호버');
-                  setState(() {
-                    _hoveredCardIndex = index;
-                  });
-                }
-                return DropOperation.copy;
-              },
-              onDropEnter: (event) {
-                print('🎯 [Schedule #$index] 드롭 영역 진입 - 파란색 박스 표시됨');
-                if (mounted) {
                   setState(() {
                     _isDraggingFromInbox = true;
                     _hoveredCardIndex = index;
                   });
                 }
               },
-              onDropLeave: (event) {
+              onLeave: (data) {
                 print('👋 [Schedule #$index] 드롭 영역 이탈 - 파란색 박스 숨김');
                 if (mounted) {
                   setState(() {
@@ -1913,166 +1869,101 @@ class _DateDetailViewState extends State<DateDetailView>
                   });
                 }
               },
-              onPerformDrop: (event) async {
-                print(
-                  '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-                );
+              onAcceptWithDetails: (details) async {
+                final task = details.data;
+                print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 print('✅ [Schedule #$index] 🔥 드롭 완료!');
                 print('   🔵 파란색 박스가 표시된 위치: index=$index');
                 print('   📅 대상 날짜: ${date.toString().split(' ')[0]}');
                 print('');
 
-                // 🎯 드래그 데이터 읽기
-                final item = event.session.items.first;
-                final reader = item.dataReader!;
+                // 🎯 즉시 햅틱
+                HapticFeedback.heavyImpact();
 
-                if (reader.canProvide(Formats.plainText)) {
-                  // 🔥 Completer로 동기화
-                  final completer = Completer<String?>();
+                // 🔥 새로운 드롭 처리 함수 호출
+                await _handleInboxDrop(index, task, date);
 
-                  reader.getValue<String>(Formats.plainText, (value) {
-                    completer.complete(value);
+                // 🔥 인박스 바텀시트 투명도 복구 (위젯 재생성 안함)
+                if (mounted) {
+                  setState(() {
+                    _isDraggingFromInbox = false;
+                    _hoveredCardIndex = null;
                   });
-
-                  final value = await completer.future;
-
-                  if (value != null) {
-                    try {
-                      // 🎯 JSON 디코딩
-                      final dragData = DragTaskData.decode(value);
-
-                      // 🎯 즉시 햅틱
-                      HapticFeedback.heavyImpact();
-
-                      // 🔥 새로운 드롭 처리 함수 호출
-                      await _handleInboxDrop(index, dragData, date);
-
-                      // 🔥 인박스 바텀시트 투명도 복구 (위젯 재생성 안함)
-                      if (mounted) {
-                        setState(() {
-                          _isDraggingFromInbox = false;
-                          _hoveredCardIndex = null;
-                        });
-                      }
-                    } catch (e) {
-                      print('❌ [Schedule #$index] 드롭 처리 실패: $e');
-                      if (mounted) {
-                        setState(() {
-                          _isDraggingFromInbox = false;
-                          // 🎯 에러 시에도 인박스 모드는 유지
-                          _hoveredCardIndex = null;
-                        });
-                      }
-                    }
-                  }
                 }
               },
-              child: RepaintBoundary(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // 🎯 호버 시 드롭존 표시 (카드 위)
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                      height: isHovered ? 80 : 0,
-                      child: isHovered
-                          ? Container(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: Colors.blue.withOpacity(0.3),
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.add,
-                                  color: Colors.blue,
-                                  size: 32,
-                                ),
-                              ),
-                            )
-                          : null,
+              builder: (context, candidateData, rejectedData) {
+                return RepaintBoundary(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.elasticOut,
+                    // 좌우 흔들림 효과 (offset 대신 padding으로 구현)
+                    padding: EdgeInsets.only(
+                      bottom: 4,
+                      left: isInvalid ? 20 : 24,
+                      right: isInvalid ? 28 : 24,
                     ),
-                    // 실제 카드
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.elasticOut,
-                      // 좌우 흔들림 효과 (offset 대신 padding으로 구현)
-                      padding: EdgeInsets.only(
-                        bottom: 4,
-                        left: isInvalid ? 20 : 24,
-                        right: isInvalid ? 28 : 24,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(24),
+                        // 빨간색 테두리 효과
+                        border: isInvalid
+                            ? Border.all(
+                                color: Colors.red.withOpacity(0.6),
+                                width: 2,
+                              )
+                            : null,
                       ),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
-                          // 빨간색 테두리 효과
-                          border: isInvalid
-                              ? Border.all(
-                                  color: Colors.red.withOpacity(0.6),
-                                  width: 2,
-                                )
-                              : null,
-                        ),
-                        child: GestureDetector(
-                          onTap: () => _openScheduleDetail(schedule),
-                          child: SlidableScheduleCard(
-                            groupTag: 'unified_list',
-                            scheduleId: schedule.id,
-                            repeatRule: schedule.repeatRule, // 🔄 반복 규칙 전달
-                            showConfirmDialog: true, // ✅ 삭제 확인 모달 표시
-                            onComplete: () async {
-                              await GetIt.I<AppDatabase>().completeSchedule(
-                                schedule.id,
-                              );
-                              print('✅ [ScheduleCard] 완료: ${schedule.summary}');
-                              HapticFeedback.lightImpact();
-                            },
-                            onDelete: () async {
-                              await GetIt.I<AppDatabase>().deleteSchedule(
-                                schedule.id,
-                              );
-                              // 🗑️ DailyCardOrder에서도 삭제
-                              await GetIt.I<AppDatabase>()
-                                  .deleteCardFromAllOrders(
-                                    'schedule',
-                                    schedule.id,
-                                  );
-                              print(
-                                '🗑️ [ScheduleCard] 삭제: ${schedule.summary}',
-                              );
-                              // ✅ 토스트 표시
-                              if (context.mounted) {
-                                showActionToast(
-                                  context,
-                                  type: ToastType.delete,
+                      child: GestureDetector(
+                        onTap: () => _openScheduleDetail(schedule),
+                        child: SlidableScheduleCard(
+                          groupTag: 'unified_list',
+                          scheduleId: schedule.id,
+                          repeatRule: schedule.repeatRule, // 🔄 반복 규칙 전달
+                          showConfirmDialog: true, // ✅ 삭제 확인 모달 표시
+                          onComplete: () async {
+                            await GetIt.I<AppDatabase>().completeSchedule(
+                              schedule.id,
+                            );
+                            print('✅ [ScheduleCard] 완료: ${schedule.summary}');
+                            HapticFeedback.lightImpact();
+                          },
+                          onDelete: () async {
+                            await GetIt.I<AppDatabase>().deleteSchedule(
+                              schedule.id,
+                            );
+                            // 🗑️ DailyCardOrder에서도 삭제
+                            await GetIt.I<AppDatabase>()
+                                .deleteCardFromAllOrders(
+                                  'schedule',
+                                  schedule.id,
                                 );
-                              }
-                            },
-                            child: ScheduleCard(
-                              start: schedule.start,
-                              end: schedule.end,
-                              summary: schedule.summary,
-                              colorId: schedule.colorId,
-                              repeatRule: schedule.repeatRule,
-                              alertSetting: schedule.alertSetting,
-                            ),
+                            print(
+                              '🗑️ [ScheduleCard] 삭제: ${schedule.summary}',
+                            );
+                            // ✅ 토스트 표시
+                            if (context.mounted) {
+                              showActionToast(
+                                context,
+                                type: ToastType.delete,
+                              );
+                            }
+                          },
+                          child: ScheduleCard(
+                            start: schedule.start,
+                            end: schedule.end,
+                            summary: schedule.summary,
+                            colorId: schedule.colorId,
+                            repeatRule: schedule.repeatRule,
+                            alertSetting: schedule.alertSetting,
                           ),
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ), // DropRegion 닫기
+                  ),
+                );
+              },
+            ), // DragTarget 닫기
           ], // Column children 닫기
         ); // Column 닫기
 
@@ -2095,28 +1986,18 @@ class _DateDetailViewState extends State<DateDetailView>
             // 🎯 카드 사이 드롭존 (카드 위쪽)
             _buildBetweenCardDropZone(index, date, isBetweenHovered),
 
-            // 🔥 실제 카드 (DropRegion으로 감싸기)
-            DropRegion(
-              formats: Formats.standardFormats,
-              onDropOver: (event) {
+            // 🔥 실제 카드 (DragTarget으로 감싸기)
+            DragTarget<TaskData>(
+              onWillAcceptWithDetails: (details) => true,
+              onMove: (details) {
                 if (mounted && _hoveredCardIndex != index) {
-                  print('🔵 [파란색 박스 표시] Task 카드 #$index 위에 호버');
-                  setState(() {
-                    _hoveredCardIndex = index;
-                  });
-                }
-                return DropOperation.copy;
-              },
-              onDropEnter: (event) {
-                print('🎯 [Task #$index] 드롭 영역 진입 - 파란색 박스 표시됨');
-                if (mounted) {
                   setState(() {
                     _isDraggingFromInbox = true;
                     _hoveredCardIndex = index;
                   });
                 }
               },
-              onDropLeave: (event) {
+              onLeave: (data) {
                 print('👋 [Task #$index] 드롭 영역 이탈 - 파란색 박스 숨김');
                 if (mounted) {
                   setState(() {
@@ -2124,162 +2005,97 @@ class _DateDetailViewState extends State<DateDetailView>
                   });
                 }
               },
-              onPerformDrop: (event) async {
-                print(
-                  '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-                );
+              onAcceptWithDetails: (details) async {
+                final droppedTask = details.data;
+                print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 print('✅ [Task #$index] 🔥 드롭 완료!');
                 print('   🔵 파란색 박스가 표시된 위치: index=$index');
                 print('   📅 대상 날짜: ${date.toString().split(' ')[0]}');
                 print('');
 
-                // 🎯 드래그 데이터 읽기
-                final item = event.session.items.first;
-                final reader = item.dataReader!;
+                // 🎯 즉시 햅틱
+                HapticFeedback.heavyImpact();
 
-                if (reader.canProvide(Formats.plainText)) {
-                  // 🔥 Completer로 동기화
-                  final completer = Completer<String?>();
+                // 🔥 새로운 드롭 처리 함수 호출
+                await _handleInboxDrop(index, droppedTask, date);
 
-                  reader.getValue<String>(Formats.plainText, (value) {
-                    completer.complete(value);
+                // 🔥 인박스 바텀시트 투명도 복구 (위젯 재생성 안함)
+                if (mounted) {
+                  setState(() {
+                    _isDraggingFromInbox = false;
+                    _hoveredCardIndex = null;
                   });
-
-                  final value = await completer.future;
-
-                  if (value != null) {
-                    try {
-                      // 🎯 JSON 디코딩
-                      final dragData = DragTaskData.decode(value);
-
-                      // 🎯 즉시 햅틱
-                      HapticFeedback.heavyImpact();
-
-                      // 🔥 새로운 드롭 처리 함수 호출
-                      await _handleInboxDrop(index, dragData, date);
-
-                      // 🔥 인박스 바텀시트 투명도 복구 (위젯 재생성 안함)
-                      if (mounted) {
-                        setState(() {
-                          _isDraggingFromInbox = false;
-                          _hoveredCardIndex = null;
-                        });
-                      }
-                    } catch (e) {
-                      print('❌ [Task #$index] 드롭 처리 실패: $e');
-                      if (mounted) {
-                        setState(() {
-                          _isDraggingFromInbox = false;
-                          // 🎯 에러 시에도 인박스 모드는 유지
-                          _hoveredCardIndex = null;
-                        });
-                      }
-                    }
-                  }
                 }
               },
-              child: RepaintBoundary(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // 🎯 호버 시 드롭존 표시 (카드 위)
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                      height: isHovered ? 80 : 0,
-                      child: isHovered
-                          ? Container(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: Colors.blue.withOpacity(0.3),
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.add,
-                                  color: Colors.blue,
-                                  size: 32,
-                                ),
-                              ),
-                            )
-                          : null,
+              builder: (context, candidateData, rejectedData) {
+                return RepaintBoundary(
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                      bottom: 4,
+                      left: 24,
+                      right: 24,
                     ),
-                    // 실제 카드
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        bottom: 4,
-                        left: 24,
-                        right: 24,
-                      ),
-                      child: SlidableTaskCard(
-                        groupTag: 'unified_list',
-                        taskId: task.id,
-                        repeatRule: task.repeatRule, // 🔄 반복 규칙 전달
-                        showConfirmDialog: true, // ✅ 삭제 확인 모달 표시
-                        onTap: () => _openTaskDetail(task),
-                        onComplete: () async {
+                    child: SlidableTaskCard(
+                      groupTag: 'unified_list',
+                      taskId: task.id,
+                      repeatRule: task.repeatRule, // 🔄 반복 규칙 전달
+                      showConfirmDialog: true, // ✅ 삭제 확인 모달 표시
+                      onTap: () => _openTaskDetail(task),
+                      onComplete: () async {
+                        // 🎯 햅틱 피드백 추가
+                        HapticFeedback.lightImpact();
+                        await GetIt.I<AppDatabase>().completeTask(task.id);
+                        print('✅ [TaskCard] 완료 토글: ${task.title}');
+                      },
+                      onDelete: () async {
+                        await GetIt.I<AppDatabase>().deleteTask(task.id);
+                        // 🗑️ DailyCardOrder에서도 삭제
+                        await GetIt.I<AppDatabase>().deleteCardFromAllOrders(
+                          'task',
+                          task.id,
+                        );
+                        print('🗑️ [TaskCard] 삭제: ${task.title}');
+                        // ✅ 토스트 표시
+                        if (context.mounted) {
+                          showActionToast(context, type: ToastType.delete);
+                        }
+                      },
+                      onInbox: () async {
+                        // 📥 인박스로 이동 (executionDate 제거)
+                        await GetIt.I<AppDatabase>().moveTaskToInbox(task.id);
+                        // 🗑️ DailyCardOrder에서도 삭제
+                        await GetIt.I<AppDatabase>().deleteCardFromAllOrders(
+                          'task',
+                          task.id,
+                        );
+                        print('📥 [TaskCard] 인박스로 이동: ${task.title}');
+
+                        // 📥 인박스 토스트 표시 (이미 SlidableTaskCard에서 처리됨)
+                        // showSaveToast는 slidable_task_card.dart에서 호출
+                      },
+                      child: TaskCard(
+                        task: task,
+                        onToggle: () async {
                           // 🎯 햅틱 피드백 추가
                           HapticFeedback.lightImpact();
-                          await GetIt.I<AppDatabase>().completeTask(task.id);
-                          print('✅ [TaskCard] 완료 토글: ${task.title}');
-                        },
-                        onDelete: () async {
-                          await GetIt.I<AppDatabase>().deleteTask(task.id);
-                          // 🗑️ DailyCardOrder에서도 삭제
-                          await GetIt.I<AppDatabase>().deleteCardFromAllOrders(
-                            'task',
-                            task.id,
-                          );
-                          print('🗑️ [TaskCard] 삭제: ${task.title}');
-                          // ✅ 토스트 표시
-                          if (context.mounted) {
-                            showActionToast(context, type: ToastType.delete);
+                          if (task.completed) {
+                            await GetIt.I<AppDatabase>().uncompleteTask(
+                              task.id,
+                            );
+                            print('🔄 [TaskCard] 체크박스 완료 해제: ${task.title}');
+                          } else {
+                            await GetIt.I<AppDatabase>().completeTask(
+                              task.id,
+                            );
+                            print('✅ [TaskCard] 체크박스 완료 처리: ${task.title}');
                           }
                         },
-                        onInbox: () async {
-                          // 📥 인박스로 이동 (executionDate 제거)
-                          await GetIt.I<AppDatabase>().moveTaskToInbox(task.id);
-                          // 🗑️ DailyCardOrder에서도 삭제
-                          await GetIt.I<AppDatabase>().deleteCardFromAllOrders(
-                            'task',
-                            task.id,
-                          );
-                          print('📥 [TaskCard] 인박스로 이동: ${task.title}');
-
-                          // 📥 인박스 토스트 표시 (이미 SlidableTaskCard에서 처리됨)
-                          // showSaveToast는 slidable_task_card.dart에서 호출
-                        },
-                        child: TaskCard(
-                          task: task,
-                          onToggle: () async {
-                            // 🎯 햅틱 피드백 추가
-                            HapticFeedback.lightImpact();
-                            if (task.completed) {
-                              await GetIt.I<AppDatabase>().uncompleteTask(
-                                task.id,
-                              );
-                              print('🔄 [TaskCard] 체크박스 완료 해제: ${task.title}');
-                            } else {
-                              await GetIt.I<AppDatabase>().completeTask(
-                                task.id,
-                              );
-                              print('✅ [TaskCard] 체크박스 완료 처리: ${task.title}');
-                            }
-                          },
-                        ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ), // DropRegion 닫기
+                  ),
+                );
+              },
+            ), // DragTarget 닫기
           ], // Column children 닫기
         ); // Column 닫기
 
@@ -2302,28 +2118,18 @@ class _DateDetailViewState extends State<DateDetailView>
             // 🎯 카드 사이 드롭존 (카드 위쪽)
             _buildBetweenCardDropZone(index, date, isBetweenHovered),
 
-            // 🔥 실제 카드 (DropRegion으로 감싸기)
-            DropRegion(
-              formats: Formats.standardFormats,
-              onDropOver: (event) {
+            // 🔥 실제 카드 (DragTarget으로 감싸기)
+            DragTarget<TaskData>(
+              onWillAcceptWithDetails: (details) => true,
+              onMove: (details) {
                 if (mounted && _hoveredCardIndex != index) {
-                  print('🔵 [파란색 박스 표시] Habit 카드 #$index 위에 호버');
-                  setState(() {
-                    _hoveredCardIndex = index;
-                  });
-                }
-                return DropOperation.copy;
-              },
-              onDropEnter: (event) {
-                print('🎯 [Habit #$index] 드롭 영역 진입 - 파란색 박스 표시됨');
-                if (mounted) {
                   setState(() {
                     _isDraggingFromInbox = true;
                     _hoveredCardIndex = index;
                   });
                 }
               },
-              onDropLeave: (event) {
+              onLeave: (data) {
                 print('👋 [Habit #$index] 드롭 영역 이탈 - 파란색 박스 숨김');
                 if (mounted) {
                   setState(() {
@@ -2331,113 +2137,46 @@ class _DateDetailViewState extends State<DateDetailView>
                   });
                 }
               },
-              onPerformDrop: (event) async {
-                print(
-                  '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-                );
+              onAcceptWithDetails: (details) async {
+                final droppedTask = details.data;
+                print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
                 print('✅ [Habit #$index] 🔥 드롭 완료!');
                 print('   🔵 파란색 박스가 표시된 위치: index=$index');
                 print('   📅 대상 날짜: ${date.toString().split(' ')[0]}');
+                print('💾 [드롭된 Task 정보]');
+                print('   • Task ID: ${droppedTask.id}');
+                print('   • Task 제목: ${droppedTask.title}');
+                print('   • 드롭된 날짜: ${date.toString().split(' ')[0]}');
+                print('   • 드롭된 위치 (index): $index');
                 print('');
 
-                // 🎯 드래그 데이터 읽기
-                final item = event.session.items.first;
-                final reader = item.dataReader!;
+                // 🎯 즉시 햅틱
+                HapticFeedback.heavyImpact();
 
-                if (reader.canProvide(Formats.plainText)) {
-                  // 🔥 Completer로 동기화
-                  final completer = Completer<String?>();
+                // 🔥 새로운 드롭 처리 함수 호출
+                await _handleInboxDrop(index, droppedTask, date);
 
-                  reader.getValue<String>(Formats.plainText, (value) {
-                    completer.complete(value);
+                print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+                // 🔥 인박스 바텀시트 투명도 복구 (위젯 재생성 안함)
+                if (mounted) {
+                  setState(() {
+                    _isDraggingFromInbox = false;
+                    _hoveredCardIndex = null;
                   });
-
-                  final value = await completer.future;
-
-                  if (value != null) {
-                    try {
-                      // 🎯 JSON 디코딩
-                      final dragData = DragTaskData.decode(value);
-                      print('💾 [드롭된 Task 정보]');
-                      print('   • Task ID: ${dragData.taskId}');
-                      print('   • Task 제목: ${dragData.title}');
-                      print('   • 드롭된 날짜: ${date.toString().split(' ')[0]}');
-                      print('   • 드롭된 위치 (index): $index');
-                      print('');
-
-                      // 🎯 즉시 햅틱
-                      HapticFeedback.heavyImpact();
-
-                      // 🔥 새로운 드롭 처리 함수 호출
-                      await _handleInboxDrop(index, dragData, date);
-
-                      print(
-                        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-                      );
-
-                      // 🔥 인박스 바텀시트 투명도 복구 (위젯 재생성 안함)
-                      if (mounted) {
-                        setState(() {
-                          _isDraggingFromInbox = false;
-                          _hoveredCardIndex = null;
-                        });
-                      }
-                    } catch (e) {
-                      print('❌ [Habit #$index] 드롭 처리 실패: $e');
-                      if (mounted) {
-                        setState(() {
-                          _isDraggingFromInbox = false;
-                          // 🎯 에러 시에도 인박스 모드는 유지
-                          _hoveredCardIndex = null;
-                        });
-                      }
-                    }
-                  }
                 }
               },
-              child: RepaintBoundary(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // 🎯 호버 시 드롭존 표시 (카드 위)
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                      height: isHovered ? 80 : 0,
-                      child: isHovered
-                          ? Container(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: Colors.blue.withOpacity(0.3),
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.add,
-                                  color: Colors.blue,
-                                  size: 32,
-                                ),
-                              ),
-                            )
-                          : null,
+              builder: (context, candidateData, rejectedData) {
+                return RepaintBoundary(
+                  child: Padding(
+                    padding: const EdgeInsets.only(
+                      bottom: 4,
+                      left: 24,
+                      right: 24,
                     ),
-                    // 실제 카드
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        bottom: 4,
-                        left: 24,
-                        right: 24,
-                      ),
-                      child: GestureDetector(
-                        onTap: () => _showHabitDetailModal(habit, date),
-                        child: SlidableHabitCard(
+                    child: GestureDetector(
+                      onTap: () => _showHabitDetailModal(habit, date),
+                      child: SlidableHabitCard(
                           groupTag: 'unified_list',
                           habitId: habit.id,
                           repeatRule: habit.repeatRule, // 🔄 반복 규칙 전달
@@ -2484,10 +2223,9 @@ class _DateDetailViewState extends State<DateDetailView>
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ), // DropRegion 닫기
+                  );
+              },
+            ), // DragTarget 닫기
           ], // Column children 닫기
         ); // Column 닫기
 
@@ -3790,25 +3528,25 @@ class _DateDetailViewState extends State<DateDetailView>
 
   /// 🔥 인박스에서 드롭 시 특정 위치에 삽입 (클래스 메서드)
   /// dropIndex: UI에서의 인덱스 (allItems 기준)
-  /// dragData: 드롭된 Task 데이터
+  /// task: 드롭된 Task 데이터
   /// date: 대상 날짜
   Future<void> _handleInboxDropToPosition(
     int dropIndex,
-    DragTaskData dragData,
+    TaskData task,
     DateTime date,
   ) async {
     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     print('🔥 [인박스 드롭 처리 시작]');
-    print('   • Task ID: ${dragData.taskId}');
-    print('   • Task 제목: ${dragData.title}');
+    print('   • Task ID: ${task.id}');
+    print('   • Task 제목: ${task.title}');
     print('   • UI 드롭 위치 (index): $dropIndex');
     print('   • 대상 날짜: ${date.toString().split(' ')[0]}');
     print('');
 
     // [1단계] Task 날짜 변경
     print('💾 [1단계] Task 날짜 변경');
-    await GetIt.I<AppDatabase>().updateTaskDate(dragData.taskId, date);
-    print('   ✅ Task #${dragData.taskId} 날짜 변경 완료');
+    await GetIt.I<AppDatabase>().updateTaskDate(task.id, date);
+    print('   ✅ Task #${task.id} 날짜 변경 완료');
     print('');
 
     // [2단계] 현재 날짜의 모든 데이터 로드
@@ -3822,7 +3560,7 @@ class _DateDetailViewState extends State<DateDetailView>
     // 완료된 항목 제외
     final incompleteSchedules = schedules.where((s) => !s.completed).toList();
     final incompleteTasks = tasks
-        .where((t) => !t.completed && t.id != dragData.taskId)
+        .where((t) => !t.completed && t.id != task.id)
         .toList(); // 드롭된 task 제외
     final incompleteHabits = habits; // 습관은 날짜별 완료 체크가 별도
 
@@ -3841,9 +3579,9 @@ class _DateDetailViewState extends State<DateDetailView>
         UnifiedListItem.fromSchedule(schedule, sortOrder: currentIndex++),
       );
     }
-    for (final task in incompleteTasks) {
+    for (final t in incompleteTasks) {
       updatedItems.add(
-        UnifiedListItem.fromTask(task, sortOrder: currentIndex++),
+        UnifiedListItem.fromTask(t, sortOrder: currentIndex++),
       );
     }
     for (final habit in incompleteHabits) {
@@ -3854,7 +3592,7 @@ class _DateDetailViewState extends State<DateDetailView>
 
     // 🔥 DB에서 실제 Task 데이터 다시 로드
     final taskFromDb = await GetIt.I<AppDatabase>().getTaskById(
-      dragData.taskId,
+      task.id,
     );
     if (taskFromDb == null) {
       print('   ❌ Task를 DB에서 찾을 수 없음');
@@ -3892,7 +3630,7 @@ class _DateDetailViewState extends State<DateDetailView>
     print('📋 [재계산된 전체 순서]:');
     for (int i = 0; i < updatedItems.length; i++) {
       final marker =
-          updatedItems[i].uniqueId.contains('task_${dragData.taskId}')
+          updatedItems[i].uniqueId.contains('task_${task.id}')
           ? '🔥 [방금 추가!]'
           : '';
       final typeEmoji = updatedItems[i].type == UnifiedItemType.schedule
@@ -3913,7 +3651,7 @@ class _DateDetailViewState extends State<DateDetailView>
     await _saveDailyCardOrder(updatedItems);
 
     print('✅ [인박스 드롭 처리 완료!]');
-    print('   • Task ID: ${dragData.taskId}');
+    print('   • Task ID: ${task.id}');
     print('   • 최종 위치: $dropIndex');
     print('   • 날짜: ${date.toString().split(' ')[0]}');
     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -4461,138 +4199,101 @@ class _DateDetailViewState extends State<DateDetailView>
 
   /// 🎯 최상단 드롭존 (리스트 맨 위에 드롭)
   Widget _buildTopDropZone(DateTime date) {
-    final isHovered = _hoveredCardIndex == -1; // -1은 최상단을 의미
-
-    return DropRegion(
-      formats: Formats.standardFormats,
-      onDropOver: (event) {
+    return DragTarget<TaskData>(
+      onWillAcceptWithDetails: (details) => true,
+      onMove: (details) {
         if (mounted && _hoveredCardIndex != -1) {
-          setState(() => _hoveredCardIndex = -1);
-        }
-        return DropOperation.copy;
-      },
-      onDropEnter: (event) {
-        print('🎯 [TopDropZone] 드롭 영역 진입');
-        if (mounted) {
           setState(() {
             _isDraggingFromInbox = true;
             _hoveredCardIndex = -1;
           });
         }
       },
-      onDropLeave: (event) {
+      onLeave: (data) {
         print('👋 [TopDropZone] 드롭 영역 이탈');
         if (mounted) {
           setState(() => _hoveredCardIndex = null);
         }
       },
-      onPerformDrop: (event) async {
+      onAcceptWithDetails: (details) async {
+        final task = details.data;
         print('✅ [TopDropZone] 최상단 드롭 완료');
+        print('💾 [TopDropZone] Task 드롭: ${task.title} → $date (최상단)');
 
-        final item = event.session.items.first;
-        final reader = item.dataReader!;
+        HapticFeedback.heavyImpact();
+        await GetIt.I<AppDatabase>().updateTaskDate(
+          task.id,
+          date,
+        );
+        await GetIt.I<AppDatabase>().updateCardOrder(
+          date,
+          'task',
+          task.id,
+          0,
+        );
 
-        if (reader.canProvide(Formats.plainText)) {
-          final completer = Completer<String?>();
-          reader.getValue<String>(Formats.plainText, (value) {
-            completer.complete(value);
+        print('✅ [TopDropZone] DB 업데이트 완료 (sortOrder=0, 최상단)');
+
+        // 🔥 인박스 바텀시트 다시 열기
+        if (mounted) {
+          setState(() {
+            _isDraggingFromInbox = false;
+            _hoveredCardIndex = null;
           });
 
-          final value = await completer.future;
-
-          if (value != null) {
-            try {
-              final dragData = DragTaskData.decode(value);
-              print(
-                '💾 [TopDropZone] Task 드롭: ${dragData.title} → $date (최상단)',
+          // 약간의 딜레이 후 바텀시트 다시 열기
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) {
+              Navigator.push(
+                context,
+                ModalSheetRoute(
+                  builder: (context) => TaskInboxBottomSheet(
+                    onClose: () {
+                      print('✅ [TaskInbox] 닫힘');
+                      setState(() {
+                        _isInboxMode = false;
+                      });
+                      widget.onInboxModeChanged?.call(false);
+                    },
+                    onDragStart: () {
+                      setState(() {
+                        _isDraggingFromInbox = true;
+                      });
+                      print('🎯 [DateDetailView] 드래그 시작');
+                    },
+                  ),
+                  barrierColor: Colors.transparent,
+                  barrierDismissible: true,
+                ),
               );
-
-              HapticFeedback.heavyImpact();
-              await GetIt.I<AppDatabase>().updateTaskDate(
-                dragData.taskId,
-                date,
-              );
-              await GetIt.I<AppDatabase>().updateCardOrder(
-                date,
-                'task',
-                dragData.taskId,
-                0,
-              );
-
-              print('✅ [TopDropZone] DB 업데이트 완료 (sortOrder=0, 최상단)');
-
-              // 🔥 인박스 바텀시트 다시 열기
-              if (mounted) {
-                setState(() {
-                  _isDraggingFromInbox = false;
-                  // 🎯 인박스 모드는 유지
-                  _hoveredCardIndex = null;
-                });
-
-                // 약간의 딜레이 후 바텀시트 다시 열기
-                Future.delayed(const Duration(milliseconds: 300), () {
-                  if (mounted) {
-                    Navigator.push(
-                      context,
-                      ModalSheetRoute(
-                        builder: (context) => TaskInboxBottomSheet(
-                          onClose: () {
-                            print('✅ [TaskInbox] 닫힘');
-                            // 🎯 바텀시트 닫힐 때 인박스 모드 종료
-                            setState(() {
-                              _isInboxMode = false;
-                            });
-                            widget.onInboxModeChanged?.call(
-                              false,
-                            ); // 📋 인박스 모드 비활성화 알림
-                          },
-                          onDragStart: () {
-                            setState(() {
-                              _isDraggingFromInbox = true;
-                            });
-                            print('🎯 [DateDetailView] 드래그 시작');
-                          },
-                        ),
-                        barrierColor: Colors.transparent,
-                        barrierDismissible: true,
-                      ),
-                    );
-                  }
-                });
-              }
-            } catch (e) {
-              print('❌ [TopDropZone] 드롭 처리 실패: $e');
-              if (mounted) {
-                setState(() {
-                  _isDraggingFromInbox = false;
-                  // 🎯 에러 시에도 인박스 모드는 유지
-                  _hoveredCardIndex = null;
-                });
-              }
             }
-          }
+          });
         }
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: isHovered ? 80 : 0,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
-          border: isHovered
-              ? Border.all(color: Colors.blue.withOpacity(0.3), width: 2)
+      builder: (context, candidateData, rejectedData) {
+        final isHovered = candidateData.isNotEmpty;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          height: isHovered ? 80 : 0,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+            border: isHovered
+                ? Border.all(color: Colors.blue.withOpacity(0.3), width: 2)
+                : null,
+          ),
+          child: isHovered
+              ? Center(
+                  child: Icon(
+                    Icons.add_circle_outline,
+                    color: Colors.blue,
+                    size: 32,
+                  ),
+                )
               : null,
-        ),
-        child: isHovered
-            ? Center(
-                child: Icon(
-                  Icons.add_circle_outline,
-                  color: Colors.blue,
-                  size: 32,
-                ),
-              )
-            : null,
-      ),
+        );
+      },
     );
   }
 
@@ -4601,249 +4302,182 @@ class _DateDetailViewState extends State<DateDetailView>
     // 🎯 between-card는 -(index+1000)로 표시 (예: index 5의 위쪽 = -1005)
     final betweenId = -(index + 1000);
 
-    return DropRegion(
-      formats: Formats.standardFormats,
-      onDropOver: (event) {
+    return DragTarget<TaskData>(
+      onWillAcceptWithDetails: (details) => true,
+      onMove: (details) {
         if (mounted && _hoveredCardIndex != betweenId) {
-          setState(() => _hoveredCardIndex = betweenId);
-        }
-        return DropOperation.copy;
-      },
-      onDropEnter: (event) {
-        print('🎯 [BetweenCardDropZone] 카드 #$index 위쪽 사이에 진입');
-        if (mounted) {
           setState(() {
             _isDraggingFromInbox = true;
             _hoveredCardIndex = betweenId;
           });
         }
       },
-      onDropLeave: (event) {
+      onLeave: (data) {
         print('👋 [BetweenCardDropZone] 카드 사이 이탈');
         if (mounted) {
           setState(() => _hoveredCardIndex = null);
         }
       },
-      onPerformDrop: (event) async {
+      onAcceptWithDetails: (details) async {
+        final task = details.data;
         print('✅ [BetweenCardDropZone] 카드 #$index 위쪽에 드롭 완료');
+        print('💾 [BetweenCardDropZone] Task 드롭: ${task.title} → $date (index $index 위쪽)');
 
-        final item = event.session.items.first;
-        final reader = item.dataReader!;
+        HapticFeedback.heavyImpact();
 
-        if (reader.canProvide(Formats.plainText)) {
-          final completer = Completer<String?>();
-          reader.getValue<String>(Formats.plainText, (value) {
-            completer.complete(value);
+        // 🔥 Task 날짜 변경 및 순서 재계산
+        await _handleInboxDropToPosition(index, task, date);
+
+        if (mounted) {
+          setState(() {
+            _isDraggingFromInbox = false;
+            _hoveredCardIndex = null;
           });
-
-          final value = await completer.future;
-
-          if (value != null) {
-            try {
-              final dragData = DragTaskData.decode(value);
-              print(
-                '💾 [BetweenCardDropZone] Task 드롭: ${dragData.title} → $date (index $index 위쪽)',
-              );
-
-              HapticFeedback.heavyImpact();
-
-              // 🔥 Task 날짜 변경 및 순서 재계산
-              await _handleInboxDropToPosition(index, dragData, date);
-
-              if (mounted) {
-                setState(() {
-                  _isDraggingFromInbox = false;
-                  _hoveredCardIndex = null;
-                });
-              }
-            } catch (e) {
-              print('❌ [BetweenCardDropZone] 드롭 처리 실패: $e');
-              if (mounted) {
-                setState(() {
-                  _isDraggingFromInbox = false;
-                  _hoveredCardIndex = null;
-                });
-              }
-            }
-          }
         }
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        height: isHovered ? 72 : 8, // 호버 시 공간 벌어짐
-        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-        decoration: isHovered
-            ? BoxDecoration(
-                color: const Color(0xFF566099).withOpacity(0.08),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: const Color(0xFF566099),
-                  width: 2,
-                  style: BorderStyle.solid,
-                ),
-              )
-            : null,
-        child: isHovered
-            ? Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.add_circle_outline,
-                    color: Color(0xFF566099),
-                    size: 24,
+      builder: (context, candidateData, rejectedData) {
+        final isHovered = candidateData.isNotEmpty;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          height: isHovered ? 72 : 8, // 호버 시 공간 벌어짐
+          margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+          decoration: isHovered
+              ? BoxDecoration(
+                  color: const Color(0xFF566099).withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0xFF566099),
+                    width: 2,
+                    style: BorderStyle.solid,
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'ここにドロップ',
-                    style: TextStyle(
-                      fontFamily: 'LINE Seed JP App_TTF',
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF566099),
+                )
+              : null,
+          child: isHovered
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.add_circle_outline,
+                      color: Color(0xFF566099),
+                      size: 24,
                     ),
-                  ),
-                ],
-              )
-            : null,
-      ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'ここにドロップ',
+                      style: TextStyle(
+                        fontFamily: 'LINE Seed JP App_TTF',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF566099),
+                      ),
+                    ),
+                  ],
+                )
+              : null,
+        );
+      },
     );
   }
 
   /// 🎯 최하단 드롭존 (리스트 맨 아래에 드롭)
   Widget _buildBottomDropZone(DateTime date) {
-    final isHovered = _hoveredCardIndex == 999999; // 999999는 최하단을 의미
-
-    return DropRegion(
-      formats: Formats.standardFormats,
-      onDropOver: (event) {
+    return DragTarget<TaskData>(
+      onWillAcceptWithDetails: (details) => true,
+      onMove: (details) {
         if (mounted && _hoveredCardIndex != 999999) {
-          setState(() => _hoveredCardIndex = 999999);
-        }
-        return DropOperation.copy;
-      },
-      onDropEnter: (event) {
-        print('🎯 [BottomDropZone] 드롭 영역 진입');
-        if (mounted) {
           setState(() {
             _isDraggingFromInbox = true;
             _hoveredCardIndex = 999999;
           });
         }
       },
-      onDropLeave: (event) {
+      onLeave: (data) {
         print('👋 [BottomDropZone] 드롭 영역 이탈');
         if (mounted) {
           setState(() => _hoveredCardIndex = null);
         }
       },
-      onPerformDrop: (event) async {
+      onAcceptWithDetails: (details) async {
+        final task = details.data;
         print('✅ [BottomDropZone] 최하단 드롭 완료');
+        print('💾 [BottomDropZone] Task 드롭: ${task.title} → $date (최하단)');
 
-        final item = event.session.items.first;
-        final reader = item.dataReader!;
+        HapticFeedback.heavyImpact();
+        await GetIt.I<AppDatabase>().updateTaskDate(
+          task.id,
+          date,
+        );
+        await GetIt.I<AppDatabase>().updateCardOrder(
+          date,
+          'task',
+          task.id,
+          999999000,
+        );
 
-        if (reader.canProvide(Formats.plainText)) {
-          final completer = Completer<String?>();
-          reader.getValue<String>(Formats.plainText, (value) {
-            completer.complete(value);
+        print('✅ [BottomDropZone] DB 업데이트 완료 (sortOrder=999999000, 최하단)');
+
+        // 🔥 인박스 바텀시트 다시 열기
+        if (mounted) {
+          setState(() {
+            _isDraggingFromInbox = false;
+            _hoveredCardIndex = null;
           });
 
-          final value = await completer.future;
-
-          if (value != null) {
-            try {
-              final dragData = DragTaskData.decode(value);
-              print(
-                '💾 [BottomDropZone] Task 드롭: ${dragData.title} → $date (최하단)',
+          // 약간의 딜레이 후 바텀시트 다시 열기
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) {
+              Navigator.push(
+                context,
+                ModalSheetRoute(
+                  builder: (context) => TaskInboxBottomSheet(
+                    onClose: () {
+                      print('✅ [TaskInbox] 닫힘');
+                      setState(() {
+                        _isInboxMode = false;
+                      });
+                      widget.onInboxModeChanged?.call(false);
+                    },
+                    onDragStart: () {
+                      setState(() {
+                        _isDraggingFromInbox = true;
+                      });
+                      print('🎯 [DateDetailView] 드래그 시작');
+                    },
+                  ),
+                  barrierColor: Colors.transparent,
+                  barrierDismissible: true,
+                ),
               );
-
-              HapticFeedback.heavyImpact();
-              await GetIt.I<AppDatabase>().updateTaskDate(
-                dragData.taskId,
-                date,
-              );
-              await GetIt.I<AppDatabase>().updateCardOrder(
-                date,
-                'task',
-                dragData.taskId,
-                999999000,
-              );
-
-              print('✅ [BottomDropZone] DB 업데이트 완료 (sortOrder=999999000, 최하단)');
-
-              // 🔥 인박스 바텀시트 다시 열기
-              if (mounted) {
-                setState(() {
-                  _isDraggingFromInbox = false;
-                  // 🎯 인박스 모드는 유지
-                  _hoveredCardIndex = null;
-                });
-
-                // 약간의 딜레이 후 바텀시트 다시 열기
-                Future.delayed(const Duration(milliseconds: 300), () {
-                  if (mounted) {
-                    Navigator.push(
-                      context,
-                      ModalSheetRoute(
-                        builder: (context) => TaskInboxBottomSheet(
-                          onClose: () {
-                            print('✅ [TaskInbox] 닫힘');
-                            // 🎯 바텀시트 닫힐 때 인박스 모드 종료
-                            setState(() {
-                              _isInboxMode = false;
-                            });
-                            widget.onInboxModeChanged?.call(
-                              false,
-                            ); // 📋 인박스 모드 비활성화 알림
-                          },
-                          onDragStart: () {
-                            setState(() {
-                              _isDraggingFromInbox = true;
-                            });
-                            print('🎯 [DateDetailView] 드래그 시작');
-                          },
-                        ),
-                        barrierColor: Colors.transparent,
-                        barrierDismissible: true,
-                      ),
-                    );
-                  }
-                });
-              }
-            } catch (e) {
-              print('❌ [BottomDropZone] 드롭 처리 실패: $e');
-              if (mounted) {
-                setState(() {
-                  _isDraggingFromInbox = false;
-                  // 🎯 에러 시에도 인박스 모드는 유지
-                  _hoveredCardIndex = null;
-                });
-              }
             }
-          }
+          });
         }
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: isHovered ? 80 : 40, // 🎯 기본 40px 높이로 감지 영역 확보
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
-          border: isHovered
-              ? Border.all(color: Colors.blue.withOpacity(0.3), width: 2)
+      builder: (context, candidateData, rejectedData) {
+        final isHovered = candidateData.isNotEmpty;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          height: isHovered ? 80 : 40, // 🎯 기본 40px 높이로 감지 영역 확보
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+            border: isHovered
+                ? Border.all(color: Colors.blue.withOpacity(0.3), width: 2)
+                : null,
+          ),
+          child: isHovered
+              ? Center(
+                  child: Icon(
+                    Icons.add_circle_outline,
+                    color: Colors.blue,
+                    size: 32,
+                  ),
+                )
               : null,
-        ),
-        child: isHovered
-            ? Center(
-                child: Icon(
-                  Icons.add_circle_outline,
-                  color: Colors.blue,
-                  size: 32,
-                ),
-              )
-            : null,
-      ),
+        );
+      },
     );
   }
 } // _DateDetailViewState 끝
