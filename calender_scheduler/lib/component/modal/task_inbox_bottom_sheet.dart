@@ -1,9 +1,9 @@
+import 'dart:ui'; // ✅ ImageFilter를 위해 추가
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // ✅ HapticFeedback 추가
 import 'package:get_it/get_it.dart';
 import 'package:smooth_sheets/smooth_sheets.dart';
 import 'package:figma_squircle/figma_squircle.dart';
-import 'dart:ui'; // ✅ ImageFilter를 위해 추가
 import '../../Database/schedule_database.dart';
 import '../../widgets/task_card.dart';
 import '../../widgets/slidable_task_card.dart';
@@ -31,8 +31,17 @@ Future<void> showTaskInboxBottomSheet(BuildContext context) async {
 
 class TaskInboxBottomSheet extends StatefulWidget {
   final VoidCallback? onClose; // 📋 닫기 콜백 추가
+  final VoidCallback? onDragStart; // 🎯 드래그 시작 콜백 추가
+  final VoidCallback? onDragEnd; // 🎯 드래그 종료 콜백 추가
+  final bool isDraggingFromParent; // 🎯 부모로부터 드래그 상태 받기
 
-  const TaskInboxBottomSheet({super.key, this.onClose});
+  const TaskInboxBottomSheet({
+    super.key,
+    this.onClose,
+    this.onDragStart, // 🎯 드래그 시작 콜백
+    this.onDragEnd, // 🎯 드래그 종료 콜백
+    this.isDraggingFromParent = false, // 🎯 기본값 false
+  });
 
   @override
   State<TaskInboxBottomSheet> createState() => _TaskInboxBottomSheetState();
@@ -42,7 +51,6 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
     with SingleTickerProviderStateMixin {
   String _selectedFilter = 'すべて';
   bool _isAIEnabled = true;
-  bool _isDragging = false; // 🎯 드래그 상태 추적
   late AnimationController _filterAnimationController;
   late Animation<double> _filterOpacity;
   final SheetController _sheetController = SheetController(); // 🎯 Sheet 컨트롤러
@@ -50,6 +58,14 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
   @override
   void initState() {
     super.initState();
+    print('');
+    print('╔═══════════════════════════════════════════════════════════════╗');
+    print('║  🚀 [LIFECYCLE] TaskInboxBottomSheet.initState()             ║');
+    print('╚═══════════════════════════════════════════════════════════════╝');
+    print('📊 isDraggingFromParent: ${widget.isDraggingFromParent}');
+    print('🎯 onClose callback: ${widget.onClose != null}');
+    print('🎯 onDragStart callback: ${widget.onDragStart != null}');
+    print('🎯 onDragEnd callback: ${widget.onDragEnd != null}');
     // ✅ 필터 버튼 fade-in 애니메이션
     _filterAnimationController = AnimationController(
       vsync: this,
@@ -63,34 +79,71 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
     );
     // Hero 애니메이션 완료 후 필터 버튼 표시
     Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) _filterAnimationController.forward();
+      if (mounted) {
+        print('✅ [TaskInboxBottomSheet] 필터 애니메이션 시작 (300ms 후)');
+        _filterAnimationController.forward();
+      }
     });
+    print('✅ [LIFECYCLE] TaskInboxBottomSheet.initState 완료');
+    print('');
+  }
+
+  @override
+  void didUpdateWidget(TaskInboxBottomSheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 🔥 드래그 상태 변경 감지하여 즉시 반영
+    if (oldWidget.isDraggingFromParent != widget.isDraggingFromParent) {
+      print('');
+      print('╔═══════════════════════════════════════════════════════════════╗');
+      print('║  🔄 [LIFECYCLE] didUpdateWidget - isDragging 변경          ║');
+      print('╚═══════════════════════════════════════════════════════════════╝');
+      print('📊 이전: ${oldWidget.isDraggingFromParent}');
+      print('📊 현재: ${widget.isDraggingFromParent}');
+      print('');
+      // setState 없이도 AnimatedOpacity가 자동으로 감지
+    }
   }
 
   @override
   void dispose() {
+    print('');
+    print('╔═══════════════════════════════════════════════════════════════╗');
+    print('║  🗑️ [LIFECYCLE] TaskInboxBottomSheet.dispose()              ║');
+    print('╚═══════════════════════════════════════════════════════════════╝');
     _filterAnimationController.dispose();
+    print('✅ [LIFECYCLE] TaskInboxBottomSheet.dispose 완료');
+    print('');
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    print('');
+    print('╔═══════════════════════════════════════════════════════════════╗');
+    print('║  🏗️ [BUILD] TaskInboxBottomSheet.build()                    ║');
+    print('╚═══════════════════════════════════════════════════════════════╝');
+    print('📊 isDraggingFromParent: ${widget.isDraggingFromParent}');
+    print('🎯 _selectedFilter: $_selectedFilter');
+    print('🤖 _isAIEnabled: $_isAIEnabled');
     final safeAreaTop = MediaQuery.of(context).padding.top;
     final screenHeight = MediaQuery.of(context).size.height;
     final maxHeight = (screenHeight - safeAreaTop - 8) / screenHeight;
 
+    // 🎯 부모로부터 받은 드래그 상태 사용
+    final isDragging = widget.isDraggingFromParent;
+
     // 🎯 드래그 중일 때는 전체 위젯이 터치를 통과시킴
     return IgnorePointer(
-      ignoring: _isDragging, // ✅ 드래그 중일 때 전체가 터치 무시
+      ignoring: isDragging, // ✅ 드래그 중일 때 전체가 터치 무시
       child: Stack(
         children: [
           // ✅ 1. 바텀시트 (드래그 가능)
           // 🎯 드래그 중에는 바텀시트의 터치를 무시하고 투명하게 만들어 뒤의 캘린더가 보이도록 함
           AnimatedOpacity(
-            opacity: _isDragging ? 0.0 : 1.0, // ✅ 드래그 중일 때 완전히 투명
+            opacity: isDragging ? 0.0 : 1.0, // ✅ 드래그 중일 때 완전히 투명
             duration: const Duration(milliseconds: 200), // ✅ 부드러운 페이드 아웃
             child: IgnorePointer(
-              ignoring: _isDragging, // ✅ 드래그 중일 때 터치 무시
+              ignoring: isDragging, // ✅ 드래그 중일 때 터치 무시
               child: ScrollableSheet(
                 controller: _sheetController, // 🎯 컨트롤러 연결
                 initialExtent: const Extent.proportional(
@@ -359,36 +412,56 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
           );
         }
 
-        // 🎯 ReorderableListView로 변경
-        // - 일반 드래그: 리스트 재정렬 (짧게)
-        // - 길게 누르기: 캘린더로 드래그 (LongPressDraggable)
-        return ReorderableListView.builder(
-          padding: const EdgeInsets.only(
-            left: 24,
-            right: 24,
-            bottom: 216, // ✅ 필터바 116px + 추가 100px = 216px
-          ),
-          itemCount: filteredTasks.length,
-          itemBuilder: (context, index) {
-            final task = filteredTasks[index];
-            return Padding(
-              key: ValueKey(task.id), // ✅ 고유 키 필수
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Center(
-                child: SizedBox(
-                  width: 345,
-                  child: _buildDraggableTaskCard(task),
-                ),
-              ),
+        // 🔥 전체 리스트를 Listener로 감싸서 포인터 업 감지 (백업용)
+        return Listener(
+          onPointerUp: (event) {
+            // 🔥 손을 떼면 무조건 바텀시트 복구
+            print('');
+            print(
+              '╔═══════════════════════════════════════════════════════════════╗',
             );
+            print('║  🖐️ [BACKUP] 리스트 전체에서 포인터 업 감지 (백업)       ║');
+            print(
+              '╚═══════════════════════════════════════════════════════════════╝',
+            );
+            print('⏰ 시각: ${DateTime.now()}');
+            print('🔄 바텀시트 복구 시작 (100ms 딜레이)...');
+            Future.delayed(const Duration(milliseconds: 100), () {
+              if (mounted) {
+                print('✅ onDragEnd 콜백 호출 (백업)');
+                widget.onDragEnd?.call();
+              }
+            });
+            print('');
           },
-          onReorder: (oldIndex, newIndex) {
-            // ✅ 리스트 재정렬 로직
-            print('🔄 [TaskInbox] 재정렬: $oldIndex → $newIndex');
-            HapticFeedback.mediumImpact();
-            // TODO: DB에 순서 저장
-          },
-        );
+          child: ReorderableListView.builder(
+            padding: const EdgeInsets.only(
+              left: 24,
+              right: 24,
+              bottom: 216, // ✅ 필터바 116px + 추가 100px = 216px
+            ),
+            itemCount: filteredTasks.length,
+            itemBuilder: (context, index) {
+              final task = filteredTasks[index];
+              return Padding(
+                key: ValueKey(task.id), // ✅ 고유 키 필수
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Center(
+                  child: SizedBox(
+                    width: 345,
+                    child: _buildDraggableTaskCard(task),
+                  ),
+                ),
+              );
+            },
+            onReorder: (oldIndex, newIndex) {
+              // ✅ 리스트 재정렬 로직
+              print('🔄 [TaskInbox] 재정렬: $oldIndex → $newIndex');
+              HapticFeedback.mediumImpact();
+              // TODO: DB에 순서 저장
+            },
+          ), // ReorderableListView
+        ); // Listener
       },
     );
   }
@@ -433,36 +506,21 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
     }
   }
 
-  /// 🚀 Draggable Task Card: 캘린더에 드래그 가능
+  /// 🚀 Draggable Task Card: Flutter 기본 LongPressDraggable 사용
   Widget _buildDraggableTaskCard(TaskData task) {
     final taskCard = _buildTaskCard(task);
 
     return LongPressDraggable<TaskData>(
-      data: task, // ✅ 드래그 시 전달할 데이터
-      delay: const Duration(milliseconds: 300), // 🎯 300ms로 줄임 (기본 500ms)
-      hapticFeedbackOnStart: false, // 🎯 시스템 햅틱 비활성화 (직접 제어)
-      rootOverlay: true, // 🎯 Route 경계를 넘어서 드래그 가능!
-      feedback: Material(
-        color: Colors.transparent, // ✅ 배경 투명
-        shadowColor: const Color(0xFF111111), // ✅ 그림자 색상 #111111
-        elevation: 0, // elevation 제거하고 직접 그림자 설정
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0xFF111111), // #111111
-                offset: Offset(0, 4), // y: 4
-                blurRadius: 20, // blur: 20
-              ),
-            ],
-          ),
-          child: Transform.rotate(
-            angle: 0.07, // 🎯 4도 기울임 (약 0.07 라디안)
-            child: Opacity(
-              opacity: 0.95, // ✅ 드래그 중 95% 투명도
-              child: SizedBox(width: 345, child: taskCard),
+      data: task, // ✅ TaskData 직접 전달
+      feedback: Transform.rotate(
+        angle: 0.07, // 🎯 4도 기울임 (약 0.07 라디안)
+        child: Opacity(
+          opacity: 0.95, // ✅ 드래그 중 95% 투명도
+          child: Material(
+            color: Colors.transparent,
+            child: SizedBox(
+              width: 345, // ✅ 카드 너비 고정
+              child: taskCard,
             ),
           ),
         ),
@@ -472,19 +530,46 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
         child: taskCard,
       ),
       onDragStarted: () {
-        print('🎯 [TaskInbox] 드래그 시작: ${task.title}');
-        setState(() => _isDragging = true); // 🎯 드래그 시작 → 바텀시트 투명해짐!
-        // HapticFeedback 제거 - 햅틱 없음
+        print('');
+        print(
+          '╔═══════════════════════════════════════════════════════════════╗',
+        );
+        print('║  🎯 [DRAG START] 드래그 시작                                ║');
+        print(
+          '╚═══════════════════════════════════════════════════════════════╝',
+        );
+        print('📋 Task: ${task.title} (id=${task.id})');
+        print('⏰ 시각: ${DateTime.now()}');
+        HapticFeedback.mediumImpact();
+
+        // 🔥 부모에게 드래그 시작 알림
+        widget.onDragStart?.call();
+        print('✅ onDragStart 콜백 호출 완료');
+        print('');
       },
       onDragEnd: (details) {
-        setState(() => _isDragging = false); // 🎯 드래그 종료 → 바텀시트 다시 보임!
+        print('');
+        print(
+          '╔═══════════════════════════════════════════════════════════════╗',
+        );
+        print('║  🎯 [DRAG END] 드래그 종료                                  ║');
+        print(
+          '╚═══════════════════════════════════════════════════════════════╝',
+        );
+        print('📋 Task: ${task.title}');
+        print('✅ wasAccepted: ${details.wasAccepted}');
+        
+        // 🔥 부모에게 드래그 종료 알림
+        widget.onDragEnd?.call();
+        
         if (details.wasAccepted) {
-          print('✅ [TaskInbox] 드롭 성공: ${task.title}');
-          HapticFeedback.heavyImpact(); // ✅ 강한 진동 (드롭 성공 시만)
+          print('✅ [TaskInbox] 드롭 성공');
+          HapticFeedback.heavyImpact(); // ✅ 강한 진동
         } else {
-          print('❌ [TaskInbox] 드롭 실패: ${task.title}');
+          print('❌ [TaskInbox] 드롭 실패');
           HapticFeedback.lightImpact(); // ✅ 약한 진동
         }
+        print('');
       },
       child: taskCard,
     );
@@ -497,11 +582,27 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
       taskId: task.id,
       repeatRule: task.repeatRule, // 🔄 반복 규칙 전달
       showConfirmDialog: true, // ✅ Inbox에서도 삭제 확인 모달 표시
-      onTap: () => showTaskDetailWoltModal(
-        context,
-        task: task,
-        selectedDate: DateTime.now(),
-      ),
+      onTap: () {
+        print('');
+        print(
+          '╔═══════════════════════════════════════════════════════════════╗',
+        );
+        print('║  📝 [TASK DETAIL] Task 카드 탭 - Wolt Modal 열기            ║');
+        print(
+          '╚═══════════════════════════════════════════════════════════════╝',
+        );
+        print('📋 Task ID: ${task.id}');
+        print('📝 Task Title: ${task.title}');
+        print('⏰ 현재 시각: ${DateTime.now()}');
+        print('🔓 Modal 열기 시작...');
+        showTaskDetailWoltModal(
+          context,
+          task: task,
+          selectedDate: DateTime.now(),
+        );
+        print('✅ showTaskDetailWoltModal 호출 완료');
+        print('');
+      },
       onComplete: () async =>
           await GetIt.I<AppDatabase>().completeTask(task.id),
       onDelete: () async => await GetIt.I<AppDatabase>().deleteTask(task.id),
@@ -605,20 +706,38 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
   Widget _buildFilterButton(String label, IconData icon, bool isSelected) {
     return _TossButton(
       onTap: () {
+        print('');
+        print(
+          '╔═══════════════════════════════════════════════════════════════╗',
+        );
+        print('║  🔘 [FILTER] 필터 버튼 클릭                                 ║');
+        print(
+          '╚═══════════════════════════════════════════════════════════════╝',
+        );
+        print('⏰ 클릭 전 필터: $_selectedFilter');
+        print('🔘 클릭한 필터: $label');
         setState(() => _selectedFilter = label);
+        print('⏰ setState 후 필터: $_selectedFilter');
 
         // 🎯 필터 버튼 클릭 시 바텀시트가 최소 높이(16%)면 중간 높이(45%)로 이동
         final currentExtent = _sheetController.value.maybePixels;
         final screenHeight = MediaQuery.of(context).size.height;
         final minHeight = screenHeight * 0.16;
 
+        print('📊 현재 Sheet Extent: $currentExtent px');
+        print('📊 최소 높이: $minHeight px (16%)');
+
         if (currentExtent != null && currentExtent <= minHeight + 10) {
+          print('🔼 Sheet 확장 시작: 16% → 45%');
           _sheetController.animateTo(
             const Extent.proportional(0.45),
             duration: const Duration(milliseconds: 400),
             curve: Curves.easeOutCubic,
           );
+        } else {
+          print('ℹ️ Sheet 이미 확장되어 있음 - 애니메이션 스킵');
         }
+        print('');
       },
       child: Container(
         width: 80,
