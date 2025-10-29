@@ -1001,7 +1001,9 @@ class _DateDetailViewState extends State<DateDetailView>
                         onAcceptWithDetails: (details) async {
                           final task = details.data;
                           print('✅ [Empty Area] 빈 화면에 드롭 완료');
-                          print('💾 [Empty Area] Task 드롭: ${task.title} → $date');
+                          print(
+                            '💾 [Empty Area] Task 드롭: ${task.title} → $date',
+                          );
 
                           // 🎯 즉시 햅틱
                           HapticFeedback.heavyImpact();
@@ -1028,7 +1030,8 @@ class _DateDetailViewState extends State<DateDetailView>
                           }
                         },
                         builder: (context, candidateData, rejectedData) {
-                          final isHovered = candidateData.isNotEmpty || _isDraggingFromInbox;
+                          final isHovered =
+                              candidateData.isNotEmpty || _isDraggingFromInbox;
 
                           return Container(
                             // 🎯 SafeArea 제외한 전체 화면 높이로 설정
@@ -1115,6 +1118,7 @@ class _DateDetailViewState extends State<DateDetailView>
                       onNotification: (ScrollNotification notification) {
                         if (notification is ScrollUpdateNotification) {
                           final pixels = notification.metrics.pixels;
+                          final maxScroll = notification.metrics.maxScrollExtent;
 
                           // 🎯 Elevation Overlay: 스크롤 오프셋 업데이트 (일반 모드만)
                           if (!_isInboxMode && pixels >= 0) {
@@ -1123,7 +1127,25 @@ class _DateDetailViewState extends State<DateDetailView>
                             });
                           }
 
-                          // 🎯 핵심! pixels가 음수면 = 오버스크롤 중!
+                          // 🚫 하단 오버스크롤 체크: 리스트 맨 아래에서 위로 당길 때 무시!
+                          final isBottomOverscroll = pixels > maxScroll;
+                          
+                          debugPrint('📊 [Scroll] pixels=$pixels, maxScroll=$maxScroll, isBottom=$isBottomOverscroll');
+
+                          // 🚫🚫🚫 하단 오버스크롤이면 모든 dismiss 로직 무시!
+                          if (isBottomOverscroll) {
+                            // 플래그 즉시 리셋
+                            if (_shouldDismissOnScrollEnd || _dragOffset > 0 || _maxOverscrollOffset > 0) {
+                              setState(() {
+                                _shouldDismissOnScrollEnd = false;
+                                _dragOffset = 0;
+                                _maxOverscrollOffset = 0;
+                              });
+                            }
+                            return false; // 이벤트 무시
+                          }
+
+                          // 🎯 핵심! pixels가 음수면 = 상단 오버스크롤 중! ✅
                           if (pixels < 0) {
                             // 🚀 민감도 증폭: pixels의 절댓값 × 3.0배!
                             const sensitivity = 3.0;
@@ -1681,45 +1703,70 @@ class _DateDetailViewState extends State<DateDetailView>
       // 🔥 [핵심 수정] UI 인덱스를 실제 데이터 인덱스로 정확하게 변환
       print('🔍 [인덱스 변환 시작]');
       print('   • 전체 allItems 길이: ${allItems.length}');
+      print('   • 드롭된 UI 인덱스: $dropIndex');
 
-      // 현재 화면에 표시된 모든 아이템 (divider, completed 제외한 실제 데이터만)
+      // allItems 구조 로깅
+      for (int i = 0; i < allItems.length && i < 20; i++) {
+        final item = allItems[i];
+        String itemDesc = '';
+        if (item.type == UnifiedItemType.schedule) {
+          itemDesc = 'Schedule: ${(item.data as ScheduleData).summary}';
+        } else if (item.type == UnifiedItemType.task) {
+          itemDesc = 'Task: ${(item.data as TaskData).title}';
+        } else if (item.type == UnifiedItemType.habit) {
+          itemDesc = 'Habit: ${(item.data as HabitData).title}';
+        } else {
+          itemDesc = item.type.toString();
+        }
+        print('   [$i] $itemDesc');
+      }
+
+      // dropIndex보다 앞에 있는 non-data 아이템 개수 세기
+      int nonDataCountBeforeDrop = 0;
+      for (int i = 0; i < dropIndex && i < allItems.length; i++) {
+        final item = allItems[i];
+        if (item.type == UnifiedItemType.dateHeader ||
+            item.type == UnifiedItemType.divider ||
+            item.type == UnifiedItemType.completed ||
+            item.type == UnifiedItemType.inboxHeader) {
+          nonDataCountBeforeDrop++;
+          print('   🔸 인덱스 $i: ${item.type} (non-data)');
+        }
+      }
+
+      print('   • dropIndex 앞의 non-data 아이템: $nonDataCountBeforeDrop개');
+
+      // 🔥 핵심 수정: 실제 데이터 인덱스 계산
+      // dropIndex는 드롭 대상 아이템의 위치를 가리킴
+      // 우리는 그 아이템의 "앞"에 삽입해야 하므로 -1 필요
+      // 실제 데이터 인덱스 = (UI 인덱스 - non-data 아이템 수) 에서 드롭 대상 아이템 앞에 넣기 위해 추가 조정 불필요
+      // 하지만 사용자가 "위에 드롭"했을 때 실제로는 그 아이템이 아니라 바로 앞 간격에 드롭하므로
+      // dropIndex 자체가 이미 "그 아이템 뒤"를 가리키고 있음
+      int actualDataIndex = dropIndex - nonDataCountBeforeDrop - 1;
+
+      // 현재 화면에 표시된 실제 데이터 아이템 수 (검증용)
       final actualDataItems = allItems
           .where(
             (item) =>
                 item.type != UnifiedItemType.divider &&
                 item.type != UnifiedItemType.completed &&
-                item.type != UnifiedItemType.inboxHeader, // 🔥 인박스 헤더도 제외
+                item.type != UnifiedItemType.inboxHeader &&
+                item.type != UnifiedItemType.dateHeader &&
+                !(item.type == UnifiedItemType.task &&
+                    (item.data as TaskData).id == task.id), // 드롭된 Task 제외
           )
           .toList();
 
       print('   • 실제 데이터 아이템 수: ${actualDataItems.length}');
-      print('   • 드롭된 UI 인덱스: $dropIndex');
+      print('   • 계산된 데이터 인덱스: $actualDataIndex');
 
-      // UI 인덱스를 실제 데이터 인덱스로 변환
-      // dropIndex가 가리키는 UI 아이템을 찾아서 그것의 실제 데이터 인덱스를 찾음
-      int actualDataIndex = 0;
-
-      if (dropIndex < allItems.length) {
-        final droppedOnItem = allItems[dropIndex];
-        print('   • 드롭된 아이템 타입: ${droppedOnItem.type}');
-        print('   • 드롭된 아이템 ID: ${droppedOnItem.uniqueId}');
-
-        // 드롭된 아이템이 실제 데이터 리스트에서 몇 번째인지 찾기
-        actualDataIndex = actualDataItems.indexWhere(
-          (item) => item.uniqueId == droppedOnItem.uniqueId,
-        );
-
-        // 찾지 못했으면 (헤더나 divider에 드롭) 끝에 추가
-        if (actualDataIndex == -1) {
-          actualDataIndex = actualDataItems.length;
-          print('   ⚠️ 헤더/구분선에 드롭됨 → 맨 끝으로 설정');
-        } else {
-          print('   ✅ 실제 데이터 인덱스: $actualDataIndex');
-        }
-      } else {
-        // 범위 밖이면 맨 끝
+      // 범위 검증
+      if (actualDataIndex < 0) {
+        actualDataIndex = 0;
+        print('   ⚠️ 인덱스가 0보다 작음 → 0으로 조정');
+      } else if (actualDataIndex > actualDataItems.length) {
         actualDataIndex = actualDataItems.length;
-        print('   ⚠️ 범위 밖에 드롭됨 → 맨 끝으로 설정');
+        print('   ⚠️ 인덱스가 범위 초과 → 맨 끝으로 조정');
       }
 
       print('   🎯 최종 삽입 위치: $actualDataIndex');
@@ -1731,16 +1778,137 @@ class _DateDetailViewState extends State<DateDetailView>
       print('   ✅ Task #${task.id} 날짜 변경 완료');
       print('');
 
-      // [2단계] 전체 리스트 재구성
-      print('💾 [2단계] 전체 리스트 순서 재계산');
+      // [2단계] DB에서 현재 날짜의 모든 데이터 다시 로드 (최신 상태 반영)
+      print('💾 [2단계] DB에서 최신 데이터 로드');
+      final db = GetIt.I<AppDatabase>();
 
-      // 현재 actualDataItems 사용 (이미 필터링 완료)
-      final updatedItems = List<UnifiedListItem>.from(actualDataItems);
+      // 해당 날짜의 일정, 할일, 습관 로드
+      final schedules = await db.watchByDay(date).first;
+      final tasks = await db.watchTasksByExecutionDate(date).first;
+      final habits = await db.watchHabits().first;
 
-      // 🔥 DB에서 실제 Task 데이터 다시 로드 (필수 파라미터 포함)
-      final taskFromDb = await GetIt.I<AppDatabase>().getTaskById(
-        task.id,
+      // 완료된 습관 제외
+      final completedHabits = await db.watchCompletedHabitsByDay(date).first;
+      final completedHabitIds = completedHabits.map((h) => h.id).toSet();
+      final incompleteHabits = habits
+          .where((h) => !completedHabitIds.contains(h.id))
+          .toList();
+
+      print(
+        '   📊 로드된 데이터: 일정=${schedules.length}, 할일=${tasks.length}, 습관=${incompleteHabits.length}',
       );
+
+      // [3단계] 기존 DailyCardOrder 로드
+      print('🔍 [3단계] 기존 순서 조회');
+      final existingOrders = await db.watchDailyCardOrder(date).first;
+      print('   📊 기존 순서: ${existingOrders.length}개');
+
+      // [4단계] 전체 아이템 리스트 구성 (기존 순서 + 새로운 Task)
+      print('🔨 [4단계] 전체 아이템 리스트 구성');
+
+      List<UnifiedListItem> updatedItems = [];
+
+      if (existingOrders.isEmpty) {
+        // 기존 순서가 없으면 기본 순서로 생성
+        print('   ⚠️ 기존 순서 없음 → 기본 순서로 생성');
+        int order = 0;
+
+        // 일정 추가 (미완료만)
+        for (final s in schedules.where((s) => !s.completed)) {
+          updatedItems.add(UnifiedListItem.fromSchedule(s, sortOrder: order++));
+        }
+
+        // 할일 추가 (미완료만)
+        for (final t in tasks.where((t) => !t.completed)) {
+          updatedItems.add(UnifiedListItem.fromTask(t, sortOrder: order++));
+        }
+
+        // 습관 추가 (미완료만)
+        for (final h in incompleteHabits) {
+          updatedItems.add(UnifiedListItem.fromHabit(h, sortOrder: order++));
+        }
+      } else {
+        // 기존 순서가 있으면 그 순서대로 복원
+        print('   ✅ 기존 순서 복원');
+
+        for (final orderData in existingOrders) {
+          try {
+            if (orderData.cardType == 'schedule') {
+              final schedule = schedules.firstWhere(
+                (s) => s.id == orderData.cardId,
+              );
+              if (!schedule.completed) {
+                updatedItems.add(
+                  UnifiedListItem.fromSchedule(
+                    schedule,
+                    sortOrder: orderData.sortOrder,
+                  ),
+                );
+              }
+            } else if (orderData.cardType == 'task') {
+              final task = tasks.firstWhere((t) => t.id == orderData.cardId);
+              if (!task.completed) {
+                updatedItems.add(
+                  UnifiedListItem.fromTask(
+                    task,
+                    sortOrder: orderData.sortOrder,
+                  ),
+                );
+              }
+            } else if (orderData.cardType == 'habit') {
+              final habit = incompleteHabits.firstWhere(
+                (h) => h.id == orderData.cardId,
+              );
+              updatedItems.add(
+                UnifiedListItem.fromHabit(
+                  habit,
+                  sortOrder: orderData.sortOrder,
+                ),
+              );
+            }
+          } catch (e) {
+            print('   ⚠️ 아이템 찾기 실패: ${orderData.cardType}-${orderData.cardId}');
+          }
+        }
+
+        // sortOrder로 정렬
+        updatedItems.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      }
+
+      print('   📊 현재 리스트 길이: ${updatedItems.length}');
+      print('   📍 드롭 위치: $actualDataIndex');
+
+      // [5단계] 새로운 Task 삽입
+      print('➕ [5단계] 새로운 Task 삽입');
+
+      // 드롭된 Task가 이미 리스트에 있는지 확인 (중복 방지)
+      final existingTaskIndex = updatedItems.indexWhere(
+        (item) =>
+            item.type == UnifiedItemType.task &&
+            (item.data as TaskData).id == task.id,
+      );
+
+      int adjustedInsertIndex = actualDataIndex;
+
+      if (existingTaskIndex != -1) {
+        print('   🔄 기존 Task 발견 (index: $existingTaskIndex)');
+
+        // 🔥 핵심 수정: 먼저 제거하고, 그 다음에 인덱스 조정
+        // 기존 Task가 삽입 위치보다 앞에 있으면, 제거 후 리스트가 한 칸 당겨지므로
+        // 삽입 인덱스도 -1 해야 함
+        updatedItems.removeAt(existingTaskIndex);
+        print('   🗑️ 기존 Task 제거 완료');
+
+        if (existingTaskIndex < actualDataIndex) {
+          adjustedInsertIndex = actualDataIndex - 1;
+          print(
+            '   📍 기존 Task가 앞에 있었음 → 삽입 인덱스 조정: $actualDataIndex → $adjustedInsertIndex',
+          );
+        }
+      }
+
+      // DB에서 실제 Task 데이터 다시 로드
+      final taskFromDb = await db.getTaskById(task.id);
       if (taskFromDb == null) {
         print('   ❌ Task를 DB에서 찾을 수 없음');
         return;
@@ -1749,26 +1917,23 @@ class _DateDetailViewState extends State<DateDetailView>
       // 새 Task 아이템 생성
       final newTaskItem = UnifiedListItem.fromTask(
         taskFromDb,
-        sortOrder: actualDataIndex,
+        sortOrder: adjustedInsertIndex,
       );
 
-      print('   📊 현재 리스트 길이: ${updatedItems.length}');
-      print('   📍 삽입 위치: $actualDataIndex');
-
       // 원하는 위치에 삽입
-      if (actualDataIndex >= updatedItems.length) {
+      if (adjustedInsertIndex >= updatedItems.length) {
         updatedItems.add(newTaskItem);
-        print('   ➕ 맨 끝에 추가');
+        print('   ➕ 맨 끝에 추가 (index: ${updatedItems.length - 1})');
       } else {
-        updatedItems.insert(actualDataIndex, newTaskItem);
-        print('   ➕ index $actualDataIndex에 삽입');
+        updatedItems.insert(adjustedInsertIndex, newTaskItem);
+        print('   ➕ index $adjustedInsertIndex에 삽입');
       }
 
       print('   📊 삽입 후 길이: ${updatedItems.length}');
       print('');
 
-      // [3단계] sortOrder를 0부터 순차적으로 재계산
-      print('🔢 [3단계] sortOrder 재계산 (0부터 순차)');
+      // [6단계] sortOrder를 0부터 순차적으로 재계산
+      print('🔢 [6단계] sortOrder 재계산 (0부터 순차)');
       for (int i = 0; i < updatedItems.length; i++) {
         updatedItems[i] = updatedItems[i].copyWith(sortOrder: i);
       }
@@ -1776,8 +1941,7 @@ class _DateDetailViewState extends State<DateDetailView>
       // 재계산된 리스트 출력
       print('📋 [재계산된 전체 순서]:');
       for (int i = 0; i < updatedItems.length; i++) {
-        final marker =
-            updatedItems[i].uniqueId.contains('task_${task.id}')
+        final marker = updatedItems[i].uniqueId.contains('task_${task.id}')
             ? '🔥 [방금 추가!]'
             : '';
         final typeEmoji = updatedItems[i].type == UnifiedItemType.schedule
@@ -1793,8 +1957,8 @@ class _DateDetailViewState extends State<DateDetailView>
       }
       print('');
 
-      // [4단계] DB에 전체 순서 저장
-      print('💾 [4단계] DB에 전체 순서 저장');
+      // [7단계] DB에 전체 순서 저장
+      print('💾 [7단계] DB에 전체 순서 저장');
       await _saveDailyCardOrder(updatedItems);
 
       print('✅ [인박스 드롭 처리 완료!]');
@@ -1837,8 +2001,6 @@ class _DateDetailViewState extends State<DateDetailView>
         // 🚫 Divider 제약 위반 시 흔들림 + 빨간색 효과
         final isInvalid = _isReorderingScheduleBelowDivider;
 
-        // 🎯 현재 카드 위에 호버 중인지 확인
-        final isHovered = _hoveredCardIndex == index;
         // 🎯 카드 위(사이)에 호버 중인지 확인 (-(index+1000)으로 표시)
         final isBetweenHovered = _hoveredCardIndex == -(index + 1000);
 
@@ -1871,7 +2033,9 @@ class _DateDetailViewState extends State<DateDetailView>
               },
               onAcceptWithDetails: (details) async {
                 final task = details.data;
-                print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                print(
+                  '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+                );
                 print('✅ [Schedule #$index] 🔥 드롭 완료!');
                 print('   🔵 파란색 박스가 표시된 위치: index=$index');
                 print('   📅 대상 날짜: ${date.toString().split(' ')[0]}');
@@ -1898,7 +2062,7 @@ class _DateDetailViewState extends State<DateDetailView>
                     curve: Curves.elasticOut,
                     // 좌우 흔들림 효과 (offset 대신 padding으로 구현)
                     padding: EdgeInsets.only(
-                      bottom: 4,
+                      bottom: 0,
                       left: isInvalid ? 20 : 24,
                       right: isInvalid ? 28 : 24,
                     ),
@@ -1938,15 +2102,10 @@ class _DateDetailViewState extends State<DateDetailView>
                                   'schedule',
                                   schedule.id,
                                 );
-                            print(
-                              '🗑️ [ScheduleCard] 삭제: ${schedule.summary}',
-                            );
+                            print('🗑️ [ScheduleCard] 삭제: ${schedule.summary}');
                             // ✅ 토스트 표시
                             if (context.mounted) {
-                              showActionToast(
-                                context,
-                                type: ToastType.delete,
-                              );
+                              showActionToast(context, type: ToastType.delete);
                             }
                           },
                           child: ScheduleCard(
@@ -1973,8 +2132,6 @@ class _DateDetailViewState extends State<DateDetailView>
       case UnifiedItemType.task:
         final task = item.data as TaskData;
 
-        // 🎯 현재 카드 위에 호버 중인지 확인
-        final isHovered = _hoveredCardIndex == index;
         // 🎯 카드 위(사이)에 호버 중인지 확인 (-(index+1000)으로 표시)
         final isBetweenHovered = _hoveredCardIndex == -(index + 1000);
 
@@ -2007,7 +2164,9 @@ class _DateDetailViewState extends State<DateDetailView>
               },
               onAcceptWithDetails: (details) async {
                 final droppedTask = details.data;
-                print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                print(
+                  '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+                );
                 print('✅ [Task #$index] 🔥 드롭 완료!');
                 print('   🔵 파란색 박스가 표시된 위치: index=$index');
                 print('   📅 대상 날짜: ${date.toString().split(' ')[0]}');
@@ -2031,7 +2190,7 @@ class _DateDetailViewState extends State<DateDetailView>
                 return RepaintBoundary(
                   child: Padding(
                     padding: const EdgeInsets.only(
-                      bottom: 4,
+                      bottom: 0,
                       left: 24,
                       right: 24,
                     ),
@@ -2084,9 +2243,7 @@ class _DateDetailViewState extends State<DateDetailView>
                             );
                             print('🔄 [TaskCard] 체크박스 완료 해제: ${task.title}');
                           } else {
-                            await GetIt.I<AppDatabase>().completeTask(
-                              task.id,
-                            );
+                            await GetIt.I<AppDatabase>().completeTask(task.id);
                             print('✅ [TaskCard] 체크박스 완료 처리: ${task.title}');
                           }
                         },
@@ -2105,8 +2262,6 @@ class _DateDetailViewState extends State<DateDetailView>
       case UnifiedItemType.habit:
         final habit = item.data as HabitData;
 
-        // 🎯 현재 카드 위에 호버 중인지 확인
-        final isHovered = _hoveredCardIndex == index;
         // 🎯 카드 위(사이)에 호버 중인지 확인 (-(index+1000)으로 표시)
         final isBetweenHovered = _hoveredCardIndex == -(index + 1000);
 
@@ -2139,7 +2294,9 @@ class _DateDetailViewState extends State<DateDetailView>
               },
               onAcceptWithDetails: (details) async {
                 final droppedTask = details.data;
-                print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                print(
+                  '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+                );
                 print('✅ [Habit #$index] 🔥 드롭 완료!');
                 print('   🔵 파란색 박스가 표시된 위치: index=$index');
                 print('   📅 대상 날짜: ${date.toString().split(' ')[0]}');
@@ -2156,7 +2313,9 @@ class _DateDetailViewState extends State<DateDetailView>
                 // 🔥 새로운 드롭 처리 함수 호출
                 await _handleInboxDrop(index, droppedTask, date);
 
-                print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                print(
+                  '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+                );
 
                 // 🔥 인박스 바텀시트 투명도 복구 (위젯 재생성 안함)
                 if (mounted) {
@@ -2170,60 +2329,64 @@ class _DateDetailViewState extends State<DateDetailView>
                 return RepaintBoundary(
                   child: Padding(
                     padding: const EdgeInsets.only(
-                      bottom: 4,
+                      bottom: 0,
                       left: 24,
                       right: 24,
                     ),
                     child: GestureDetector(
                       onTap: () => _showHabitDetailModal(habit, date),
                       child: SlidableHabitCard(
-                          groupTag: 'unified_list',
-                          habitId: habit.id,
-                          repeatRule: habit.repeatRule, // 🔄 반복 규칙 전달
-                          showConfirmDialog: true, // ✅ 삭제 확인 모달 표시
-                          onComplete: () async {
+                        groupTag: 'unified_list',
+                        habitId: habit.id,
+                        repeatRule: habit.repeatRule, // 🔄 반복 규칙 전달
+                        showConfirmDialog: true, // ✅ 삭제 확인 모달 표시
+                        onComplete: () async {
+                          // 🎯 햅틱 피드백 추가
+                          HapticFeedback.lightImpact();
+
+                          // 애니메이션: 카드 축소 효과
+                          setState(() {}); // 리빌드 트리거
+
+                          await GetIt.I<AppDatabase>().recordHabitCompletion(
+                            habit.id,
+                            date,
+                          );
+                          print('✅ [HabitCard] 완료 기록: ${habit.title}');
+                        },
+                        onDelete: () async {
+                          await GetIt.I<AppDatabase>().deleteHabit(habit.id);
+                          // 🗑️ DailyCardOrder에서도 삭제
+                          await GetIt.I<AppDatabase>().deleteCardFromAllOrders(
+                            'habit',
+                            habit.id,
+                          );
+                          print('🗑️ [HabitCard] 삭제: ${habit.title}');
+                          // ✅ 토스트 표시
+                          if (context.mounted) {
+                            showActionToast(context, type: ToastType.delete);
+                          }
+                        },
+                        child: HabitCard(
+                          habit: habit,
+                          isCompleted: false, // TODO: HabitCompletion 확인
+                          onToggle: () async {
                             // 🎯 햅틱 피드백 추가
                             HapticFeedback.lightImpact();
-
-                            // 애니메이션: 카드 축소 효과
-                            setState(() {}); // 리빌드 트리거
-
                             await GetIt.I<AppDatabase>().recordHabitCompletion(
                               habit.id,
                               date,
                             );
-                            print('✅ [HabitCard] 완료 기록: ${habit.title}');
+                            print('✅ [HabitCard] 체크박스 완료 기록: ${habit.title}');
                           },
-                          onDelete: () async {
-                            await GetIt.I<AppDatabase>().deleteHabit(habit.id);
-                            // 🗑️ DailyCardOrder에서도 삭제
-                            await GetIt.I<AppDatabase>()
-                                .deleteCardFromAllOrders('habit', habit.id);
-                            print('🗑️ [HabitCard] 삭제: ${habit.title}');
-                            // ✅ 토스트 표시
-                            if (context.mounted) {
-                              showActionToast(context, type: ToastType.delete);
-                            }
+                          onTap: () {
+                            print('🔁 [HabitCard] 탭: ${habit.title}');
+                            _showHabitDetailModal(habit, date);
                           },
-                          child: HabitCard(
-                            habit: habit,
-                            isCompleted: false, // TODO: HabitCompletion 확인
-                            onToggle: () async {
-                              // 🎯 햅틱 피드백 추가
-                              HapticFeedback.lightImpact();
-                              await GetIt.I<AppDatabase>()
-                                  .recordHabitCompletion(habit.id, date);
-                              print('✅ [HabitCard] 체크박스 완료 기록: ${habit.title}');
-                            },
-                            onTap: () {
-                              print('🔁 [HabitCard] 탭: ${habit.title}');
-                              _showHabitDetailModal(habit, date);
-                            },
-                          ),
                         ),
                       ),
                     ),
-                  );
+                  ),
+                );
               },
             ), // DragTarget 닫기
           ], // Column children 닫기
@@ -2285,666 +2448,6 @@ class _DateDetailViewState extends State<DateDetailView>
         return SizedBox.shrink(key: key);
     }
   }
-
-  // ============================================================================
-  // 🗑️ 기존 CustomScrollView 코드 (백업용 - 나중에 삭제)
-  // ============================================================================
-  /*
-  Widget _buildUnifiedList_OLD(DateTime date) {
-    return StreamBuilder<List<ScheduleData>>(
-      stream: GetIt.I<AppDatabase>().watchByDay(date),
-      builder: (context, scheduleSnapshot) {
-        return StreamBuilder<List<TaskData>>(
-          stream: GetIt.I<AppDatabase>().watchTasks(),
-          builder: (context, taskSnapshot) {
-            return StreamBuilder<List<HabitData>>(
-              stream: GetIt.I<AppDatabase>().watchHabits(),
-              builder: (context, habitSnapshot) {
-                if (!scheduleSnapshot.hasData ||
-                    !taskSnapshot.hasData ||
-                    !habitSnapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final schedules = scheduleSnapshot.data!;
-                final tasks = taskSnapshot.data!;
-                final habits = habitSnapshot.data!;
-
-                final incompleteTasks = tasks
-                    .where((t) => !t.completed)
-                    .toList();
-                final completedTasks = tasks.where((t) => t.completed).toList();
-
-                return CustomScrollView(
-                  controller: _scrollController,
-                  slivers: [
-                    // ===============================================
-                    // 1. 일정 섹션 (시간순)
-                    // ===============================================
-                    if (schedules.isNotEmpty)
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final schedule = schedules[index];
-                            // ✅ RepaintBoundary + ValueKey로 성능 최적화
-                            return RepaintBoundary(
-                              key: ValueKey('schedule_${schedule.id}'),
-                              child: Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: GestureDetector(
-                                  onTap: () => _openScheduleDetail(schedule),
-                                  child: SlidableScheduleCard(
-                                    groupTag: 'unified_list',
-                                    scheduleId: schedule.id,
-                                    repeatRule: schedule.repeatRule, // 🔄 반복 규칙 전달
-                                    onComplete: () async {
-                                      await GetIt.I<AppDatabase>()
-                                          .completeSchedule(schedule.id);
-                                      print('✅ [ScheduleCard] 완료: ${schedule.summary}');
-                                      HapticFeedback.lightImpact();
-                                    },
-                                    onDelete: () async {
-                                      await GetIt.I<AppDatabase>().deleteSchedule(
-                                        schedule.id,
-                                      );
-                                    },
-                                    child: ScheduleCard(
-                                      start: schedule.start,
-                                      end: schedule.end,
-                                      summary: schedule.summary,
-                                      colorId: schedule.colorId,
-                                      repeatRule: schedule.repeatRule,
-                                      alertSetting: schedule.alertSetting,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }, childCount: schedules.length),
-                        ),
-                      ),
-
-                    // ===============================================
-                    // 2. 점선 구분선 (Figma: Vector 88)
-                    // ===============================================
-                    if (schedules.isNotEmpty &&
-                        (incompleteTasks.isNotEmpty || habits.isNotEmpty))
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 16,
-                          ),
-                          child: const DashedDivider(),
-                        ),
-                      ),
-
-                    // ===============================================
-                    // 3. 할일 섹션 (추가순) + 🎯 DragTarget 추가
-                    // ===============================================
-                    // 🎯 빈 리스트일 때도 DragTarget 표시
-                    if (incompleteTasks.isEmpty)
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: DragTarget<TaskData>(
-                            onAcceptWithDetails: (details) {
-                              final droppedTask = details.data;
-                              print('✅ [DateDetail] 빈 리스트에 태스크 드롭: "${droppedTask.title}" (id=${droppedTask.id})');
-                              
-                              // 🎯 중복 체크: 이미 이 날짜에 있는지 확인
-                              if (droppedTask.executionDate != null &&
-                                  droppedTask.executionDate!.year == widget.selectedDate.year &&
-                                  droppedTask.executionDate!.month == widget.selectedDate.month &&
-                                  droppedTask.executionDate!.day == widget.selectedDate.day) {
-                                print('⚠️ [DateDetail] 이미 같은 날짜에 있는 태스크: "${droppedTask.title}"');
-                                HapticFeedback.lightImpact();
-                                return;
-                              }
-                              
-                              // 🎯 즉시 햅틱 피드백 (드래그 완료 느낌)
-                              HapticFeedback.heavyImpact();
-                              
-                              // 🎯 드래그 프레임 완료 후 DB 업데이트 (microtask로 지연)
-                              Future.microtask(() {
-                                GetIt.I<AppDatabase>().updateTaskDate(
-                                  droppedTask.id,
-                                  widget.selectedDate,
-                                ).then((_) {
-                                  print('💾 [DateDetail] DB 업데이트 완료: task #${droppedTask.id}');
-                                }).catchError((e) {
-                                  print('❌ [DateDetail] DB 업데이트 실패: $e');
-                                });
-                              });
-                            },
-                            onWillAcceptWithDetails: (details) {
-                              final task = details.data;
-                              // 🎯 중복 체크
-                              final isDuplicate = task.executionDate != null &&
-                                  task.executionDate!.year == widget.selectedDate.year &&
-                                  task.executionDate!.month == widget.selectedDate.month &&
-                                  task.executionDate!.day == widget.selectedDate.day;
-                              
-                              print('🎯 [DateDetail] 빈 리스트 onWillAccept: ${task.title} (duplicate=$isDuplicate)');
-                              return !isDuplicate; // 중복이면 거부
-                            },
-                            onMove: (details) {
-                              print('👆 [DateDetail] 빈 리스트 onMove: ${details.offset}');
-                            },
-                            builder: (context, candidateData, rejectedData) {
-                              final isHovering = candidateData.isNotEmpty;
-                              print('🔄 [DateDetail] 빈 리스트 builder: hovering=$isHovering');
-                              
-                              return Container(
-                                height: 80,
-                                margin: const EdgeInsets.only(bottom: 4),
-                                decoration: BoxDecoration(
-                                  color: isHovering 
-                                    ? const Color(0xFF566099).withOpacity(0.1)
-                                    : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: isHovering
-                                    ? Border.all(
-                                        color: const Color(0xFF566099),
-                                        width: 2,
-                                      )
-                                    : null,
-                                ),
-                                child: Center(
-                                  child: isHovering
-                                    ? const Icon(
-                                        Icons.add,
-                                        color: Color(0xFF566099),
-                                        size: 32,
-                                      )
-                                    : const SizedBox.shrink(),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    
-                    if (incompleteTasks.isNotEmpty)
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final task = incompleteTasks[index];
-                            
-                            return Column(
-                              children: [
-                                // � 카드 위쪽에 드롭존 (카드 사이에 끼워넣기)
-                                DragTarget<TaskData>(
-                                  onAcceptWithDetails: (details) {
-                                    final droppedTask = details.data;
-                                    print('✅ [Between-Cards] 카드 사이에 드롭: "${droppedTask.title}" → ${widget.selectedDate}');
-                                    
-                                    // 중복 체크
-                                    if (droppedTask.executionDate != null &&
-                                        droppedTask.executionDate!.year == widget.selectedDate.year &&
-                                        droppedTask.executionDate!.month == widget.selectedDate.month &&
-                                        droppedTask.executionDate!.day == widget.selectedDate.day) {
-                                      print('⚠️ 이미 같은 날짜에 있는 태스크');
-                                      HapticFeedback.lightImpact();
-                                      return;
-                                    }
-                                    
-                                    HapticFeedback.heavyImpact();
-                                    
-                                    Future.microtask(() {
-                                      GetIt.I<AppDatabase>().updateTaskDate(
-                                        droppedTask.id,
-                                        widget.selectedDate,
-                                      ).then((_) {
-                                        print('💾 DB 업데이트 완료: task #${droppedTask.id}');
-                                      }).catchError((e) {
-                                        print('❌ DB 업데이트 실패: $e');
-                                      });
-                                    });
-                                  },
-                                  onWillAcceptWithDetails: (details) {
-                                    final droppedTask = details.data;
-                                    final isDuplicate = droppedTask.executionDate != null &&
-                                        droppedTask.executionDate!.year == widget.selectedDate.year &&
-                                        droppedTask.executionDate!.month == widget.selectedDate.month &&
-                                        droppedTask.executionDate!.day == widget.selectedDate.day;
-                                    return !isDuplicate;
-                                  },
-                                  builder: (context, candidateData, rejectedData) {
-                                    final isHovering = candidateData.isNotEmpty;
-                                    
-                                    return AnimatedContainer(
-                                      duration: const Duration(milliseconds: 250),
-                                      curve: Curves.easeOutCubic,
-                                      height: isHovering ? 72 : 8, // 호버 시 공간 벌어짐
-                                      margin: const EdgeInsets.only(bottom: 4),
-                                      child: isHovering
-                                          ? Container(
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFF566099).withOpacity(0.08),
-                                                borderRadius: BorderRadius.circular(16),
-                                                border: Border.all(
-                                                  color: const Color(0xFF566099),
-                                                  width: 2,
-                                                  style: BorderStyle.solid,
-                                                ),
-                                              ),
-                                              child: Row(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  const Icon(
-                                                    Icons.add_circle_outline,
-                                                    color: Color(0xFF566099),
-                                                    size: 24,
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Text(
-                                                    'ここにドロップ',
-                                                    style: TextStyle(
-                                                      fontFamily: 'LINE Seed JP App_TTF',
-                                                      fontSize: 15,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: const Color(0xFF566099),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            )
-                                          : const SizedBox.shrink(), // 평소엔 작은 간격
-                                    );
-                                  },
-                                ),
-                                
-                                // 🎯 기존 Task 카드 (카드 자체도 DragTarget)
-                                DragTarget<TaskData>(
-                                  onAcceptWithDetails: (details) {
-                                    final droppedTask = details.data;
-                                    print('✅ [On-Card] 카드 위에 드롭: "${droppedTask.title}" → ${widget.selectedDate}');
-                                    
-                                    if (droppedTask.executionDate != null &&
-                                        droppedTask.executionDate!.year == widget.selectedDate.year &&
-                                        droppedTask.executionDate!.month == widget.selectedDate.month &&
-                                        droppedTask.executionDate!.day == widget.selectedDate.day) {
-                                      print('⚠️ 이미 같은 날짜에 있는 태스크');
-                                      HapticFeedback.lightImpact();
-                                      return;
-                                    }
-                                    
-                                    HapticFeedback.heavyImpact();
-                                    
-                                    Future.microtask(() {
-                                      GetIt.I<AppDatabase>().updateTaskDate(
-                                        droppedTask.id,
-                                        widget.selectedDate,
-                                      ).then((_) {
-                                        print('💾 DB 업데이트 완료: task #${droppedTask.id}');
-                                      }).catchError((e) {
-                                        print('❌ DB 업데이트 실패: $e');
-                                      });
-                                    });
-                                  },
-                                  onWillAcceptWithDetails: (details) {
-                                    final droppedTask = details.data;
-                                    final isDuplicate = droppedTask.executionDate != null &&
-                                        droppedTask.executionDate!.year == widget.selectedDate.year &&
-                                        droppedTask.executionDate!.month == widget.selectedDate.month &&
-                                        droppedTask.executionDate!.day == widget.selectedDate.day;
-                                    return !isDuplicate;
-                                  },
-                                  builder: (context, candidateData, rejectedData) {
-                                    final isHovering = candidateData.isNotEmpty;
-                                    
-                                    return AnimatedContainer(
-                                      duration: const Duration(milliseconds: 200),
-                                      curve: Curves.easeOut,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(16),
-                                        boxShadow: isHovering
-                                            ? [
-                                                BoxShadow(
-                                                  color: const Color(0xFF566099).withOpacity(0.15),
-                                                  blurRadius: 12,
-                                                  spreadRadius: 2,
-                                                ),
-                                              ]
-                                            : null,
-                                      ),
-                                      child: RepaintBoundary(
-                                        key: ValueKey('task_${task.id}'),
-                                        child: Padding(
-                                          padding: const EdgeInsets.only(bottom: 4),
-                                          child: SlidableTaskCard(
-                                            groupTag: 'unified_list',
-                                            taskId: task.id,
-                                            repeatRule: task.repeatRule,
-                                            onTap: () => _openTaskDetail(task),
-                                            onComplete: () async {
-                                              HapticFeedback.lightImpact();
-                                              await GetIt.I<AppDatabase>().completeTask(task.id);
-                                              print('✅ [TaskCard] 완료 토글: ${task.title}');
-                                            },
-                                            onDelete: () async {
-                                              await GetIt.I<AppDatabase>().deleteTask(task.id);
-                                              print('🗑️ [TaskCard] 삭제: ${task.title}');
-                                              if (context.mounted) {
-                                                showActionToast(context, type: ToastType.delete);
-                                              }
-                                            },
-                                            onInbox: () async {
-                                              await GetIt.I<AppDatabase>().moveTaskToInbox(task.id);
-                                              print('📥 [TaskCard] 인박스로 이동: ${task.title}');
-                                            },
-                                            child: TaskCard(
-                                              task: task,
-                                              onToggle: () async {
-                                                HapticFeedback.lightImpact();
-                                                if (task.completed) {
-                                                  await GetIt.I<AppDatabase>().uncompleteTask(task.id);
-                                                  print('🔄 [TaskCard] 체크박스 완료 해제: ${task.title}');
-                                                } else {
-                                                  await GetIt.I<AppDatabase>().completeTask(task.id);
-                                                  print('✅ [TaskCard] 체크박스 완료 처리: ${task.title}');
-                                                }
-                                              },
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            );
-                          }, childCount: incompleteTasks.length),
-                        ),
-                      ),
-
-                    // ===============================================
-                    // 4. 습관 섹션 (시간순 → 추가순)
-                    // ===============================================
-                    if (habits.isNotEmpty)
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final habit = habits[index];
-                            // ✅ RepaintBoundary + ValueKey로 성능 최적화
-                            return DragTarget<TaskData>(
-                              onWillAcceptWithDetails: (details) {
-                                print('📌 습관 위로 Drag Hover: ${details.data.title} -> ${habit.title}');
-                                return true;
-                              },
-                              onAcceptWithDetails: (details) {
-                                final droppedTask = details.data;
-                                print('✅ 습관 위에 Drop: ${droppedTask.title} -> ${habit.title}');
-                                
-                                // 🎯 즉시 햅틱 피드백
-                                HapticFeedback.heavyImpact();
-                                
-                                // 🎯 DB 업데이트는 백그라운드에서
-                                GetIt.I<AppDatabase>().updateTaskDate(
-                                  droppedTask.id,
-                                  widget.selectedDate,
-                                ).then((_) {
-                                  print('💾 [Habit List DragTarget] DB 업데이트 완료: task #${droppedTask.id}');
-                                }).catchError((e) {
-                                  print('❌ [Habit List DragTarget] DB 업데이트 실패: $e');
-                                });
-                              },
-                              builder: (context, candidateData, rejectedData) {
-                                final isHovering = candidateData.isNotEmpty;
-                                return RepaintBoundary(
-                                  key: ValueKey('habit_${habit.id}'),
-                                  child: Column(
-                                    children: [
-                                      // 드래그 호버 시 공간 표시
-                                      if (isHovering)
-                                        Container(
-                                          height: 60,
-                                          margin: const EdgeInsets.only(bottom: 8),
-                                          decoration: BoxDecoration(
-                                            border: Border.all(
-                                              color: const Color(0xFF566099),
-                                              width: 2,
-                                            ),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: const Center(
-                                            child: Icon(
-                                              Icons.add_circle_outline,
-                                              color: Color(0xFF566099),
-                                              size: 32,
-                                            ),
-                                          ),
-                                        ),
-                                      Padding(
-                                        padding: const EdgeInsets.only(bottom: 4),
-                                        child: GestureDetector(
-                                          onTap: () => _showHabitDetailModal(habit, date),
-                                          child: SlidableHabitCard(
-                                            groupTag: 'unified_list',
-                                            habitId: habit.id,
-                                            repeatRule: habit.repeatRule, // 🔄 반복 규칙 전달
-                                            showConfirmDialog: true, // ✅ 삭제 확인 모달 표시
-                                            onComplete: () async {
-                                              // 🎯 햅틱 피드백 추가
-                                              HapticFeedback.lightImpact();
-                                              
-                                              // 애니메이션: 카드 축소 효과
-                                              setState(() {}); // 리빌드 트리거
-                                              
-                                              // 이거를 해서 → 오늘 날짜로 완료 기록
-                                              await GetIt.I<AppDatabase>()
-                                                  .recordHabitCompletion(habit.id, date);
-                                              print(
-                                                '✅ [HabitCard] 완료 기록: ${habit.title}',
-                                              );
-                                            },
-                                            onDelete: () async {
-                                              // 이거라면 → 습관 삭제
-                                              await GetIt.I<AppDatabase>().deleteHabit(
-                                                habit.id,
-                                              );
-                                              print('🗑️ [HabitCard] 삭제: ${habit.title}');
-                                              // ✅ 토스트 표시
-                                              if (context.mounted) {
-                                                showActionToast(context, type: ToastType.delete);
-                                              }
-                                            },
-                                            child: HabitCard(
-                                            habit: habit,
-                                            isCompleted:
-                                                false, // TODO: HabitCompletion 확인
-                                            onToggle: () async {
-                                              // 🎯 햅틱 피드백 추가
-                                              HapticFeedback.lightImpact();
-                                              // 이거를 설정하고 → 체크박스 클릭 시에도 완료 기록
-                                              await GetIt.I<AppDatabase>()
-                                                  .recordHabitCompletion(
-                                                    habit.id,
-                                                    date,
-                                                  );
-                                              print(
-                                                '✅ [HabitCard] 체크박스 완료 기록: ${habit.title}',
-                                              );
-                                            },
-                                            onTap: () {
-                                              print('🔁 [HabitCard] 탭: ${habit.title}');
-                                              // ✅ Wolt 습관 상세 모달 표시
-                                              _showHabitDetailModal(habit, date);
-                                            },
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
-                          }, childCount: habits.length),
-                        ),
-                      ),
-
-                    // ===============================================
-                    // 5. 완료 섹션 (Figma: Complete_ActionData) - 리스트 맨 하단
-                    // ===============================================
-                    SliverToBoxAdapter(
-                      child: StreamBuilder<List<TaskData>>(
-                        stream: GetIt.I<AppDatabase>()
-                            .watchCompletedTasksByDay(date),
-                        builder: (context, taskSnapshot) {
-                          print('🔵 [CompletedSection] StreamBuilder 1단계 - taskSnapshot.connectionState: ${taskSnapshot.connectionState}');
-                          print('🔵 [CompletedSection] StreamBuilder 1단계 - taskSnapshot.hasData: ${taskSnapshot.hasData}');
-                          print('🔵 [CompletedSection] StreamBuilder 1단계 - taskSnapshot.data: ${taskSnapshot.data}');
-                          
-                          return StreamBuilder<List<HabitData>>(
-                            stream: GetIt.I<AppDatabase>()
-                                .watchCompletedHabitsByDay(date),
-                            builder: (context, habitSnapshot) {
-                              print('🟢 [CompletedSection] StreamBuilder 2단계 - habitSnapshot.connectionState: ${habitSnapshot.connectionState}');
-                              print('🟢 [CompletedSection] StreamBuilder 2단계 - habitSnapshot.hasData: ${habitSnapshot.hasData}');
-                              print('🟢 [CompletedSection] StreamBuilder 2단계 - habitSnapshot.data: ${habitSnapshot.data}');
-                              
-                              final completedTasks = taskSnapshot.data ?? [];
-                              final completedHabits = habitSnapshot.data ?? [];
-                              final completedCount =
-                                  completedTasks.length + completedHabits.length;
-
-                              print('✅ [CompletedSection] 완료된 항목: Task=${completedTasks.length}, Habit=${completedHabits.length}, Total=$completedCount');
-                              print('🎯 [CompletedSection] 완료 섹션 렌더링 시작!');
-
-                              // 🔧 임시: 완료된 항목이 없어도 섹션 표시 (테스트용)
-                              print('⚠️ [CompletedSection] 테스트 모드 - 항목 0개여도 표시');
-
-                              return Container(
-                                color: Colors.red.withOpacity(0.3), // 🔴 디버그: 빨간 배경
-                                padding: const EdgeInsets.only(
-                                  left: 24,
-                                  right: 24,
-                                  top: 16,
-                                  bottom: 16,
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // 완료 섹션 박스
-                                    Container(
-                                      width: 345,
-                                      height: 56,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFEEEEEE),
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: Material(
-                                        color: Colors.transparent,
-                                        child: InkWell(
-                                          borderRadius: BorderRadius.circular(16),
-                                          onTap: () {
-                                            print('🟡 [CompletedSection] 완료 박스 탭!');
-                                            setState(() {
-                                              _isCompletedExpanded = !_isCompletedExpanded;
-                                              if (_isCompletedExpanded) {
-                                                _completedExpandController.forward();
-                                              } else {
-                                                _completedExpandController.reverse();
-                                              }
-                                            });
-                                          },
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                                            child: Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Text(
-                                                  '完了',
-                                                  style: TextStyle(
-                                                    fontFamily: 'NotoSansJP',
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.black.withOpacity(0.6),
-                                                  ),
-                                                ),
-                                                Row(
-                                                  children: [
-                                                    Text(
-                                                      '$completedCount',
-                                                      style: TextStyle(
-                                                        fontFamily: 'NotoSansJP',
-                                                        fontSize: 16,
-                                                        fontWeight: FontWeight.w500,
-                                                        color: Colors.black.withOpacity(0.4),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    AnimatedRotation(
-                                                      turns: _isCompletedExpanded ? 0.5 : 0,
-                                                      duration: const Duration(milliseconds: 450),
-                                                      curve: Curves.easeInOutCubic,
-                                                      child: Icon(
-                                                        Icons.keyboard_arrow_down,
-                                                        color: Colors.black.withOpacity(0.4),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    
-                                    // 완료된 항목 리스트 (애니메이션 적용)
-                                    SizeTransition(
-                                      sizeFactor: _completedExpandAnimation,
-                                      axisAlignment: -1.0,
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          const SizedBox(height: 16),
-                                          Text(
-                                            '완료된 항목: $completedCount개',
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.black,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-                    ),
-
-                    // 하단 여백
-                    const SliverToBoxAdapter(child: SizedBox(height: 100)),
-                  ],
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-  */
 
   // ============================================================================
   // ⭐️ iOS 네이티브 스타일 상세 페이지 열기 함수들
@@ -3536,64 +3039,145 @@ class _DateDetailViewState extends State<DateDetailView>
     DateTime date,
   ) async {
     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    print('🔥 [인박스 드롭 처리 시작]');
+    print('🔥 [카드 사이 드롭 처리 시작]');
     print('   • Task ID: ${task.id}');
     print('   • Task 제목: ${task.title}');
     print('   • UI 드롭 위치 (index): $dropIndex');
     print('   • 대상 날짜: ${date.toString().split(' ')[0]}');
     print('');
 
-    // [1단계] Task 날짜 변경
-    print('💾 [1단계] Task 날짜 변경');
+    // [1단계] 먼저 현재 날짜의 데이터를 sortOrder와 함께 로드 (날짜 변경 전!)
+    print('💾 [1단계] 현재 날짜의 일정/할일/습관 로드 (sortOrder 포함) - 날짜 변경 전!');
+    final db = GetIt.I<AppDatabase>();
+
+    final schedules = await db.watchSchedulesWithRepeat(date).first;
+    final tasks = await db.watchTasksWithRepeat(date).first;
+    final habits = await db.watchHabitsWithRepeat(date).first;
+
+    print('   • 일정: ${schedules.length}개');
+    print('   • 할일: ${tasks.length}개 (드롭될 Task 아직 포함 안됨)');
+    print('   • 습관: ${habits.length}개');
+
+    // [2단계] 현재 순서대로 UnifiedListItem 생성 (sortOrder 기반)
+    print('💾 [2단계] sortOrder 기반으로 현재 리스트 구성');
+    final currentItems = await _buildUnifiedItemList(
+      date,
+      schedules,
+      tasks,
+      habits,
+    );
+
+    print('   • 전체 currentItems 길이: ${currentItems.length}');
+
+    // dateHeader, divider, completed, inboxHeader 제외한 실제 데이터만
+    // 🔥 드롭될 Task는 아직 날짜가 변경되지 않았으므로 currentItems에 포함되지 않음
+    final actualDataItems = currentItems
+        .where(
+          (item) =>
+              item.type != UnifiedItemType.dateHeader &&
+              item.type != UnifiedItemType.divider &&
+              item.type != UnifiedItemType.completed &&
+              item.type != UnifiedItemType.inboxHeader,
+        )
+        .toList();
+
+    print('   • 실제 데이터 아이템 수 (헤더/구분선/드롭Task 제외): ${actualDataItems.length}');
+    print('   • 받은 dropIndex (currentItems 기준): $dropIndex');
+
+    // 🔥 [핵심] dropIndex를 actualDataItems 기준으로 변환
+    // dropIndex는 currentItems의 인덱스이므로, actualDataItems에서 몇 번째인지 찾아야 함
+    int actualDropIndex = 0;
+
+    if (dropIndex < currentItems.length) {
+      // dropIndex가 가리키는 currentItems의 아이템
+      final targetItem = currentItems[dropIndex];
+      print(
+        '   • dropIndex가 가리키는 아이템: ${targetItem.type} / ${targetItem.uniqueId}',
+      );
+
+      // 🔥 핵심 수정: divider인 경우 특별 처리
+      if (targetItem.type == UnifiedItemType.divider) {
+        // Divider는 schedules와 tasks 사이에 있음
+        // Divider 위에 드롭 = schedules 끝에 삽입해야 함
+        // 하지만 actualDataItems에는 divider가 없으므로, schedules 개수를 세서 그 위치를 사용
+        print('   🔥 Divider에 드롭 → schedules 끝 위치 계산');
+
+        // dropIndex 이전의 schedule 개수를 센다
+        int scheduleCount = 0;
+        for (int i = 0; i < dropIndex; i++) {
+          if (currentItems[i].type == UnifiedItemType.schedule) {
+            scheduleCount++;
+          }
+        }
+
+        actualDropIndex = scheduleCount;
+        print(
+          '   🎯 Schedule 개수: $scheduleCount → actualDropIndex = $actualDropIndex',
+        );
+      } else {
+        // 일반 데이터 아이템인 경우, actualDataItems에서 위치 찾기
+        actualDropIndex = actualDataItems.indexWhere(
+          (item) => item.uniqueId == targetItem.uniqueId,
+        );
+
+        if (actualDropIndex == -1) {
+          // 헤더를 가리키는 경우, 그 다음 실제 데이터 아이템을 찾음
+          print('   ⚠️ 헤더를 가리킴 → 다음 실제 아이템 찾기');
+
+          // dropIndex 이후의 첫 번째 실제 데이터 아이템을 찾음
+          for (int i = dropIndex; i < currentItems.length; i++) {
+            final item = currentItems[i];
+            actualDropIndex = actualDataItems.indexWhere(
+              (dataItem) => dataItem.uniqueId == item.uniqueId,
+            );
+            if (actualDropIndex != -1) {
+              print('   ✅ 찾은 실제 아이템 인덱스: $actualDropIndex');
+              break;
+            }
+          }
+        } else {
+          print('   ✅ actualDataItems 인덱스: $actualDropIndex');
+        }
+      }
+
+      // 못 찾았으면 맨 끝
+      if (actualDropIndex == -1) {
+        actualDropIndex = actualDataItems.length;
+        print('   ⚠️ 실제 아이템 없음 → 맨 끝으로 설정');
+      }
+    } else {
+      // 범위 밖이면 맨 끝
+      actualDropIndex = actualDataItems.length;
+      print('   ⚠️ 범위 밖 → 맨 끝으로 설정');
+    }
+
+    // 🔥 핵심 수정: 사용자가 "카드 위에" 드롭하면 그 카드 위치에 삽입해야 함
+    // 하지만 우리가 계산한 actualDropIndex는 "그 카드가 가리키는 위치"이므로
+    // 실제로는 그 위치에 삽입하면 그 카드 뒤에 들어감
+    // 따라서 -1을 해서 그 카드 앞(= 그 카드가 있던 자리)에 삽입
+    if (actualDropIndex > 0) {
+      final oldIndex = actualDropIndex;
+      actualDropIndex = actualDropIndex - 1;
+      print(
+        '   🔥 드롭 위치 조정: $oldIndex → $actualDropIndex (카드가 드롭된 위치에 정확히 삽입)',
+      );
+    }
+
+    print('   🎯 최종 삽입 위치 (actualDataItems 기준): $actualDropIndex');
+    print('');
+
+    // [3단계] Task 날짜 변경
+    print('💾 [3단계] Task 날짜 변경 (인덱스 계산 후)');
     await GetIt.I<AppDatabase>().updateTaskDate(task.id, date);
     print('   ✅ Task #${task.id} 날짜 변경 완료');
     print('');
 
-    // [2단계] 현재 날짜의 모든 데이터 로드
-    print('💾 [2단계] 현재 날짜의 일정/할일/습관 로드');
-    final db = GetIt.I<AppDatabase>();
+    // [4단계] 전체 리스트에 새 Task 추가
+    print('💾 [4단계] 정확한 위치에 새 Task 추가');
+    final updatedItems = List<UnifiedListItem>.from(actualDataItems);
 
-    final schedules = await db.watchByDay(date).first;
-    final tasks = await db.watchTasksWithRepeat(date).first;
-    final habits = await db.watchHabitsWithRepeat(date).first;
-
-    // 완료된 항목 제외
-    final incompleteSchedules = schedules.where((s) => !s.completed).toList();
-    final incompleteTasks = tasks
-        .where((t) => !t.completed && t.id != task.id)
-        .toList(); // 드롭된 task 제외
-    final incompleteHabits = habits; // 습관은 날짜별 완료 체크가 별도
-
-    print('   • 일정: ${incompleteSchedules.length}개');
-    print('   • 할일: ${incompleteTasks.length}개 (드롭된 task 제외)');
-    print('   • 습관: ${incompleteHabits.length}개');
-
-    // [3단계] 전체 리스트 재구성 - 기존 순서대로
-    print('💾 [3단계] 전체 리스트에 새 Task 추가');
-    final updatedItems = <UnifiedListItem>[];
-
-    // 기존 아이템들을 sortOrder 순으로 정렬하여 추가
-    int currentIndex = 0;
-    for (final schedule in incompleteSchedules) {
-      updatedItems.add(
-        UnifiedListItem.fromSchedule(schedule, sortOrder: currentIndex++),
-      );
-    }
-    for (final t in incompleteTasks) {
-      updatedItems.add(
-        UnifiedListItem.fromTask(t, sortOrder: currentIndex++),
-      );
-    }
-    for (final habit in incompleteHabits) {
-      updatedItems.add(
-        UnifiedListItem.fromHabit(habit, sortOrder: currentIndex++),
-      );
-    }
-
-    // 🔥 DB에서 실제 Task 데이터 다시 로드
-    final taskFromDb = await GetIt.I<AppDatabase>().getTaskById(
-      task.id,
-    );
+    // 🔥 DB에서 실제 Task 데이터 다시 로드 (날짜 변경 후)
+    final taskFromDb = await GetIt.I<AppDatabase>().getTaskById(task.id);
     if (taskFromDb == null) {
       print('   ❌ Task를 DB에서 찾을 수 없음');
       return;
@@ -3602,26 +3186,26 @@ class _DateDetailViewState extends State<DateDetailView>
     // 새 Task 아이템 생성
     final newTaskItem = UnifiedListItem.fromTask(
       taskFromDb,
-      sortOrder: dropIndex,
+      sortOrder: actualDropIndex,
     );
 
     print('   📊 현재 리스트 길이: ${updatedItems.length}');
-    print('   📍 삽입 위치: $dropIndex');
+    print('   📍 삽입 위치 (actualDataItems 기준): $actualDropIndex');
 
     // 원하는 위치에 삽입
-    if (dropIndex >= updatedItems.length) {
+    if (actualDropIndex >= updatedItems.length) {
       updatedItems.add(newTaskItem);
-      print('   ➕ 맨 끝에 추가');
+      print('   ➕ 맨 끝에 추가 (index ${updatedItems.length - 1})');
     } else {
-      updatedItems.insert(dropIndex, newTaskItem);
-      print('   ➕ index $dropIndex에 삽입');
+      updatedItems.insert(actualDropIndex, newTaskItem);
+      print('   ➕ index $actualDropIndex에 삽입');
     }
 
     print('   📊 삽입 후 길이: ${updatedItems.length}');
     print('');
 
-    // [4단계] sortOrder를 0부터 순차적으로 재계산
-    print('🔢 [4단계] sortOrder 재계산 (0부터 순차)');
+    // [5단계] sortOrder를 0부터 순차적으로 재계산
+    print('🔢 [5단계] sortOrder 재계산 (0부터 순차)');
     for (int i = 0; i < updatedItems.length; i++) {
       updatedItems[i] = updatedItems[i].copyWith(sortOrder: i);
     }
@@ -3629,8 +3213,7 @@ class _DateDetailViewState extends State<DateDetailView>
     // 재계산된 리스트 출력
     print('📋 [재계산된 전체 순서]:');
     for (int i = 0; i < updatedItems.length; i++) {
-      final marker =
-          updatedItems[i].uniqueId.contains('task_${task.id}')
+      final marker = updatedItems[i].uniqueId.contains('task_${task.id}')
           ? '🔥 [방금 추가!]'
           : '';
       final typeEmoji = updatedItems[i].type == UnifiedItemType.schedule
@@ -3646,13 +3229,14 @@ class _DateDetailViewState extends State<DateDetailView>
     }
     print('');
 
-    // [5단계] DB에 전체 순서 저장
-    print('💾 [5단계] DB에 전체 순서 저장');
+    // [6단계] DB에 전체 순서 저장
+    print('💾 [6단계] DB에 전체 순서 저장');
     await _saveDailyCardOrder(updatedItems);
 
-    print('✅ [인박스 드롭 처리 완료!]');
+    print('✅ [카드 사이 드롭 처리 완료!]');
     print('   • Task ID: ${task.id}');
-    print('   • 최종 위치: $dropIndex');
+    print('   • 받은 dropIndex: $dropIndex');
+    print('   • 최종 삽입 위치: $actualDropIndex');
     print('   • 날짜: ${date.toString().split(' ')[0]}');
     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   }
@@ -4221,16 +3805,8 @@ class _DateDetailViewState extends State<DateDetailView>
         print('💾 [TopDropZone] Task 드롭: ${task.title} → $date (최상단)');
 
         HapticFeedback.heavyImpact();
-        await GetIt.I<AppDatabase>().updateTaskDate(
-          task.id,
-          date,
-        );
-        await GetIt.I<AppDatabase>().updateCardOrder(
-          date,
-          'task',
-          task.id,
-          0,
-        );
+        await GetIt.I<AppDatabase>().updateTaskDate(task.id, date);
+        await GetIt.I<AppDatabase>().updateCardOrder(date, 'task', task.id, 0);
 
         print('✅ [TopDropZone] DB 업데이트 완료 (sortOrder=0, 최상단)');
 
@@ -4278,7 +3854,9 @@ class _DateDetailViewState extends State<DateDetailView>
           height: isHovered ? 80 : 0,
           width: double.infinity,
           decoration: BoxDecoration(
-            color: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+            color: isHovered
+                ? Colors.blue.withOpacity(0.1)
+                : Colors.transparent,
             border: isHovered
                 ? Border.all(color: Colors.blue.withOpacity(0.3), width: 2)
                 : null,
@@ -4321,7 +3899,9 @@ class _DateDetailViewState extends State<DateDetailView>
       onAcceptWithDetails: (details) async {
         final task = details.data;
         print('✅ [BetweenCardDropZone] 카드 #$index 위쪽에 드롭 완료');
-        print('💾 [BetweenCardDropZone] Task 드롭: ${task.title} → $date (index $index 위쪽)');
+        print(
+          '💾 [BetweenCardDropZone] Task 드롭: ${task.title} → $date (index $index 위쪽)',
+        );
 
         HapticFeedback.heavyImpact();
 
@@ -4341,7 +3921,7 @@ class _DateDetailViewState extends State<DateDetailView>
         return AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
-          height: isHovered ? 72 : 8, // 호버 시 공간 벌어짐
+          height: isHovered ? 72 : 0, // 호버 시 공간 벌어짐
           margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
           decoration: isHovered
               ? BoxDecoration(
@@ -4405,10 +3985,7 @@ class _DateDetailViewState extends State<DateDetailView>
         print('💾 [BottomDropZone] Task 드롭: ${task.title} → $date (최하단)');
 
         HapticFeedback.heavyImpact();
-        await GetIt.I<AppDatabase>().updateTaskDate(
-          task.id,
-          date,
-        );
+        await GetIt.I<AppDatabase>().updateTaskDate(task.id, date);
         await GetIt.I<AppDatabase>().updateCardOrder(
           date,
           'task',
@@ -4462,7 +4039,9 @@ class _DateDetailViewState extends State<DateDetailView>
           height: isHovered ? 80 : 40, // 🎯 기본 40px 높이로 감지 영역 확보
           width: double.infinity,
           decoration: BoxDecoration(
-            color: isHovered ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+            color: isHovered
+                ? Colors.blue.withOpacity(0.1)
+                : Colors.transparent,
             border: isHovered
                 ? Border.all(color: Colors.blue.withOpacity(0.3), width: 2)
                 : null,

@@ -69,7 +69,6 @@ class HabitCard extends StatelessWidget {
 
     return Container(
       width: 345, // Figma: 고정 너비
-      margin: const EdgeInsets.symmetric(horizontal: 4.0),
       decoration: ShapeDecoration(
         color: Colors.white,
         shape: SmoothRectangleBorder(

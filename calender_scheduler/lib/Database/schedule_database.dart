@@ -427,7 +427,6 @@ class AppDatabase extends _$AppDatabase {
     return count;
   }
 
-
   /// 📥 할일을 인박스로 이동 (executionDate 제거)
   /// 이거를 설정하고 → 특정 id의 할일의 executionDate를 null로 설정해서
   /// 이거를 해서 → 해당 할일을 인박스로 이동시키고
@@ -442,6 +441,26 @@ class AppDatabase extends _$AppDatabase {
       '📥 [DB] moveTaskToInbox 실행 완료: ID=$id → Inbox로 이동됨 (executionDate 제거)',
     );
     return count;
+  }
+
+  /// 📥 인박스 할일 순서 업데이트 (드래그 앤 드롭용)
+  /// 이거를 설정하고 → 인박스의 모든 할일의 inboxOrder를 일괄 업데이트해서
+  /// 이거를 해서 → 사용자가 드래그 앤 드롭으로 정한 순서를 저장하고
+  /// 이거는 이래서 → 다음에 인박스를 열 때 같은 순서로 표시된다
+  Future<void> updateInboxTasksOrder(List<int> taskIds) async {
+    print('📥 [DB] updateInboxTasksOrder 시작: ${taskIds.length}개 Task');
+
+    await transaction(() async {
+      for (int i = 0; i < taskIds.length; i++) {
+        final taskId = taskIds[i];
+        await (update(task)..where((tbl) => tbl.id.equals(taskId))).write(
+          TaskCompanion(inboxOrder: Value(i)),
+        );
+        print('  → Task #$taskId: inboxOrder = $i');
+      }
+    });
+
+    print('✅ [DB] updateInboxTasksOrder 완료');
   }
 
   // ==================== Habit (습관) 함수 ====================
@@ -957,19 +976,24 @@ class AppDatabase extends _$AppDatabase {
   /// 📥 Inbox 할일 조회 (완료되지 않은 것만)
   /// 이거를 설정하고 → completed가 false인 할일만 가져와서
   /// 이거를 해서 → Inbox에만 표시한다
+  /// ✅ inboxOrder로 정렬 (사용자 커스텀 순서 반영)
   Stream<List<TaskData>> watchInboxTasks() {
-    print('👀 [DB] watchInboxTasks: 완료되지 않은 할일만 표시');
+    print('👀 [DB] watchInboxTasks: 완료되지 않은 할일만 표시 (inboxOrder 순)');
     return (select(task)
           ..where((tbl) => tbl.completed.equals(false)) // ✅ 완료되지 않은 것만
           ..orderBy([
             (tbl) => OrderingTerm(
+              expression: tbl.inboxOrder,
+              mode: OrderingMode.asc,
+            ), // ✅ 인박스 순서 오름차순 (드래그 앤 드롭 순서)
+            (tbl) => OrderingTerm(
               expression: tbl.dueDate,
               mode: OrderingMode.asc,
-            ), // 마감일 오름차순
+            ), // 마감일 오름차순 (보조 정렬)
             (tbl) => OrderingTerm(
               expression: tbl.title,
               mode: OrderingMode.asc,
-            ), // 제목 오름차순
+            ), // 제목 오름차순 (보조 정렬)
           ]))
         .watch();
   }
@@ -1765,7 +1789,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 8; // ✅ 스키마 버전 8: Schedule 테이블에 완료 기능 추가 (completed, completedAt)
+  int get schemaVersion => 9; // ✅ 스키마 버전 9: Task 테이블에 inboxOrder 컬럼 추가 (인박스 순서 관리)
 
   // ✅ [마이그레이션 전략 추가]
   // 이거를 설정하고 → onCreate에서 테이블을 생성하고
@@ -1827,6 +1851,13 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(schedule, schedule.completed);
         await m.addColumn(schedule, schedule.completedAt);
         print('✅ [DB Migration] v7→v8+ 완료 - Schedule 완료 기능 추가');
+      }
+
+      // v8 → v9: Task 테이블에 inboxOrder 컬럼 추가 (인박스 순서 관리)
+      if (from == 8 && to >= 9) {
+        print('📦 [DB Migration] v8→v9+: Task에 inboxOrder 컬럼 추가');
+        await m.addColumn(task, task.inboxOrder);
+        print('✅ [DB Migration] v8→v9+ 완료 - Task 인박스 순서 관리 기능 추가');
       }
 
       print('✅ [DB Migration] 업그레이드 완료');

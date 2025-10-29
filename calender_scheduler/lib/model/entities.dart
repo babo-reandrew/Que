@@ -55,6 +55,12 @@ class Task extends Table {
   // 이거를 설정하고 → 리마인더 설정을 JSON 형식의 텍스트로 설정해서
   // 이거를 해서 → 알림 시간을 저장한다
   TextColumn get reminder => text().withDefault(const Constant(''))();
+
+  // ✅ 인박스 순서 (인박스 바텀시트에서의 표시 순서)
+  // 이거를 설정하고 → 인박스 내에서의 순서를 정수로 설정해서
+  // 이거를 해서 → 사용자가 인박스에서 드래그 앤 드롭으로 순서를 변경할 수 있다
+  // 이거는 이래서 → 기본값은 0
+  IntColumn get inboxOrder => integer().withDefault(const Constant(0))();
 }
 
 /// Habit (습관) 테이블

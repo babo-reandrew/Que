@@ -927,6 +927,18 @@ class $TaskTable extends Task with TableInfo<$TaskTable, TaskData> {
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _inboxOrderMeta = const VerificationMeta(
+    'inboxOrder',
+  );
+  @override
+  late final GeneratedColumn<int> inboxOrder = GeneratedColumn<int>(
+    'inbox_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -940,6 +952,7 @@ class $TaskTable extends Task with TableInfo<$TaskTable, TaskData> {
     colorId,
     repeatRule,
     reminder,
+    inboxOrder,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1026,6 +1039,12 @@ class $TaskTable extends Task with TableInfo<$TaskTable, TaskData> {
         reminder.isAcceptableOrUnknown(data['reminder']!, _reminderMeta),
       );
     }
+    if (data.containsKey('inbox_order')) {
+      context.handle(
+        _inboxOrderMeta,
+        inboxOrder.isAcceptableOrUnknown(data['inbox_order']!, _inboxOrderMeta),
+      );
+    }
     return context;
   }
 
@@ -1079,6 +1098,10 @@ class $TaskTable extends Task with TableInfo<$TaskTable, TaskData> {
         DriftSqlType.string,
         data['${effectivePrefix}reminder'],
       )!,
+      inboxOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}inbox_order'],
+      )!,
     );
   }
 
@@ -1100,6 +1123,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
   final String colorId;
   final String repeatRule;
   final String reminder;
+  final int inboxOrder;
   const TaskData({
     required this.id,
     required this.title,
@@ -1112,6 +1136,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
     required this.colorId,
     required this.repeatRule,
     required this.reminder,
+    required this.inboxOrder,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1133,6 +1158,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
     map['color_id'] = Variable<String>(colorId);
     map['repeat_rule'] = Variable<String>(repeatRule);
     map['reminder'] = Variable<String>(reminder);
+    map['inbox_order'] = Variable<int>(inboxOrder);
     return map;
   }
 
@@ -1155,6 +1181,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
       colorId: Value(colorId),
       repeatRule: Value(repeatRule),
       reminder: Value(reminder),
+      inboxOrder: Value(inboxOrder),
     );
   }
 
@@ -1175,6 +1202,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
       colorId: serializer.fromJson<String>(json['colorId']),
       repeatRule: serializer.fromJson<String>(json['repeatRule']),
       reminder: serializer.fromJson<String>(json['reminder']),
+      inboxOrder: serializer.fromJson<int>(json['inboxOrder']),
     );
   }
   @override
@@ -1192,6 +1220,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
       'colorId': serializer.toJson<String>(colorId),
       'repeatRule': serializer.toJson<String>(repeatRule),
       'reminder': serializer.toJson<String>(reminder),
+      'inboxOrder': serializer.toJson<int>(inboxOrder),
     };
   }
 
@@ -1207,6 +1236,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
     String? colorId,
     String? repeatRule,
     String? reminder,
+    int? inboxOrder,
   }) => TaskData(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -1221,6 +1251,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
     colorId: colorId ?? this.colorId,
     repeatRule: repeatRule ?? this.repeatRule,
     reminder: reminder ?? this.reminder,
+    inboxOrder: inboxOrder ?? this.inboxOrder,
   );
   TaskData copyWithCompanion(TaskCompanion data) {
     return TaskData(
@@ -1241,6 +1272,9 @@ class TaskData extends DataClass implements Insertable<TaskData> {
           ? data.repeatRule.value
           : this.repeatRule,
       reminder: data.reminder.present ? data.reminder.value : this.reminder,
+      inboxOrder: data.inboxOrder.present
+          ? data.inboxOrder.value
+          : this.inboxOrder,
     );
   }
 
@@ -1257,7 +1291,8 @@ class TaskData extends DataClass implements Insertable<TaskData> {
           ..write('completedAt: $completedAt, ')
           ..write('colorId: $colorId, ')
           ..write('repeatRule: $repeatRule, ')
-          ..write('reminder: $reminder')
+          ..write('reminder: $reminder, ')
+          ..write('inboxOrder: $inboxOrder')
           ..write(')'))
         .toString();
   }
@@ -1275,6 +1310,7 @@ class TaskData extends DataClass implements Insertable<TaskData> {
     colorId,
     repeatRule,
     reminder,
+    inboxOrder,
   );
   @override
   bool operator ==(Object other) =>
@@ -1290,7 +1326,8 @@ class TaskData extends DataClass implements Insertable<TaskData> {
           other.completedAt == this.completedAt &&
           other.colorId == this.colorId &&
           other.repeatRule == this.repeatRule &&
-          other.reminder == this.reminder);
+          other.reminder == this.reminder &&
+          other.inboxOrder == this.inboxOrder);
 }
 
 class TaskCompanion extends UpdateCompanion<TaskData> {
@@ -1305,6 +1342,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
   final Value<String> colorId;
   final Value<String> repeatRule;
   final Value<String> reminder;
+  final Value<int> inboxOrder;
   const TaskCompanion({
     this.id = const Value.absent(),
     this.title = const Value.absent(),
@@ -1317,6 +1355,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
     this.colorId = const Value.absent(),
     this.repeatRule = const Value.absent(),
     this.reminder = const Value.absent(),
+    this.inboxOrder = const Value.absent(),
   });
   TaskCompanion.insert({
     this.id = const Value.absent(),
@@ -1330,6 +1369,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
     this.colorId = const Value.absent(),
     this.repeatRule = const Value.absent(),
     this.reminder = const Value.absent(),
+    this.inboxOrder = const Value.absent(),
   }) : title = Value(title),
        createdAt = Value(createdAt);
   static Insertable<TaskData> custom({
@@ -1344,6 +1384,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
     Expression<String>? colorId,
     Expression<String>? repeatRule,
     Expression<String>? reminder,
+    Expression<int>? inboxOrder,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1357,6 +1398,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
       if (colorId != null) 'color_id': colorId,
       if (repeatRule != null) 'repeat_rule': repeatRule,
       if (reminder != null) 'reminder': reminder,
+      if (inboxOrder != null) 'inbox_order': inboxOrder,
     });
   }
 
@@ -1372,6 +1414,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
     Value<String>? colorId,
     Value<String>? repeatRule,
     Value<String>? reminder,
+    Value<int>? inboxOrder,
   }) {
     return TaskCompanion(
       id: id ?? this.id,
@@ -1385,6 +1428,7 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
       colorId: colorId ?? this.colorId,
       repeatRule: repeatRule ?? this.repeatRule,
       reminder: reminder ?? this.reminder,
+      inboxOrder: inboxOrder ?? this.inboxOrder,
     );
   }
 
@@ -1424,6 +1468,9 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
     if (reminder.present) {
       map['reminder'] = Variable<String>(reminder.value);
     }
+    if (inboxOrder.present) {
+      map['inbox_order'] = Variable<int>(inboxOrder.value);
+    }
     return map;
   }
 
@@ -1440,7 +1487,8 @@ class TaskCompanion extends UpdateCompanion<TaskData> {
           ..write('completedAt: $completedAt, ')
           ..write('colorId: $colorId, ')
           ..write('repeatRule: $repeatRule, ')
-          ..write('reminder: $reminder')
+          ..write('reminder: $reminder, ')
+          ..write('inboxOrder: $inboxOrder')
           ..write(')'))
         .toString();
   }
@@ -6415,6 +6463,7 @@ typedef $$TaskTableCreateCompanionBuilder =
       Value<String> colorId,
       Value<String> repeatRule,
       Value<String> reminder,
+      Value<int> inboxOrder,
     });
 typedef $$TaskTableUpdateCompanionBuilder =
     TaskCompanion Function({
@@ -6429,6 +6478,7 @@ typedef $$TaskTableUpdateCompanionBuilder =
       Value<String> colorId,
       Value<String> repeatRule,
       Value<String> reminder,
+      Value<int> inboxOrder,
     });
 
 class $$TaskTableFilterComposer extends Composer<_$AppDatabase, $TaskTable> {
@@ -6491,6 +6541,11 @@ class $$TaskTableFilterComposer extends Composer<_$AppDatabase, $TaskTable> {
 
   ColumnFilters<String> get reminder => $composableBuilder(
     column: $table.reminder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get inboxOrder => $composableBuilder(
+    column: $table.inboxOrder,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6557,6 +6612,11 @@ class $$TaskTableOrderingComposer extends Composer<_$AppDatabase, $TaskTable> {
     column: $table.reminder,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get inboxOrder => $composableBuilder(
+    column: $table.inboxOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$TaskTableAnnotationComposer
@@ -6606,6 +6666,11 @@ class $$TaskTableAnnotationComposer
 
   GeneratedColumn<String> get reminder =>
       $composableBuilder(column: $table.reminder, builder: (column) => column);
+
+  GeneratedColumn<int> get inboxOrder => $composableBuilder(
+    column: $table.inboxOrder,
+    builder: (column) => column,
+  );
 }
 
 class $$TaskTableTableManager
@@ -6647,6 +6712,7 @@ class $$TaskTableTableManager
                 Value<String> colorId = const Value.absent(),
                 Value<String> repeatRule = const Value.absent(),
                 Value<String> reminder = const Value.absent(),
+                Value<int> inboxOrder = const Value.absent(),
               }) => TaskCompanion(
                 id: id,
                 title: title,
@@ -6659,6 +6725,7 @@ class $$TaskTableTableManager
                 colorId: colorId,
                 repeatRule: repeatRule,
                 reminder: reminder,
+                inboxOrder: inboxOrder,
               ),
           createCompanionCallback:
               ({
@@ -6673,6 +6740,7 @@ class $$TaskTableTableManager
                 Value<String> colorId = const Value.absent(),
                 Value<String> repeatRule = const Value.absent(),
                 Value<String> reminder = const Value.absent(),
+                Value<int> inboxOrder = const Value.absent(),
               }) => TaskCompanion.insert(
                 id: id,
                 title: title,
@@ -6685,6 +6753,7 @@ class $$TaskTableTableManager
                 colorId: colorId,
                 repeatRule: repeatRule,
                 reminder: reminder,
+                inboxOrder: inboxOrder,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

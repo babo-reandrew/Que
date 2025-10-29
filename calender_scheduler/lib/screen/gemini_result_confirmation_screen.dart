@@ -519,6 +519,7 @@ class _GeminiResultConfirmationScreenState
           colorId: task.colorId,
           repeatRule: task.repeatRule, // 반복 규칙 추가
           reminder: task.reminder, // 리마인더 추가
+          inboxOrder: 0, // 기본값 또는 적절한 값
         );
         card = TaskCard(task: taskData);
         // 타스크 상세 모달 열기

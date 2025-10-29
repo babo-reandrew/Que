@@ -464,7 +464,19 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
               // ✅ 리스트 재정렬 로직
               print('🔄 [TaskInbox] 재정렬: $oldIndex → $newIndex');
               HapticFeedback.mediumImpact();
-              // TODO: DB에 순서 저장
+
+              // 🎯 filteredTasks의 순서를 재정렬
+              setState(() {
+                final adjustedNewIndex = newIndex > oldIndex
+                    ? newIndex - 1
+                    : newIndex;
+                final movedTask = filteredTasks.removeAt(oldIndex);
+                filteredTasks.insert(adjustedNewIndex, movedTask);
+              });
+
+              // 🎯 DB에 순서 저장
+              final taskIds = filteredTasks.map((t) => t.id).toList();
+              GetIt.I<AppDatabase>().updateInboxTasksOrder(taskIds);
             },
           ), // ReorderableListView
         ); // Listener
