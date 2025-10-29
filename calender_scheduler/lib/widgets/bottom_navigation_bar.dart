@@ -14,11 +14,11 @@ class CustomBottomNavigationBar extends StatelessWidget {
   final VoidCallback onImageAddTap; // 이미지 추가 버튼
 
   const CustomBottomNavigationBar({
-    Key? key,
+    super.key,
     required this.onInboxTap,
     required this.onAddTap,
     required this.onImageAddTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +42,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
           ),
         ),
         // 📱 버튼 컨테이너 (Frame 822)
-        Container(
+        SizedBox(
           width: 393,
           height: 104,
           child: Padding(

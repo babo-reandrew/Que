@@ -63,8 +63,17 @@ class _RepeatPickerSheetState extends State<_RepeatPickerSheet> {
           // ✅ value에서 탭과 선택값 복원
           if (_selectedValue!.startsWith('daily:')) {
             _selectedTab = 0;
-            final days = _selectedValue!.substring(6).split(',');
+            final days = _selectedValue!
+                .substring(6)
+                .split(',')
+                .map((d) => d.trim())
+                .where((d) => d.isNotEmpty)
+                .toList();
             _selectedWeekdays = days.toSet();
+            debugPrint('🐛 [RepeatPicker] 초기화: daily days = $days');
+            debugPrint(
+              '🐛 [RepeatPicker] 초기화: _selectedWeekdays = $_selectedWeekdays',
+            );
           } else if (_selectedValue!.startsWith('monthly:')) {
             _selectedTab = 1;
             final days = _selectedValue!.substring(8).split(',');
@@ -158,6 +167,9 @@ class _RepeatPickerSheetState extends State<_RepeatPickerSheet> {
 
       if (_selectedTab == 0) {
         value = 'daily:${_selectedWeekdays.join(',')}';
+        debugPrint('🐛 [RepeatPicker] 毎日 탭 저장');
+        debugPrint('🐛 [RepeatPicker] _selectedWeekdays: $_selectedWeekdays');
+        debugPrint('🐛 [RepeatPicker] value: $value');
       } else if (_selectedTab == 1) {
         value = 'monthly:${_selectedMonthDays.join(',')}';
       } else if (_selectedTab == 2) {
@@ -432,13 +444,16 @@ class _RepeatPickerSheetState extends State<_RepeatPickerSheet> {
               onTap: () {
                 setState(() {
                   if (isSelected) {
+                    debugPrint('🐛 [RepeatPicker] 요일 제거: $day');
                     _selectedWeekdays.remove(day);
                   } else {
+                    debugPrint('🐛 [RepeatPicker] 요일 추가: $day');
                     _selectedWeekdays.add(day);
                     // ✅ 다른 탭 선택 초기화
                     _selectedMonthDays.clear();
                     _selectedInterval = null;
                   }
+                  debugPrint('🐛 [RepeatPicker] 현재 선택된 요일: $_selectedWeekdays');
                 });
               },
               child: Container(

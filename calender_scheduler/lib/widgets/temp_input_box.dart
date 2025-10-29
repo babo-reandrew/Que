@@ -11,7 +11,7 @@ class TempInputBox extends StatefulWidget {
   final VoidCallback? onTap; // 박스 클릭 시 콜백
   final VoidCallback? onDismiss; // 삭제 시 콜백
 
-  const TempInputBox({Key? key, this.onTap, this.onDismiss}) : super(key: key);
+  const TempInputBox({super.key, this.onTap, this.onDismiss});
 
   @override
   State<TempInputBox> createState() => _TempInputBoxState();

@@ -6,6 +6,7 @@
 /// 이거를 설정하고 → 선택된 날짜를 월/요일/날짜로 분리해서
 /// 이거를 해서 → Figma 디자인대로 레이아웃을 구성한다
 /// 이거는 이래서 → 사용자가 현재 보고 있는 날짜를 명확히 인식한다
+library;
 
 import 'dart:ui' show ImageFilter;
 import 'dart:math' as math;
@@ -25,11 +26,13 @@ import '../const/motion_config.dart'; // 🍎 애플 스타일 모션 설정
 class DateDetailHeader extends StatefulWidget {
   final DateTime selectedDate; // 선택된 날짜
   final VoidCallback? onSettingsTap; // 설정 버튼 탭 콜백
+  final Function(DateTime)? onDateChanged; // 날짜 변경 콜백
 
   const DateDetailHeader({
     super.key,
     required this.selectedDate,
     this.onSettingsTap,
+    this.onDateChanged,
   });
 
   @override
@@ -67,8 +70,8 @@ class _DateDetailHeaderState extends State<DateDetailHeader> {
 
   @override
   Widget build(BuildContext context) {
-    // 이거를 설정하고 → 오늘 날짜와 비교해서 "今日" 뱃지 표시 여부 결정
-    final isToday = _isToday(widget.selectedDate);
+    // 이거를 설정하고 → 오늘 날짜와 비교해서 상대 날짜 텍스트 결정
+    final relativeDateText = _getRelativeDateText(widget.selectedDate);
 
     // 이거를 해서 → 월, 요일, 날짜를 일본어로 포맷팅한다
     final monthText = _formatMonth(widget.selectedDate); // "8月"
@@ -90,63 +93,80 @@ class _DateDetailHeaderState extends State<DateDetailHeader> {
           Positioned(
             left: 0,
             top: 0,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // -----------------------------------------------
-                // Frame 823: 월 + 요일 (가로 배치)
-                // -----------------------------------------------
-                Row(
-                  children: [
-                    // 이거를 설정하고 → 월 표시를 빨강(#FF4444)으로 강조
-                    Text(monthText, style: WoltTypography.monthText),
-                    const SizedBox(width: 6), // gap: 6px
-                    // 이거를 해서 → 요일 표시를 회색(#999999)으로 구분
-                    Text(dayOfWeekText, style: WoltTypography.dayOfWeekText),
-                  ],
-                ),
+            child: GestureDetector(
+              onTap: () => _showDatePicker(context),
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // -----------------------------------------------
+                  // Frame 823: 월 + 요일 (가로 배치)
+                  // -----------------------------------------------
+                  Row(
+                    children: [
+                      // 이거를 설정하고 → 월 표시를 빨강(#FF4444)으로 강조
+                      Text(monthText, style: WoltTypography.monthText),
+                      const SizedBox(width: 6), // gap: 6px
+                      // 이거를 해서 → 요일 표시를 회색(#999999)으로 구분
+                      Text(dayOfWeekText, style: WoltTypography.dayOfWeekText),
+                    ],
+                  ),
 
-                const SizedBox(height: 4), // Frame 830 내부 gap
-                // -----------------------------------------------
-                // Frame 829: 날짜 숫자 + 뱃지 (가로 배치)
-                // -----------------------------------------------
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    // 이거를 설정하고 → 큰 숫자(48px)로 날짜를 표시
-                    // 📋 Hero 애니메이션으로 앱바로 이동
-                    Hero(
-                      tag: 'date_number_${widget.selectedDate.day}',
-                      child: Material(
-                        color: Colors.transparent,
-                        child: Text(
-                          dayNumber,
-                          style: WoltTypography.dateNumberLarge,
+                  const SizedBox(height: 4), // Frame 830 내부 gap
+                  // -----------------------------------------------
+                  // Frame 829: 날짜 숫자 + 뱃지 (가로 배치)
+                  // -----------------------------------------------
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 이거를 설정하고 → 큰 숫자(48px)로 날짜를 표시
+                      // 📋 Hero 애니메이션으로 월 뷰 셀과 연동
+                      Hero(
+                        tag:
+                            'date-cell-hero-${widget.selectedDate.year}-${widget.selectedDate.month}-${widget.selectedDate.day}',
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Text(
+                            dayNumber,
+                            style: WoltTypography.dateNumberLarge,
+                          ),
                         ),
                       ),
-                    ),
 
-                    const SizedBox(width: 4), // gap: 4px
-                    // -----------------------------------------------
-                    // Frame 827: "今日" 뱃지 + 아이콘 (세로 배치)
-                    // -----------------------------------------------
-                    // 이거를 해서 → 오늘 날짜일 때만 뱃지를 표시한다
-                    if (isToday) ...[
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // "今日" 텍스트
-                          Text('今日', style: WoltTypography.todayBadge),
+                      const SizedBox(width: 4), // gap: 4px (좌측 큰 글씨로부터)
+                      // -----------------------------------------------
+                      // Frame 827: 상대 날짜 텍스트 + 아이콘 (세로 배치)
+                      // -----------------------------------------------
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6), // 상단으로부터 6px
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 상대 날짜 텍스트 (今日, 明日, あと5日 등)
+                            Text(
+                              relativeDateText,
+                              style: const TextStyle(
+                                fontFamily: 'LINE Seed JP App_TTF',
+                                fontSize: 12, // 12px
+                                fontWeight: FontWeight.w700,
+                                height: 1.4,
+                                letterSpacing: -0.005 * 12,
+                                color: Color(0xFF222222), // #222222
+                              ),
+                            ),
 
-                          const SizedBox(height: 12), // gap: 12px
-                          // 아이콘 (Frame 824)
-                          _buildTodayIcon(),
-                        ],
+                            const SizedBox(
+                              height: 10,
+                            ), // gap: 10px (아이콘 하단으로부터)
+                            // 아이콘 (Frame 824) - down_icon.svg
+                            _buildDownIcon(),
+                          ],
+                        ),
                       ),
                     ],
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -167,12 +187,68 @@ class _DateDetailHeaderState extends State<DateDetailHeader> {
   // 헬퍼 함수들
   // ========================================
 
-  /// 이거를 설정하고 → 오늘 날짜인지 확인하는 함수
-  bool _isToday(DateTime date) {
+  /// 날짜 피커 모달 표시 (상단 드롭다운)
+  void _showDatePicker(BuildContext context) {
+    if (widget.onDateChanged == null) return;
+
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.transparent, // 투명 배경
+        barrierDismissible: true,
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return _DatePickerModal(
+            initialDate: widget.selectedDate,
+            onDateChanged: (date) {
+              widget.onDateChanged!(date);
+            },
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 500), // Apple 스타일
+        reverseTransitionDuration: const Duration(milliseconds: 400),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          // Apple spring 애니메이션
+          final curvedAnimation = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          );
+
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, -1), // 위에서 내려옴
+              end: Offset.zero,
+            ).animate(curvedAnimation),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
+
+  /// 상대 날짜 텍스트를 반환하는 함수
+  /// - 오늘: 今日
+  /// - 내일: 明日
+  /// - 어제: 昨日
+  /// - 5일 후: あと5日
+  /// - 5일 전: 5日前
+  String _getRelativeDateText(DateTime date) {
     final now = DateTime.now();
-    return date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
+    final today = DateTime(now.year, now.month, now.day);
+    final targetDate = DateTime(date.year, date.month, date.day);
+    final difference = targetDate.difference(today).inDays;
+
+    if (difference == 0) {
+      return '今日'; // 오늘
+    } else if (difference == 1) {
+      return '明日'; // 내일
+    } else if (difference == -1) {
+      return '昨日'; // 어제
+    } else if (difference > 1) {
+      return 'あと$difference日'; // 5일 후 등
+    } else {
+      return '${difference.abs()}日前'; // 5일 전 등
+    }
   }
 
   /// 이거를 해서 → 월을 일본어로 포맷팅 (8月)
@@ -186,17 +262,15 @@ class _DateDetailHeaderState extends State<DateDetailHeader> {
     return formatter.format(date);
   }
 
-  /// "今日" 아이콘 빌더 (Figma: icon 16x16)
-  Widget _buildTodayIcon() {
-    return Container(
+  /// "down_icon.svg" 아이콘 빌더 (Figma: icon 16x16)
+  Widget _buildDownIcon() {
+    return SvgPicture.asset(
+      'asset/icon/down_icon.svg',
       width: 16,
       height: 16,
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: WoltDesignTokens.primaryBlack, // #222222
-          width: 1.5,
-        ),
-        shape: BoxShape.circle,
+      colorFilter: const ColorFilter.mode(
+        Color(0xFF222222), // #222222
+        BlendMode.srcIn,
       ),
     );
   }
@@ -262,6 +336,7 @@ class _DateDetailHeaderState extends State<DateDetailHeader> {
               child: DateDetailView(
                 selectedDate: widget.selectedDate,
                 // onClose는 제공하지 않음 (배경이므로 interaction 없음)
+                onClose: null,
               ),
             ),
           ),
@@ -372,6 +447,320 @@ class _DateDetailHeaderState extends State<DateDetailHeader> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ========================================
+// 날짜 피커 모달 위젯
+// ========================================
+
+class _DatePickerModal extends StatefulWidget {
+  final DateTime initialDate;
+  final Function(DateTime) onDateChanged;
+
+  const _DatePickerModal({
+    required this.initialDate,
+    required this.onDateChanged,
+  });
+
+  @override
+  State<_DatePickerModal> createState() => _DatePickerModalState();
+}
+
+class _DatePickerModalState extends State<_DatePickerModal> {
+  late FixedExtentScrollController _yearController;
+  late FixedExtentScrollController _monthController;
+  late FixedExtentScrollController _dayController;
+
+  late int _selectedYear;
+  late int _selectedMonth;
+  late int _selectedDay;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedYear = widget.initialDate.year;
+    _selectedMonth = widget.initialDate.month;
+    _selectedDay = widget.initialDate.day;
+
+    // 1900년부터 2100년까지
+    final yearIndex = _selectedYear - 1900;
+
+    // 현재 월의 일수를 확인하고 day가 범위를 벗어나면 조정
+    final daysInMonth = DateTime(_selectedYear, _selectedMonth + 1, 0).day;
+    if (_selectedDay > daysInMonth) {
+      _selectedDay = daysInMonth;
+    }
+
+    _yearController = FixedExtentScrollController(initialItem: yearIndex);
+    _monthController = FixedExtentScrollController(
+      initialItem: _selectedMonth - 1,
+    );
+    _dayController = FixedExtentScrollController(initialItem: _selectedDay - 1);
+  }
+
+  @override
+  void dispose() {
+    _yearController.dispose();
+    _monthController.dispose();
+    _dayController.dispose();
+    super.dispose();
+  }
+
+  void _updateDate() {
+    final daysInMonth = DateTime(_selectedYear, _selectedMonth + 1, 0).day;
+    if (_selectedDay > daysInMonth) {
+      _selectedDay = daysInMonth;
+      _dayController.jumpToItem(_selectedDay - 1);
+    }
+
+    final newDate = DateTime(_selectedYear, _selectedMonth, _selectedDay);
+    widget.onDateChanged(newDate);
+  }
+
+  String _formatDateHeader() {
+    final date = DateTime(_selectedYear, _selectedMonth, _selectedDay);
+    final month = date.month;
+    final day = date.day;
+    final weekday = ['월', '화', '수', '목', '금', '토', '일'][date.weekday % 7];
+    return '$month. $day. $weekday';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final statusBarHeight = MediaQuery.of(context).padding.top; // 상태바 높이
+
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pop(),
+      child: Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            // 상단 드롭다운 피커
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: EdgeInsets.only(
+                  top: statusBarHeight,
+                ), // 상태바 높이만큼 padding
+                height: 280 + statusBarHeight, // 전체 높이 = 피커 높이 + 상태바
+                decoration: const BoxDecoration(
+                  color: Color(0xFF3B3B3B), // 단색 #3B3B3B
+                  // 라운드 제거
+                ),
+                child: Column(
+                  children: [
+                    // 상단 날짜 헤더 (월. 일. 요일)
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: Container(
+                        height: 52, // 52px로 변경
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Hero(
+                              tag:
+                                  'date-picker-header-${widget.initialDate.year}-${widget.initialDate.month}-${widget.initialDate.day}',
+                              child: Material(
+                                color: Colors.transparent,
+                                child: Text(
+                                  _formatDateHeader(),
+                                  style: const TextStyle(
+                                    fontFamily: 'LINE Seed JP App_TTF',
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                    letterSpacing: -0.41,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Transform.rotate(
+                              angle: 3.14159, // 180도 회전 (up 아이콘)
+                              child: SvgPicture.asset(
+                                'asset/icon/down_icon.svg',
+                                width: 16,
+                                height: 16,
+                                colorFilter: const ColorFilter.mode(
+                                  Colors.white,
+                                  BlendMode.srcIn,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // 피커
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 80,
+                        ), // 좌우 여백 80px
+                        child: Row(
+                          children: [
+                            // 년
+                            Expanded(
+                              flex: 3, // 연도 더 넓게
+                              child: ListWheelScrollView.useDelegate(
+                                controller: _yearController,
+                                itemExtent: 24,
+                                physics: const FixedExtentScrollPhysics(),
+                                diameterRatio: 1.1,
+                                perspective: 0.004,
+                                squeeze: 1.0,
+                                onSelectedItemChanged: (index) {
+                                  setState(() {
+                                    _selectedYear = 1900 + index;
+                                    _updateDate();
+                                  });
+                                },
+                                childDelegate: ListWheelChildBuilderDelegate(
+                                  builder: (context, index) {
+                                    final year = 1900 + index;
+                                    final isSelected = year == _selectedYear;
+                                    return Center(
+                                      child: Text(
+                                        '$year年',
+                                        style: TextStyle(
+                                          fontFamily: 'LINE Seed JP App_TTF',
+                                          fontSize: 18,
+                                          fontWeight: isSelected
+                                              ? FontWeight.w700
+                                              : FontWeight.w400,
+                                          letterSpacing: -0.41,
+                                          decoration: TextDecoration.none,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : Colors.white.withOpacity(0.3),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  childCount: 201,
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(width: 8), // 연-월 간격 좁게
+                            // 월
+                            Expanded(
+                              flex: 2,
+                              child: ListWheelScrollView.useDelegate(
+                                controller: _monthController,
+                                itemExtent: 24,
+                                physics: const FixedExtentScrollPhysics(),
+                                diameterRatio: 1.1,
+                                perspective: 0.004,
+                                squeeze: 1.0,
+                                onSelectedItemChanged: (index) {
+                                  setState(() {
+                                    _selectedMonth = index + 1;
+                                    _updateDate();
+                                  });
+                                },
+                                childDelegate: ListWheelChildBuilderDelegate(
+                                  builder: (context, index) {
+                                    final month = index + 1;
+                                    final isSelected = month == _selectedMonth;
+                                    return Center(
+                                      child: Text(
+                                        '$month월',
+                                        style: TextStyle(
+                                          fontFamily: 'LINE Seed JP App_TTF',
+                                          fontSize: 18,
+                                          fontWeight: isSelected
+                                              ? FontWeight.w700
+                                              : FontWeight.w400,
+                                          letterSpacing: -0.41,
+                                          decoration: TextDecoration.none,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : Colors.white.withOpacity(0.3),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  childCount: 12,
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(width: 20), // 월-일 간격
+                            // 일
+                            Expanded(
+                              flex: 2,
+                              child: ListWheelScrollView.useDelegate(
+                                controller: _dayController,
+                                itemExtent: 24,
+                                physics: const FixedExtentScrollPhysics(),
+                                diameterRatio: 1.1,
+                                perspective: 0.004,
+                                squeeze: 1.0,
+                                onSelectedItemChanged: (index) {
+                                  setState(() {
+                                    final daysInMonth = DateTime(
+                                      _selectedYear,
+                                      _selectedMonth + 1,
+                                      0,
+                                    ).day;
+                                    _selectedDay = (index + 1).clamp(
+                                      1,
+                                      daysInMonth,
+                                    );
+                                    _updateDate();
+                                  });
+                                },
+                                childDelegate: ListWheelChildBuilderDelegate(
+                                  builder: (context, index) {
+                                    final day = index + 1;
+
+                                    final isSelected = day == _selectedDay;
+                                    return Center(
+                                      child: Text(
+                                        '$day일',
+                                        style: TextStyle(
+                                          fontFamily: 'LINE Seed JP App_TTF',
+                                          fontSize: 18,
+                                          fontWeight: isSelected
+                                              ? FontWeight.w700
+                                              : FontWeight.w400,
+                                          letterSpacing: -0.41,
+                                          decoration: TextDecoration.none,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : Colors.white.withOpacity(0.3),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  childCount: DateTime(
+                                    _selectedYear,
+                                    _selectedMonth + 1,
+                                    0,
+                                  ).day,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

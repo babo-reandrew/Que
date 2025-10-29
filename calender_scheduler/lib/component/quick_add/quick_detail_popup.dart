@@ -27,11 +27,11 @@ class QuickDetailPopup extends StatefulWidget {
   final VoidCallback onHabitSelected;
 
   const QuickDetailPopup({
-    Key? key,
+    super.key,
     required this.onScheduleSelected,
     required this.onTaskSelected,
     required this.onHabitSelected,
-  }) : super(key: key);
+  });
 
   @override
   State<QuickDetailPopup> createState() => _QuickDetailPopupState();

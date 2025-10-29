@@ -32,12 +32,12 @@ class ConditionalHeroWrapper extends StatefulWidget {
   final String? slidableKey; // Slidable의 Key (상태 감지용)
 
   const ConditionalHeroWrapper({
-    Key? key,
+    super.key,
     required this.heroTag,
     required this.child,
     required this.onTap,
     this.slidableKey,
-  }) : super(key: key);
+  });
 
   @override
   State<ConditionalHeroWrapper> createState() => _ConditionalHeroWrapperState();

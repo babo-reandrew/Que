@@ -3,7 +3,6 @@ import 'package:flutter/gestures.dart';
 
 import '../../animated_reorderable_list.dart';
 import 'builder/reorderable_animated_list_base.dart';
-import 'builder/reorderable_animated_list_impl.dart';
 
 /// @docImport 'animated_reorderable_listview';
 
@@ -347,25 +346,6 @@ class AnimatedReorderableGridView<E extends Object> extends StatefulWidget {
   /// Defaults to true.
   final bool enableSwap;
 
-  /// 🎯 A callback to determine how many columns an item should span.
-  ///
-  /// Returns the number of columns (crossAxisCells) that this item should occupy.
-  /// If null, all items will occupy 1 column by default.
-  ///
-  /// **Use case**: 
-  /// - All-day events span 2 columns (full width)
-  /// - Normal events span 1 column
-  /// - When only 1 item exists, it can span 2 columns (full width)
-  ///
-  /// **Example**:
-  /// ```dart
-  /// getCrossAxisCellCount: (schedule) {
-  ///   if (items.length == 1) return 2; // Single item = full width
-  ///   return schedule.isAllDay ? 2 : 1; // All-day = 2 cols, Normal = 1 col
-  /// }
-  /// ```
-  final int Function(E item)? getCrossAxisCellCount;
-
   /// Creates a [AnimatedReorderableGridView] that enables users to interactively reorder items through dragging,
   /// with animated insertion and removal of items.
   const AnimatedReorderableGridView(
@@ -400,8 +380,7 @@ class AnimatedReorderableGridView<E extends Object> extends StatefulWidget {
       this.dragStartDelay = const Duration(milliseconds: 500),
       this.nonDraggableItems = const [],
       this.lockedItems = const [],
-      this.enableSwap = true,
-      this.getCrossAxisCellCount}) // 🎯 추가
+      this.enableSwap = true})
       : super(key: key);
 
   /// The state from the closest instance of this class that encloses the given
@@ -493,7 +472,6 @@ class AnimatedReorderableGridViewState<E extends Object>
               nonDraggableItems: widget.nonDraggableItems,
               lockedItems: widget.lockedItems,
               enableSwap: widget.enableSwap,
-              getCrossAxisCellCount: widget.getCrossAxisCellCount, // 🎯 전달
             ),
           ),
         ]);

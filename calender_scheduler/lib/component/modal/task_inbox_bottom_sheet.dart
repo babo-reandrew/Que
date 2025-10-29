@@ -34,6 +34,7 @@ class TaskInboxBottomSheet extends StatefulWidget {
   final VoidCallback? onDragStart; // 🎯 드래그 시작 콜백 추가
   final VoidCallback? onDragEnd; // 🎯 드래그 종료 콜백 추가
   final bool isDraggingFromParent; // 🎯 부모로부터 드래그 상태 받기
+  final bool isInboxMode; // 🎯 인박스 모드 여부 (true일 때 월뷰로 드래그 비활성화)
 
   const TaskInboxBottomSheet({
     super.key,
@@ -41,6 +42,7 @@ class TaskInboxBottomSheet extends StatefulWidget {
     this.onDragStart, // 🎯 드래그 시작 콜백
     this.onDragEnd, // 🎯 드래그 종료 콜백
     this.isDraggingFromParent = false, // 🎯 기본값 false
+    this.isInboxMode = false, // 🎯 기본값 false (일반 모드)
   });
 
   @override
@@ -94,9 +96,13 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
     // 🔥 드래그 상태 변경 감지하여 즉시 반영
     if (oldWidget.isDraggingFromParent != widget.isDraggingFromParent) {
       print('');
-      print('╔═══════════════════════════════════════════════════════════════╗');
+      print(
+        '╔═══════════════════════════════════════════════════════════════╗',
+      );
       print('║  🔄 [LIFECYCLE] didUpdateWidget - isDragging 변경          ║');
-      print('╚═══════════════════════════════════════════════════════════════╝');
+      print(
+        '╚═══════════════════════════════════════════════════════════════╝',
+      );
       print('📊 이전: ${oldWidget.isDraggingFromParent}');
       print('📊 현재: ${widget.isDraggingFromParent}');
       print('');
@@ -540,6 +546,7 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
         );
         print('📋 Task: ${task.title} (id=${task.id})');
         print('⏰ 시각: ${DateTime.now()}');
+        print('🔒 인박스 모드: ${widget.isInboxMode}');
         HapticFeedback.mediumImpact();
 
         // 🔥 부모에게 드래그 시작 알림
@@ -558,10 +565,10 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
         );
         print('📋 Task: ${task.title}');
         print('✅ wasAccepted: ${details.wasAccepted}');
-        
+
         // 🔥 부모에게 드래그 종료 알림
         widget.onDragEnd?.call();
-        
+
         if (details.wasAccepted) {
           print('✅ [TaskInbox] 드롭 성공');
           HapticFeedback.heavyImpact(); // ✅ 강한 진동

@@ -157,12 +157,12 @@ class MotionConfig {
   // ─── Safari 스타일 스프링 애니메이션 (Pull-to-dismiss) ─────────────
 
   /// Pull-to-dismiss 임계값: 진행률 (0.0 ~ 1.0)
-  /// 30% 이상 드래그 시 dismiss 실행
-  static const double dismissThresholdProgress = 0.3;
+  /// 3% 이상 드래그 시 dismiss 실행 (매우 민감하게 - 조금만 끌어도 닫힘)
+  static const double dismissThresholdProgress = 0.03;
 
   /// Pull-to-dismiss 임계값: 속도 (px/s)
-  /// 500px/s 이상 속도로 스와이프 시 dismiss 실행
-  static const double dismissThresholdVelocity = 500.0;
+  /// 200px/s 이상 속도로 스와이프 시 dismiss 실행 (매우 민감하게)
+  static const double dismissThresholdVelocity = 200.0;
 
   /// 참고: Safari 스프링 파라미터는 기존 spring* 값 재사용
   /// - springMass = 1.0

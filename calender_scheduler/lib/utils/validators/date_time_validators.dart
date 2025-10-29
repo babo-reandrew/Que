@@ -254,7 +254,7 @@ class DateTimeValidators {
     if (duration.inHours > 24) {
       final days = duration.inDays;
       final hours = duration.inHours % 24;
-      return '일정이 ${days}일 ${hours}시간으로 길어요. 여러 일정으로 나누는 것이 좋습니다.';
+      return '일정이 $days일 $hours시간으로 길어요. 여러 일정으로 나누는 것이 좋습니다.';
     }
 
     // 4. 권장 범위 내면 null을 반환한다

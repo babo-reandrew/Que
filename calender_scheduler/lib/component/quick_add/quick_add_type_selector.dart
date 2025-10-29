@@ -12,10 +12,10 @@ class QuickAddTypeSelector extends StatelessWidget {
   final Function(QuickAddType) onTypeSelected;
 
   const QuickAddTypeSelector({
-    Key? key,
+    super.key,
     required this.selectedType,
     required this.onTypeSelected,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

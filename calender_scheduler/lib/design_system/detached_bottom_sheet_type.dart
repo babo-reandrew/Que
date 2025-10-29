@@ -30,6 +30,7 @@
 ///   pageListBuilder: (context) => [...],
 /// );
 /// ```
+library;
 
 import 'package:flutter/material.dart';
 import 'package:wolt_modal_sheet/wolt_modal_sheet.dart';

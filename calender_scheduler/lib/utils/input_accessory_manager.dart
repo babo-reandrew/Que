@@ -10,10 +10,10 @@ class QuickAddKeyboardTracker extends StatefulWidget {
   final bool isLocked; // 🔥 외부에서 제어하는 고정 상태
 
   const QuickAddKeyboardTracker({
-    Key? key,
+    super.key,
     required this.child,
     this.isLocked = false,
-  }) : super(key: key);
+  });
 
   @override
   State<QuickAddKeyboardTracker> createState() =>

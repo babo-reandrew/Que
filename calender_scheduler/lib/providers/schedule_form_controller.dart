@@ -85,12 +85,8 @@ class ScheduleFormController extends ChangeNotifier {
     // ✅ 終日 토글 시 시간 값은 유지 (null로 설정하지 않음)
     // 시간 값이 없으면 기본값 설정
     if (_isAllDay) {
-      if (_startTime == null) {
-        _startTime = const TimeOfDay(hour: 0, minute: 0);
-      }
-      if (_endTime == null) {
-        _endTime = const TimeOfDay(hour: 23, minute: 59);
-      }
+      _startTime ??= const TimeOfDay(hour: 0, minute: 0);
+      _endTime ??= const TimeOfDay(hour: 23, minute: 59);
     }
     notifyListeners();
     debugPrint(
@@ -103,12 +99,8 @@ class ScheduleFormController extends ChangeNotifier {
     _isAllDay = value;
     // ✅ 終日 설정 시 시간 값은 유지
     if (_isAllDay) {
-      if (_startTime == null) {
-        _startTime = const TimeOfDay(hour: 0, minute: 0);
-      }
-      if (_endTime == null) {
-        _endTime = const TimeOfDay(hour: 23, minute: 59);
-      }
+      _startTime ??= const TimeOfDay(hour: 0, minute: 0);
+      _endTime ??= const TimeOfDay(hour: 23, minute: 59);
     }
     notifyListeners();
   }

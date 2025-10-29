@@ -5,6 +5,7 @@
 /// - Option: 제목 + 리마인드/반복
 ///
 /// 높이는 컨텐츠에 따라 동적으로 조정됨
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -121,8 +122,7 @@ class HabitCard extends StatelessWidget {
                             color: isCompleted
                                 ? const Color(0xFF111111).withOpacity(0.3)
                                 : const Color(0xFF111111),
-                            fontWeight:
-                                FontWeight.w800, // extrabold
+                            fontWeight: FontWeight.w800, // extrabold
                             fontFamily: 'LINE Seed JP App_TTF', // 정확한 폰트 패밀리명
                             letterSpacing: -0.005 * 16,
                             height: 1.4, // 행간 140%
@@ -253,12 +253,22 @@ class HabitCard extends StatelessWidget {
       child: Container(
         width: 40,
         height: 40,
-        padding: const EdgeInsets.all(8), // 주변 8px 패딩
+        padding: const EdgeInsets.all(4),
+        alignment: Alignment.center,
         child: isCompleted
-            ? SvgPicture.asset(
-                'asset/icon/routine_checked_icon.svg',
-                width: 24,
-                height: 24,
+            ? Container(
+                width: 32,
+                height: 32,
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE9FDE9), // #E9FDE9 연한 초록
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: SvgPicture.asset(
+                  'asset/icon/routine_checked_icon.svg',
+                  width: 24,
+                  height: 24,
+                ),
               )
             : SvgPicture.asset(
                 'asset/icon/routine_icon.svg',

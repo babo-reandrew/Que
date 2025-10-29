@@ -74,6 +74,7 @@ class IOSHeroPageRoute<T> extends PageRouteBuilder<T> {
 /// CupertinoPageRoute의 네이티브 전환 사용
 class IOSCardPageRoute<T> extends PageRoute<T> {
   final WidgetBuilder builder;
+  @override
   final bool fullscreenDialog;
 
   IOSCardPageRoute({required this.builder, this.fullscreenDialog = false});
@@ -196,8 +197,7 @@ class IOSBottomSheetRoute<T> extends PageRoute<T> {
 /// Hero 애니메이션용 커스텀 Rect Tween (iOS 스타일)
 /// 이거를 설정하고 → 카드가 자연스럽게 확대되는 경로를 계산
 class IOSStyleRectTween extends RectTween {
-  IOSStyleRectTween({required Rect? begin, required Rect? end})
-    : super(begin: begin, end: end);
+  IOSStyleRectTween({required super.begin, required super.end});
 
   @override
   Rect? lerp(double t) {

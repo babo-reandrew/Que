@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../screen/home_screen.dart';
 import '../screen/date_detail_view.dart';
+import '../screen/image_extraction_screen.dart'; // ✅ 추가
+import '../screen/gemini_test_screen.dart'; // ✅ 테스트 화면
 // ✅ OpenContainer 마이그레이션으로 AppleExpansionRoute 제거
 
 // ===================================================================
@@ -20,6 +22,8 @@ class AppRoutes {
 
   static const String home = '/';
   static const String dateDetail = '/date-detail';
+  static const String imageExtraction = '/image-extraction'; // ✅ 추가
+  static const String geminiTest = '/gemini-test'; // ✅ 테스트 화면
 
   // ===================================================================
   // 라우트 생성 함수
@@ -60,6 +64,20 @@ class AppRoutes {
           print('   ❌ DateDetailView 인자 오류: DateTime이 아님');
           return _errorRoute('날짜 정보가 올바르지 않습니다.');
         }
+
+      case imageExtraction:
+        print('   → ImageExtractionScreen으로 이동');
+        return MaterialPageRoute(
+          builder: (_) => const ImageExtractionScreen(),
+          settings: settings,
+        );
+
+      case geminiTest:
+        print('   → GeminiTestScreen으로 이동');
+        return MaterialPageRoute(
+          builder: (_) => const GeminiTestScreen(),
+          settings: settings,
+        );
 
       default:
         print('   ❌ 정의되지 않은 라우트: ${settings.name}');

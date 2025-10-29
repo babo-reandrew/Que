@@ -20,7 +20,7 @@ import '../design_system/quick_add_design_system.dart';
 /// - backdrop-filter: blur(4px)
 
 class QuickAddBackgroundBlurWidget extends StatelessWidget {
-  const QuickAddBackgroundBlurWidget({Key? key}) : super(key: key);
+  const QuickAddBackgroundBlurWidget({super.key});
 
   @override
   Widget build(BuildContext context) {

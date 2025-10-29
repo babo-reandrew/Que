@@ -38,7 +38,6 @@ abstract class ReorderableAnimatedListBase<W extends Widget, E extends Object>
   final List<E> nonDraggableItems;
   final List<E> lockedItems;
   final bool enableSwap;
-  final int Function(E item)? getCrossAxisCellCount; // 🎯 수정 (bool → int)
 
   const ReorderableAnimatedListBase(
       {Key? key,
@@ -62,8 +61,7 @@ abstract class ReorderableAnimatedListBase<W extends Widget, E extends Object>
       this.dragStartDelay,
       this.enableSwap = true,
       required this.nonDraggableItems,
-      required this.lockedItems,
-      this.getCrossAxisCellCount}) // 🎯 수정
+      required this.lockedItems})
       : assert(itemBuilder != null),
         super(key: key);
 }

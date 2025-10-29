@@ -5,6 +5,7 @@
 ///
 /// 이거를 설정하고 → CustomPaint로 점선을 그려서
 /// 이거를 해서 → Figma 디자인대로 시각적 구분을 명확히 한다
+library;
 
 import 'package:flutter/material.dart';
 import '../design_system/wolt_design_tokens.dart';

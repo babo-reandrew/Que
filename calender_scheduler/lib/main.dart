@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart' as provider; // ✅ prefix 추가
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // ✅ Riverpod 추가
 import 'package:flutter_persistent_keyboard_height/flutter_persistent_keyboard_height.dart'; // ✅ 키보드 높이 유지
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // ✅ 환경 변수
+import 'package:super_drag_and_drop/super_drag_and_drop.dart'; // 🔥 드래그 앤 드롭 추가
 import 'package:calender_scheduler/config/app_routes.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:calender_scheduler/Database/schedule_database.dart';
@@ -10,6 +12,7 @@ import 'package:calender_scheduler/providers/bottom_sheet_controller.dart';
 import 'package:calender_scheduler/providers/schedule_form_controller.dart';
 import 'package:calender_scheduler/providers/task_form_controller.dart';
 import 'package:calender_scheduler/providers/habit_form_controller.dart';
+import 'package:calender_scheduler/providers/image_analysis_provider.dart'; // ✅ 추가
 import 'package:calender_scheduler/design_system/wolt_theme.dart';
 // import 'package:calender_scheduler/utils/sample_data_helper.dart'; // ✅ 샘플 데이터 헬퍼 - 비활성화
 
@@ -37,6 +40,16 @@ void main() async {
   // 이거를 설정하고 → 한국어 날짜 포맷을 로드해서
   // 이거를 해서 → "10월", "월요일" 같은 한국어 표시가 가능하다
   print('📅 [main.dart] 날짜 포맷 초기화 완료 (한국어)');
+
+  // ===================================================================
+  // 2.5 환경 변수 로드 (.env 파일)
+  // ===================================================================
+  try {
+    await dotenv.load(fileName: '.env');
+    print('🔐 [main.dart] 환경 변수 로드 완료');
+  } catch (e) {
+    print('⚠️ [main.dart] 환경 변수 로드 실패 (개발 모드에서는 무시): $e');
+  }
 
   // ===================================================================
   // 3. 데이터베이스 초기화 및 의존성 주입
@@ -100,7 +113,7 @@ void main() async {
 // 이거는 이래서 → 코드 유지보수가 쉽고 라우트 추가/변경이 간단하다
 
 class CalendarSchedulerApp extends StatelessWidget {
-  const CalendarSchedulerApp({Key? key}) : super(key: key);
+  const CalendarSchedulerApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -116,6 +129,10 @@ class CalendarSchedulerApp extends StatelessWidget {
           ),
           provider.ChangeNotifierProvider(create: (_) => TaskFormController()),
           provider.ChangeNotifierProvider(create: (_) => HabitFormController()),
+          // ✅ ImageAnalysisProvider 추가
+          provider.ChangeNotifierProvider(
+            create: (_) => ImageAnalysisProvider(),
+          ),
         ],
         child: MaterialApp(
           // ===================================================================
@@ -135,10 +152,20 @@ class CalendarSchedulerApp extends StatelessWidget {
           ),
 
           // ===================================================================
-          // ⭐️ 키보드 높이 유지: 키보드 내려가도 높이 유지
+          // ⭐️ 키보드 높이 유지 + 드래그 앤 드롭 활성화
           // ===================================================================
-          builder: (context, child) =>
-              PersistentKeyboardHeightProvider(child: child!),
+          builder: (context, child) => DropRegion(
+            formats: Formats.standardFormats,
+            onDropOver: (event) => DropOperation.none, // 최상위에서는 반응 안 함
+            onPerformDrop: (event) async {
+              // 최상위에서는 드롭을 처리하지 않음 (하위 DropRegion이 처리)
+              print('⚠️ [App] 최상위 DropRegion에 드롭됨 (무시)');
+            },
+            child: PersistentKeyboardHeightProvider(child: child!),
+          ),
+          // 이거를 설정하고 → DropRegion으로 전체 앱을 감싸서
+          // 이거를 해서 → 모든 화면에서 드래그 앤 드롭이 작동한다
+          // 이거는 이래서 → 인박스 바텀시트에서 디테일뷰로 드래그가 가능하다
           // 이거를 설정하고 → 키보드 높이를 자동으로 측정하고 저장해서
           // 이거를 해서 → 키보드가 내려가도 그 높이를 유지한다
           // 이거는 이래서 → 追加 버튼 클릭 시 입력창이 고정된 위치에 유지된다

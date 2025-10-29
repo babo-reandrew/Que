@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:smooth_sheets/smooth_sheets.dart';
 import 'package:drift/drift.dart' hide Column; // ✅ Column 충돌 방지
 import 'package:get_it/get_it.dart'; // ✅ GetIt import
 import 'package:figma_squircle/figma_squircle.dart';
+import 'package:rrule/rrule.dart';
 
 import '../../design_system/wolt_helpers.dart';
 import '../../Database/schedule_database.dart'; // ScheduleData, AppDatabase
@@ -15,6 +15,7 @@ import '../../const/color.dart'; // ✅ 색상 맵핑
 import 'discard_changes_modal.dart'; // ✅ 변경 취소 확인 모달
 import 'delete_confirmation_modal.dart'; // ✅ 삭제 확인 모달
 import 'delete_repeat_confirmation_modal.dart'; // ✅ 반복 삭제 확인 모달
+import 'edit_repeat_confirmation_modal.dart'; // ✅ 반복 수정 확인 모달
 import '../toast/action_toast.dart'; // ✅ 변경 토스트
 import '../toast/save_toast.dart'; // ✅ 저장 토스트
 
@@ -60,7 +61,8 @@ import '../toast/save_toast.dart'; // ✅ 저장 토스트
 /// - Gap: 6px (icon + text)
 /// - Icon: 20x20px, #F74A4A
 /// - Text: "削除" - Bold 13px, #F74A4A
-void showHabitDetailWoltModal(
+/// Figma Design Spec (ULTRA PRECISE - 100% Match)
+Future<void> showHabitDetailWoltModal(
   BuildContext context, {
   required HabitData? habit, // ✅ nullable로 변경 (새 습관 생성 지원)
   required DateTime selectedDate,
@@ -86,6 +88,13 @@ void showHabitDetailWoltModal(
     // 새 습관 생성
     habitController.reset();
     bottomSheetController.reset(); // ✅ Provider 초기화
+
+    // ✅ 임시 캐시에서 제목 복원
+    final cachedTitle = await TempInputCache.getTempTitle();
+    if (cachedTitle != null && cachedTitle.isNotEmpty) {
+      habitController.titleController.text = cachedTitle;
+      debugPrint('✅ [HabitWolt] 임시 제목 복원: $cachedTitle');
+    }
 
     // 🎯 기본 반복 규칙: 매일 (주 7일 전체)
     final defaultRepeatRule =
@@ -118,12 +127,17 @@ void showHabitDetailWoltModal(
   final initialReminder = bottomSheetController.reminder;
   final initialRepeatRule = bottomSheetController.repeatRule;
 
-  showModalBottomSheet(
+  // ✅ 드래그 방향 추적 변수
+  double? previousExtent;
+  bool isDismissing = false; // 팝업 중복 방지
+
+  await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withOpacity(0.3), // ✅ 약간 어둡게 (터치 감지용)
     isDismissible: false, // ✅ 기본 드래그 닫기 비활성화
-    enableDrag: true, // ✅ 드래그는 활성화
+    enableDrag: false, // ✅ 기본 드래그 비활성화 (수동으로 처리)
     builder: (sheetContext) => WillPopScope(
       onWillPop: () async {
         // ✅ 변경사항 감지
@@ -141,32 +155,16 @@ void showHabitDetailWoltModal(
         // ✅ 변경사항 없으면 바로 닫기
         return true;
       },
-      child: GestureDetector(
-        onTap: () async {
-          // ✅ 바깥 영역 터치 시 변경사항 확인
-          final hasChanges =
-              initialTitle != habitController.titleController.text ||
-              initialColor != bottomSheetController.selectedColor ||
-              initialReminder != bottomSheetController.reminder ||
-              initialRepeatRule != bottomSheetController.repeatRule;
+      child: Stack(
+        children: [
+          // ✅ 배리어 영역 (전체 화면)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () async {
+                // ✅ 배리어 영역 터치 시
+                debugPrint('🐛 [HabitWolt] 배리어 터치 감지');
 
-          if (hasChanges) {
-            final confirmed = await showDiscardChangesModal(context);
-            if (confirmed == true && sheetContext.mounted) {
-              Navigator.of(sheetContext).pop();
-            }
-          } else {
-            Navigator.of(sheetContext).pop();
-          }
-        },
-        behavior: HitTestBehavior.opaque,
-        child: GestureDetector(
-          onTap: () {}, // ✅ 내부 터치는 무시 (이벤트 버블링 방지)
-          child: NotificationListener<DraggableScrollableNotification>(
-            onNotification: (notification) {
-              // ✅ 바텀시트를 minChildSize 이하로 내릴 때 감지
-              if (notification.extent <= notification.minExtent + 0.05) {
-                // ✅ 변경사항 확인
                 final hasChanges =
                     initialTitle != habitController.titleController.text ||
                     initialColor != bottomSheetController.selectedColor ||
@@ -175,17 +173,72 @@ void showHabitDetailWoltModal(
 
                 if (hasChanges) {
                   // ✅ 변경사항 있으면 확인 모달
-                  showDiscardChangesModal(context).then((confirmed) {
-                    if (confirmed == true && sheetContext.mounted) {
-                      Navigator.of(sheetContext).pop();
-                    }
-                  });
-                  return true; // ✅ 이벤트 소비 (기본 닫기 방지)
+                  final confirmed = await showDiscardChangesModal(context);
+                  if (confirmed == true && sheetContext.mounted) {
+                    Navigator.of(sheetContext).pop();
+                  }
                 } else {
                   // ✅ 변경사항 없으면 바로 닫기
                   if (sheetContext.mounted) {
                     Navigator.of(sheetContext).pop();
                   }
+                }
+              },
+            ),
+          ),
+          // ✅ 바텀시트 (배리어 위에)
+          NotificationListener<DraggableScrollableNotification>(
+            onNotification: (notification) {
+              // ✅ 바텀시트를 minChildSize 이하로 내릴 때 감지
+              // ✅ 드래그 방향 감지 (아래로만)
+              final isMovingDown =
+                  previousExtent != null &&
+                  notification.extent < previousExtent!;
+              previousExtent = notification.extent;
+
+              // ✅ 바텀시트를 아래로 드래그하여 minChildSize 이하로 내릴 때만
+              if (isMovingDown &&
+                  notification.extent <= notification.minExtent + 0.05 &&
+                  !isDismissing) {
+                debugPrint('🐛 [TaskWolt] 아래로 드래그 닫기 감지');
+
+                isDismissing = true; // ✅ 즉시 플래그 설정하여 중복 호출 방지
+
+                // ✅ 변경사항 확인
+                final hasChanges =
+                    initialTitle != habitController.titleController.text ||
+                    initialColor != bottomSheetController.selectedColor ||
+                    initialReminder != bottomSheetController.reminder ||
+                    initialRepeatRule != bottomSheetController.repeatRule;
+
+                if (hasChanges) {
+                  // ✅ 변경사항 있으면 확인 모달 띄우기
+                  WidgetsBinding.instance.addPostFrameCallback((_) async {
+                    if (sheetContext.mounted) {
+                      final confirmed = await showDiscardChangesModal(context);
+                      if (confirmed == true && sheetContext.mounted) {
+                        Navigator.of(sheetContext).pop();
+                      } else {
+                        // ✅ 사용자가 취소한 경우에만 플래그 리셋
+                        isDismissing = false;
+                      }
+                    }
+                  });
+                  return true; // ✅ 드래그 이벤트 소비 (닫기 방지)
+                } else {
+                  // ✅ 변경사항 없으면 바로 닫기
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (sheetContext.mounted) {
+                      try {
+                        Navigator.of(sheetContext, rootNavigator: false).pop();
+                        // ✅ pop 성공 후에는 리셋하지 않음 (이미 dispose됨)
+                      } catch (e) {
+                        debugPrint('❌ 바텀시트 닫기 실패: $e');
+                        isDismissing = false; // ✅ 실패한 경우에만 리셋
+                      }
+                    }
+                  });
+                  return false;
                 }
               }
               return false;
@@ -196,26 +249,37 @@ void showHabitDetailWoltModal(
               maxChildSize: 0.95,
               snap: true,
               snapSizes: const [0.5, 0.7, 0.95],
-              builder: (context, scrollController) => Container(
-                decoration: ShapeDecoration(
-                  color: const Color(0xFFFCFCFC),
-                  shape: SmoothRectangleBorder(
-                    borderRadius: SmoothBorderRadius(
-                      cornerRadius: 36,
-                      cornerSmoothing: 0.6,
+              builder: (context, scrollController) => GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  // ✅ 바텀시트 내부 터치는 아무것도 안함 (포커스 해제 등)
+                  debugPrint('🐛 [HabitWolt] 바텀시트 내부 터치');
+                },
+                child: Container(
+                  decoration: ShapeDecoration(
+                    color: const Color(0xFFFCFCFC),
+                    shape: SmoothRectangleBorder(
+                      borderRadius: SmoothBorderRadius(
+                        cornerRadius: 36,
+                        cornerSmoothing: 0.6,
+                      ),
                     ),
                   ),
-                ),
-                child: _buildHabitDetailPage(
-                  context,
-                  scrollController: scrollController,
-                  habit: habit,
-                  selectedDate: selectedDate,
+                  child: _buildHabitDetailPage(
+                    context,
+                    scrollController: scrollController,
+                    habit: habit,
+                    selectedDate: selectedDate,
+                    initialTitle: initialTitle,
+                    initialColor: initialColor,
+                    initialReminder: initialReminder,
+                    initialRepeatRule: initialRepeatRule,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     ),
   );
@@ -230,6 +294,10 @@ Widget _buildHabitDetailPage(
   required ScrollController scrollController,
   required HabitData? habit, // ✅ nullable로 변경
   required DateTime selectedDate,
+  required String initialTitle,
+  required String initialColor,
+  required String initialReminder,
+  required String initialRepeatRule,
 }) {
   debugPrint('⌨️ [HabitWolt] 하단 패딩: 0px');
 
@@ -238,7 +306,15 @@ Widget _buildHabitDetailPage(
     padding: EdgeInsets.zero,
     children: [
       // ========== TopNavi (60px) - 컨텐츠 최상단 ==========
-      _buildTopNavi(context, habit: habit, selectedDate: selectedDate),
+      _buildTopNavi(
+        context,
+        habit: habit,
+        selectedDate: selectedDate,
+        initialTitle: initialTitle,
+        initialColor: initialColor,
+        initialReminder: initialReminder,
+        initialRepeatRule: initialRepeatRule,
+      ),
 
       // ========== TextField Section (Frame 776) ==========
       _buildTextField(context),
@@ -249,9 +325,10 @@ Widget _buildHabitDetailPage(
 
       const SizedBox(height: 48), // Figma: gap 48px
       // ========== Delete Button (기존 습관만 표시) ==========
-      if (habit != null) _buildDeleteButton(context, habit: habit),
+      if (habit != null)
+        _buildDeleteButton(context, habit: habit, selectedDate: selectedDate),
 
-      const SizedBox(height: 32), // ✅ 하단 패딩
+      const SizedBox(height: 20), // ✅ 하단 패딩 20px (최대 확장 시 바텀시트 끝에서 20px 여백)
     ],
   );
 }
@@ -264,72 +341,127 @@ Widget _buildTopNavi(
   BuildContext context, {
   required HabitData? habit, // ✅ nullable로 변경
   required DateTime selectedDate,
+  required String initialTitle,
+  required String initialColor,
+  required String initialReminder,
+  required String initialRepeatRule,
 }) {
   // Figma: padding 28px 28px 9px 28px (top만 28px!)
   // Height: 60px total (28 + 9 + content)
-  return Padding(
-    padding: const EdgeInsets.fromLTRB(
-      28,
-      28,
-      28,
-      9,
-    ), // 🎯 Figma: 28px 28px 9px 28px
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween, // Figma: space-between
-      children: [
-        // ========== "ルーティン" 타이틀 (좌측) ==========
-        // Figma: Bold 16px, #505050, letter-spacing: -0.005em
-        const Text(
-          'ルーティン', // 🎯 Figma: "ルーティン" (習慣 아님!)
-          style: TextStyle(
-            fontFamily: 'LINE Seed JP App_TTF',
-            fontSize: 16,
-            fontWeight: FontWeight.w700, // Bold (700)
-            height: 1.4, // line-height: 140%
-            letterSpacing: -0.08, // -0.005em = -0.08px
-            color: Color(0xFF505050),
-          ),
-        ),
+  final habitController = Provider.of<HabitFormController>(
+    context,
+    listen: false,
+  );
 
-        // ========== "完了" 버튼 (우측) ==========
-        // Figma: 74x42px, ExtraBold 13px, #FAFAFA on #111111, radius 16px
-        GestureDetector(
-          onTap: () =>
-              _handleSave(context, habit: habit, selectedDate: selectedDate),
-          child: Container(
-            width: 74,
-            height: 42,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 12,
-            ), // Figma: 12px 24px
-            decoration: BoxDecoration(
-              color: const Color(0xFF111111), // #111111
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color.fromRGBO(186, 186, 186, 0.08),
-                  offset: Offset(0, -2),
-                  blurRadius: 8,
+  return ValueListenableBuilder<TextEditingValue>(
+    valueListenable: habitController.titleController,
+    builder: (context, titleValue, child) {
+      return Consumer2<HabitFormController, BottomSheetController>(
+        builder: (context, habitController, bottomSheetController, child) {
+          // ✅ 변경사항 또는 캐시 감지 (초기값과 비교)
+          final hasChanges =
+              initialTitle != titleValue.text ||
+              initialColor != bottomSheetController.selectedColor.toString() ||
+              initialReminder != bottomSheetController.reminder ||
+              initialRepeatRule != bottomSheetController.repeatRule;
+
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(
+              28,
+              28,
+              28,
+              9,
+            ), // 🎯 Figma: 28px 28px 9px 28px
+            child: Row(
+              mainAxisAlignment:
+                  MainAxisAlignment.spaceBetween, // Figma: space-between
+              children: [
+                // ========== "ルーティン" 타이틀 (좌측) ==========
+                // Figma: Bold 16px, #505050, letter-spacing: -0.005em
+                const Text(
+                  'ルーティン', // 🎯 Figma: "ルーティン" (習慣 아님!)
+                  style: TextStyle(
+                    fontFamily: 'LINE Seed JP App_TTF',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700, // Bold (700)
+                    height: 1.4, // line-height: 140%
+                    letterSpacing: -0.08, // -0.005em = -0.08px
+                    color: Color(0xFF505050),
+                  ),
                 ),
+
+                // ========== 조건부 버튼: 변경사항 있으면 完了, 없으면 X 아이콘 ==========
+                hasChanges
+                    ? GestureDetector(
+                        onTap: () => _handleSave(
+                          context,
+                          habit: habit,
+                          selectedDate: selectedDate,
+                        ),
+                        child: Container(
+                          width: 74,
+                          height: 42,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ), // Figma: 12px 24px
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF111111), // #111111
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color.fromRGBO(186, 186, 186, 0.08),
+                                offset: Offset(0, -2),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            '完了',
+                            style: TextStyle(
+                              fontFamily: 'LINE Seed JP App_TTF',
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800, // ExtraBold (800)
+                              height: 1.4, // line-height: 140%
+                              letterSpacing: -0.065, // -0.005em = -0.065px
+                              color: Color(0xFFFAFAFA), // #FAFAFA
+                            ),
+                          ),
+                        ),
+                      )
+                    : GestureDetector(
+                        onTap: () => Navigator.of(context).pop(),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE4E4E4).withOpacity(0.9),
+                            border: Border.all(
+                              color: const Color(0xFF111111).withOpacity(0.02),
+                              width: 1,
+                            ),
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                          alignment: Alignment.center,
+                          child: SvgPicture.asset(
+                            'asset/icon/X_icon.svg',
+                            width: 20,
+                            height: 20,
+                            colorFilter: const ColorFilter.mode(
+                              Color(0xFF111111),
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                        ),
+                      ),
               ],
             ),
-            alignment: Alignment.center,
-            child: const Text(
-              '完了',
-              style: TextStyle(
-                fontFamily: 'LINE Seed JP App_TTF',
-                fontSize: 13,
-                fontWeight: FontWeight.w800, // ExtraBold (800)
-                height: 1.4, // line-height: 140%
-                letterSpacing: -0.065, // -0.005em = -0.065px
-                color: Color(0xFFFAFAFA), // #FAFAFA
-              ),
-            ),
-          ),
-        ),
-      ],
-    ),
+          );
+        },
+      );
+    },
   );
 }
 
@@ -691,12 +823,17 @@ Widget _buildColorOptionButton(BuildContext context) {
 // Delete Button Component (Frame 872 + Frame 774)
 // ========================================
 
-Widget _buildDeleteButton(BuildContext context, {required HabitData habit}) {
+Widget _buildDeleteButton(
+  BuildContext context, {
+  required HabitData habit,
+  required DateTime selectedDate,
+}) {
   // Figma: Frame 872 - padding 0px 24px
   return Padding(
     padding: const EdgeInsets.symmetric(horizontal: 24), // Figma: 0px 24px
     child: GestureDetector(
-      onTap: () => _handleDelete(context, habit: habit),
+      onTap: () =>
+          _handleDelete(context, habit: habit, selectedDate: selectedDate),
       child: Container(
         width: 100, // Figma: 100px width
         height: 52, // Figma: 52px height
@@ -833,7 +970,124 @@ void _handleSave(
   final database = GetIt.I<AppDatabase>();
 
   try {
-    if (habit != null) {
+    if (habit != null && habit.id != -1) {
+      // ========== 🔄 RecurringPattern 테이블에서 실제 반복 여부 확인 ==========
+      final recurringPattern = await database.getRecurringPattern(
+        entityType: 'habit',
+        entityId: habit.id,
+      );
+      final hadRepeatRule = recurringPattern != null;
+
+      debugPrint(
+        '🔍 [HabitWolt] 저장 시 반복 확인: Habit #${habit.id} → ${hadRepeatRule ? "반복 있음" : "반복 없음"}',
+      );
+
+      if (hadRepeatRule) {
+        // 변경사항이 있는지 확인
+        final hasChanges =
+            habit.title != habitController.titleController.text.trim() ||
+            habit.colorId != finalColor ||
+            habit.reminder != (safeReminder ?? '') ||
+            habit.repeatRule != safeRepeatRule;
+
+        if (hasChanges) {
+          // ✅ 반복 습관 수정 확인 모달 표시
+          await showEditRepeatConfirmationModal(
+            context,
+            onEditThis: () async {
+              // ✅ この回のみ 수정: RecurringException 생성
+              await _editHabitThisOnly(
+                database,
+                habit,
+                habitController,
+                finalColor,
+                safeReminder,
+              );
+              debugPrint('✅ [HabitWolt] この回のみ 수정 완료');
+              if (context.mounted) {
+                // ✅ 1. 확인 모달 닫기
+                Navigator.pop(context);
+                // ✅ 2. Detail modal 닫기 (변경 신호 전달)
+                Navigator.pop(context, true);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('この回のみ変更しました'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            onEditFuture: () async {
+              // ✅ この予定以降 수정: RRULE 분할
+              await _editHabitFuture(
+                database,
+                habit,
+                habitController,
+                finalColor,
+                safeReminder,
+                safeRepeatRule,
+                selectedDate,
+              );
+              debugPrint('✅ [HabitWolt] この予定以降 수정 완료');
+              if (context.mounted) {
+                // ✅ 1. 확인 모달 닫기
+                Navigator.pop(context);
+                // ✅ 2. Detail modal 닫기 (변경 신호 전달)
+                Navigator.pop(context, true);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('この予定以降を変更しました'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            onEditAll: () async {
+              // ✅ すべての回 수정: Base Event + RecurringPattern 업데이트
+              final updatedHabit = HabitCompanion(
+                id: Value(habit.id),
+                title: Value(habitController.titleController.text.trim()),
+                createdAt: Value(habit.createdAt),
+                reminder: Value(safeReminder ?? ''),
+                repeatRule: Value(safeRepeatRule!), // ✅ null 체크 완료 (위에서 검증됨)
+                colorId: Value(finalColor),
+              );
+              await database.updateHabit(updatedHabit);
+              debugPrint('✅ [HabitWolt] すべての回 수정 완료');
+
+              // ========== RecurringPattern 업데이트 ==========
+              final dtstart = habit.createdAt;
+              final rrule = convertRepeatRuleToRRule(safeRepeatRule, dtstart);
+
+              // 🔥 날짜만 추출 (시간은 00:00:00으로 통일)
+              final dtstartDateOnly = DateTime(
+                dtstart.year,
+                dtstart.month,
+                dtstart.day,
+              );
+
+              if (rrule != null) {
+                // 기존 패턴 업데이트
+                await (database.update(
+                  database.recurringPattern,
+                )..where((tbl) => tbl.id.equals(recurringPattern.id))).write(
+                  RecurringPatternCompanion(
+                    rrule: Value(rrule),
+                    dtstart: Value(dtstartDateOnly),
+                  ),
+                );
+                debugPrint('✅ [HabitWolt] RecurringPattern 업데이트 완료');
+                debugPrint('   - RRULE: $rrule');
+                debugPrint('   - DTSTART: $dtstartDateOnly (날짜만)');
+              }
+            },
+          );
+
+          return; // ✅ 모달 작업 완료 후 함수 종료
+        }
+      }
+
+      // ========== 반복이 없거나 변경사항이 없는 경우: 일반 업데이트 ==========
       // 기존 습관 수정
       final updatedHabit = HabitCompanion(
         id: Value(habit.id),
@@ -848,6 +1102,54 @@ void _handleSave(
       debugPrint('   - 제목: ${habitController.titleController.text.trim()}');
       debugPrint('   - 색상: $finalColor');
       debugPrint('   - 반복: $safeRepeatRule');
+
+      // ========== RecurringPattern 업데이트 ==========
+      final dtstart = habit.createdAt;
+      final rrule = convertRepeatRuleToRRule(safeRepeatRule, dtstart);
+
+      // 🔥 날짜만 추출 (시간은 00:00:00으로 통일)
+      final dtstartDateOnly = DateTime(
+        dtstart.year,
+        dtstart.month,
+        dtstart.day,
+      );
+
+      if (rrule != null) {
+        // 기존 패턴 확인
+        final existingPattern = await database.getRecurringPattern(
+          entityType: 'habit',
+          entityId: habit.id,
+        );
+
+        if (existingPattern != null) {
+          // 업데이트
+          await (database.update(
+            database.recurringPattern,
+          )..where((tbl) => tbl.id.equals(existingPattern.id))).write(
+            RecurringPatternCompanion(
+              rrule: Value(rrule),
+              dtstart: Value(dtstartDateOnly),
+            ),
+          );
+          debugPrint('✅ [HabitWolt] RecurringPattern 업데이트 완료');
+        } else {
+          // 생성
+          await database.createRecurringPattern(
+            RecurringPatternCompanion.insert(
+              entityType: 'habit',
+              entityId: habit.id,
+              rrule: rrule,
+              dtstart: dtstartDateOnly,
+              exdate: const Value(''),
+            ),
+          );
+          debugPrint('✅ [HabitWolt] RecurringPattern 생성 완료');
+        }
+        debugPrint('   - RRULE: $rrule');
+        debugPrint('   - DTSTART: $dtstartDateOnly (날짜만)');
+      } else {
+        debugPrint('⚠️ [HabitWolt] RRULE 변환 실패');
+      }
 
       // ✅ 수정 완료 후 캐시 클리어
       await TempInputCache.clearTempInput();
@@ -875,6 +1177,34 @@ void _handleSave(
       debugPrint(
         '   - createdAt: ${DateTime.now().toString().split(' ')[0]} (오늘부터 표시)',
       );
+
+      // ========== 5.5단계: RecurringPattern 생성 (습관은 반복 필수) ==========
+      final dtstart = DateTime.now();
+      final rrule = convertRepeatRuleToRRule(safeRepeatRule, dtstart);
+
+      // 🔥 날짜만 추출 (시간은 00:00:00으로 통일)
+      final dtstartDateOnly = DateTime(
+        dtstart.year,
+        dtstart.month,
+        dtstart.day,
+      );
+
+      if (rrule != null) {
+        await database.createRecurringPattern(
+          RecurringPatternCompanion.insert(
+            entityType: 'habit',
+            entityId: newId,
+            rrule: rrule,
+            dtstart: dtstartDateOnly,
+            exdate: const Value(''),
+          ),
+        );
+        debugPrint('✅ [HabitWolt] RecurringPattern 생성 완료');
+        debugPrint('   - RRULE: $rrule');
+        debugPrint('   - DTSTART: $dtstartDateOnly (날짜만)');
+      } else {
+        debugPrint('⚠️ [HabitWolt] RRULE 변환 실패');
+      }
 
       // ========== 6단계: 캐시 클리어 ==========
       await TempInputCache.clearTempInput();
@@ -954,34 +1284,76 @@ void _handleRepeatPicker(BuildContext context) {
 }
 
 /// Delete Button Handler
-void _handleDelete(BuildContext context, {required HabitData habit}) async {
-  // ✅ 반복 여부 확인 (습관은 항상 반복이 있음)
-  final hasRepeat =
-      habit.repeatRule.isNotEmpty &&
-      habit.repeatRule != '{}' &&
-      habit.repeatRule != '[]';
-
+void _handleDelete(
+  BuildContext context, {
+  required HabitData habit,
+  required DateTime selectedDate,
+}) async {
   final database = GetIt.I<AppDatabase>();
+
+  // ✅ RecurringPattern 테이블에서 실제 반복 여부 확인
+  final recurringPattern = await database.getRecurringPattern(
+    entityType: 'habit',
+    entityId: habit.id,
+  );
+  final hasRepeat = recurringPattern != null;
+
+  debugPrint(
+    '🔍 [HabitWolt] 삭제 시 반복 확인: Habit #${habit.id} → ${hasRepeat ? "반복 있음" : "반복 없음"}',
+  );
 
   if (hasRepeat) {
     // ✅ 반복 있으면 → 반복 삭제 모달
     await showDeleteRepeatConfirmationModal(
       context,
       onDeleteThis: () async {
-        // ✅ この回のみ 삭제: 내일부터 시작하도록 변경
+        // ✅ この回のみ 삭제: RecurringException 생성
         await _deleteHabitThisOnly(database, habit);
-        if (context.mounted) Navigator.pop(context);
+        if (context.mounted) {
+          // ✅ 1. 확인 모달 닫기
+          Navigator.pop(context);
+          // ✅ 2. Detail modal 닫기 (변경 신호 전달)
+          Navigator.pop(context, true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('この回のみ削除しました'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       },
       onDeleteFuture: () async {
-        // ✅ この予定以降 삭제: 어제까지로 종료
-        await _deleteHabitFuture(database, habit);
-        if (context.mounted) Navigator.pop(context);
+        // ✅ この予定以降 삭제: UNTIL 설정
+        await _deleteHabitFuture(database, habit, selectedDate);
+        if (context.mounted) {
+          // ✅ 1. 확인 모달 닫기
+          Navigator.pop(context);
+          // ✅ 2. Detail modal 닫기 (변경 신호 전달)
+          Navigator.pop(context, true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('この予定以降を削除しました'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       },
       onDeleteAll: () async {
         // すべての回 삭제 (전체 삭제)
         debugPrint('✅ [HabitWolt] すべての回 삭제');
         await database.deleteHabit(habit.id);
-        if (context.mounted) Navigator.pop(context);
+        if (context.mounted) {
+          // ✅ 1. 확인 모달 닫기
+          Navigator.pop(context);
+          // ✅ 2. Detail modal 닫기 (변경 신호 전달)
+          Navigator.pop(context, true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('すべての回を削除しました'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       },
     );
   } else {
@@ -1000,39 +1372,402 @@ void _handleDelete(BuildContext context, {required HabitData habit}) async {
 // ==================== 삭제 헬퍼 함수 ====================
 
 /// ✅ この回のみ 삭제: 오늘만 제외하고 내일부터 다시 시작
+/// ✅ この回のみ 삭제: RFC 5545 EXDATE로 예외 처리
 Future<void> _deleteHabitThisOnly(AppDatabase db, HabitData habit) async {
-  // 1. 오늘을 제외한 새로운 시작일 계산
-  final today = DateTime.now();
-  final tomorrow = DateTime(today.year, today.month, today.day + 1);
-
-  // 2. createdAt을 내일로 변경하여 업데이트
-  await (db.update(db.habit)..where((tbl) => tbl.id.equals(habit.id))).write(
-    HabitCompanion(id: Value(habit.id), createdAt: Value(tomorrow)),
+  // 1. RecurringPattern 조회
+  final pattern = await db.getRecurringPattern(
+    entityType: 'habit',
+    entityId: habit.id,
   );
 
-  debugPrint('✅ [HabitWolt] この回のみ 삭제 완료');
-  debugPrint('   - ID: ${habit.id}');
-  debugPrint('   - 새 시작일: $tomorrow');
-}
+  if (pattern == null) {
+    debugPrint('⚠️ [HabitWolt] RecurringPattern 없음');
+    return;
+  }
 
-/// ✅ この予定以降 삭제: 어제까지만 유지하고 이후 반복 종료
-Future<void> _deleteHabitFuture(AppDatabase db, HabitData habit) async {
-  // 1. 어제 날짜 계산
-  final today = DateTime.now();
-  final yesterday = DateTime(today.year, today.month, today.day - 1);
+  // 2. 현재 날짜 (선택된 인스턴스의 originalDate)
+  final originalDate = DateTime.now();
 
-  // 2. 반복 규칙에서 endDate를 어제로 설정
-  // TODO: repeatRule JSON 파싱 및 endDate 추가 로직 필요
-  // 현재는 단순히 반복 제거로 처리 (임시)
-  await (db.update(db.habit)..where((tbl) => tbl.id.equals(habit.id))).write(
-    HabitCompanion(
-      id: Value(habit.id),
-      repeatRule: const Value(''), // 반복 제거 (임시)
+  // 3. RecurringException 생성 (취소 표시)
+  await db.createRecurringException(
+    RecurringExceptionCompanion(
+      recurringPatternId: Value(pattern.id),
+      originalDate: Value(originalDate),
+      isCancelled: const Value(true), // 취소 (삭제)
+      isRescheduled: const Value(false),
     ),
   );
 
-  debugPrint('✅ [HabitWolt] この予定以降 삭제 완료');
-  debugPrint('   - ID: ${habit.id}');
-  debugPrint('   - 종료일: $yesterday');
-  debugPrint('   ⚠️ TODO: repeatRule endDate 설정 필요');
+  debugPrint('✅ [HabitWolt] この回のみ 삭제 완료 (RFC 5545 EXDATE)');
+  debugPrint('   - Habit ID: ${habit.id}');
+  debugPrint('   - Pattern ID: ${pattern.id}');
+  debugPrint('   - Original Date: $originalDate');
+}
+
+/// ✅ この予定以降 삭제: RFC 5545 UNTIL로 종료일 설정
+Future<void> _deleteHabitFuture(
+  AppDatabase db,
+  HabitData habit,
+  DateTime selectedDate,
+) async {
+  // 1. RecurringPattern 조회
+  final pattern = await db.getRecurringPattern(
+    entityType: 'habit',
+    entityId: habit.id,
+  );
+
+  if (pattern == null) {
+    debugPrint('⚠️ [HabitWolt] RecurringPattern 없음');
+    return;
+  }
+
+  // 2. ✅ 선택된 날짜(selectedDate) 포함 이후 모두 삭제 → 어제가 마지막 발생
+  final dateOnly = DateTime(
+    selectedDate.year,
+    selectedDate.month,
+    selectedDate.day,
+  );
+  final yesterday = dateOnly.subtract(const Duration(days: 1));
+  final until = DateTime(
+    yesterday.year,
+    yesterday.month,
+    yesterday.day,
+    23,
+    59,
+    59,
+  );
+
+  // 3. RRULE에 UNTIL 파라미터 추가 (RecurringPattern 업데이트)
+  await db.updateRecurringPattern(
+    RecurringPatternCompanion(
+      id: Value(pattern.id),
+      until: Value(until), // UNTIL 설정
+    ),
+  );
+
+  debugPrint('✅ [HabitWolt] この予定以降 삭제 완료 (RFC 5545 UNTIL)');
+  debugPrint('   - Habit ID: ${habit.id}');
+  debugPrint('   - Pattern ID: ${pattern.id}');
+  debugPrint('   - Selected Date: $dateOnly');
+  debugPrint('   - UNTIL (종료일): $until');
+}
+
+// ========================================
+// Habit repeatRule JSON → RRULE 변환
+// ========================================
+
+/// Habit의 repeatRule JSON을 RRULE로 변환
+///
+/// JSON 형식:
+///   - 새 형식: {"value":"daily:月,火,水","display":"月火\n水"}
+///   - 구 형식: {"type":"daily","weekdays":[1,2,3,4,5,6,7],"display":"毎日"}
+/// RRULE 형식: FREQ=WEEKLY;BYDAY=MO,TU,WE
+String? convertRepeatRuleToRRule(String? repeatRuleJson, DateTime dtstart) {
+  if (repeatRuleJson == null || repeatRuleJson.trim().isEmpty) {
+    return null;
+  }
+
+  try {
+    // 구 형식: {"type":"daily","weekdays":[1,2,3,4,5,6,7],"display":"毎日"}
+    if (repeatRuleJson.contains('"type":"') &&
+        repeatRuleJson.contains('"weekdays":[')) {
+      debugPrint('🔍 [RepeatConvert] 구 형식 감지');
+
+      // type 추출
+      final typeStart = repeatRuleJson.indexOf('"type":"') + 8;
+      final typeEnd = repeatRuleJson.indexOf('"', typeStart);
+      final type = repeatRuleJson.substring(typeStart, typeEnd);
+
+      if (type == 'daily') {
+        // weekdays 배열 추출
+        final weekdaysStart = repeatRuleJson.indexOf(
+          '[',
+          repeatRuleJson.indexOf('"weekdays":'),
+        );
+        final weekdaysEnd = repeatRuleJson.indexOf(']', weekdaysStart);
+        final weekdaysStr = repeatRuleJson.substring(
+          weekdaysStart + 1,
+          weekdaysEnd,
+        );
+        final weekdays = weekdaysStr
+            .split(',')
+            .map((s) => int.tryParse(s.trim()))
+            .whereType<int>()
+            .toList();
+
+        if (weekdays.isEmpty) {
+          debugPrint('⚠️ [RepeatConvert] 유효한 요일 없음');
+          return null;
+        }
+
+        debugPrint('🔍 [RepeatConvert] weekdays 추출: $weekdays');
+
+        // RecurrenceRule API 사용
+        final rrule = RecurrenceRule(
+          frequency: Frequency.weekly,
+          byWeekDays: weekdays.map((wd) => ByWeekDayEntry(wd)).toList(),
+        );
+
+        final rruleString = rrule.toString();
+        final result = rruleString.replaceFirst('RRULE:', '');
+
+        debugPrint('✅ [RepeatConvert] RRULE 생성 (구 형식): $result');
+        return result;
+      }
+
+      return null;
+    }
+
+    // 새 형식: {"value":"daily:月,火,水","display":"月火\n水"}
+    if (!repeatRuleJson.contains('"value":"')) {
+      debugPrint('⚠️ [RepeatConvert] 알 수 없는 형식: $repeatRuleJson');
+      return null;
+    }
+
+    final startIndex = repeatRuleJson.indexOf('"value":"') + 9;
+    final endIndex = repeatRuleJson.indexOf('"', startIndex);
+    final value = repeatRuleJson.substring(startIndex, endIndex);
+
+    debugPrint('🔍 [RepeatConvert] value 추출: $value');
+
+    // daily: 요일 기반 반복
+    if (value.startsWith('daily:')) {
+      final daysStr = value.substring(6); // "月,火,水"
+      final days = daysStr
+          .split(',')
+          .map((d) => d.trim())
+          .where((d) => d.isNotEmpty)
+          .toList();
+
+      debugPrint('🐛 [HabitWolt-RepeatConvert] daysStr: $daysStr');
+      debugPrint('🐛 [HabitWolt-RepeatConvert] days split: $days');
+
+      // 일본어 요일 → DateTime.weekday (with -1 보정)
+      final weekdays = days.map(_jpDayToWeekday).whereType<int>().toList();
+
+      debugPrint('🐛 [HabitWolt-RepeatConvert] weekdays 변환: $weekdays');
+
+      if (weekdays.isEmpty) {
+        debugPrint('⚠️ [RepeatConvert] 유효한 요일 없음');
+        return null;
+      }
+
+      // RecurrenceRule API 사용 (버그 보정 적용)
+      final rrule = RecurrenceRule(
+        frequency: Frequency.weekly,
+        byWeekDays: weekdays.map((wd) => ByWeekDayEntry(wd)).toList(),
+      );
+
+      final rruleString = rrule.toString();
+      final result = rruleString.replaceFirst('RRULE:', '');
+
+      debugPrint('✅ [RepeatConvert] RRULE 생성: $result');
+      return result;
+    }
+    // monthly: 날짜 기반 반복
+    else if (value.startsWith('monthly:')) {
+      final daysStr = value.substring(8); // "1,15"
+      final days = daysStr
+          .split(',')
+          .map((d) => int.tryParse(d))
+          .whereType<int>()
+          .toList();
+
+      if (days.isEmpty) {
+        debugPrint('⚠️ [RepeatConvert] 유효한 날짜 없음');
+        return null;
+      }
+
+      // RecurrenceRule API 사용
+      final rrule = RecurrenceRule(
+        frequency: Frequency.monthly,
+        byMonthDays: days,
+      );
+
+      final rruleString = rrule.toString();
+      final result = rruleString.replaceFirst('RRULE:', '');
+
+      debugPrint('✅ [RepeatConvert] RRULE 생성: $result');
+      return result;
+    }
+    // 간격 기반 (2日毎, 1週間毎, etc.)
+    else if (value.contains('日毎')) {
+      // "2日毎" → FREQ=DAILY;INTERVAL=2
+      final intervalStr = value.replaceAll('日毎', '');
+      final interval = int.tryParse(intervalStr) ?? 1;
+
+      final rrule = RecurrenceRule(
+        frequency: Frequency.daily,
+        interval: interval,
+      );
+
+      final rruleString = rrule.toString();
+      final result = rruleString.replaceFirst('RRULE:', '');
+
+      debugPrint('✅ [RepeatConvert] RRULE 생성: $result');
+      return result;
+    } else if (value.contains('週間毎')) {
+      // "1週間毎" → FREQ=WEEKLY
+      final intervalStr = value.replaceAll('週間毎', '');
+      final interval = int.tryParse(intervalStr) ?? 1;
+
+      final rrule = RecurrenceRule(
+        frequency: Frequency.weekly,
+        interval: interval,
+        byWeekDays: [ByWeekDayEntry(dtstart.weekday - 1)], // -1 보정
+      );
+
+      final rruleString = rrule.toString();
+      final result = rruleString.replaceFirst('RRULE:', '');
+
+      debugPrint('✅ [RepeatConvert] RRULE 생성: $result');
+      return result;
+    }
+
+    debugPrint('⚠️ [RepeatConvert] 알 수 없는 형식: $value');
+    return null;
+  } catch (e) {
+    debugPrint('❌ [RepeatConvert] 변환 실패: $e');
+    return null;
+  }
+}
+
+/// 일본어 요일을 DateTime.weekday 상수로 변환
+/// ⚠️ 보정 없이 정확한 weekday 반환 (RRuleUtils에서 -1 보정 적용)
+int? _jpDayToWeekday(String jpDay) {
+  switch (jpDay) {
+    case '月':
+      return DateTime.monday; // 1
+    case '火':
+      return DateTime.tuesday; // 2
+    case '水':
+      return DateTime.wednesday; // 3
+    case '木':
+      return DateTime.thursday; // 4
+    case '金':
+      return DateTime.friday; // 5
+    case '土':
+      return DateTime.saturday; // 6
+    case '日':
+      return DateTime.sunday; // 7
+    default:
+      debugPrint('⚠️ [RepeatConvert] 알 수 없는 요일: $jpDay');
+      return null;
+  }
+}
+
+/// ✅ この回のみ 수정: RFC 5545 RecurringException으로 예외 처리
+Future<void> _editHabitThisOnly(
+  AppDatabase db,
+  HabitData habit,
+  HabitFormController controller,
+  String color,
+  String? reminder,
+) async {
+  // 1. RecurringPattern 조회
+  final pattern = await db.getRecurringPattern(
+    entityType: 'habit',
+    entityId: habit.id,
+  );
+
+  if (pattern == null) {
+    debugPrint('⚠️ [HabitWolt] RecurringPattern 없음');
+    return;
+  }
+
+  // 2. 현재 날짜 (선택된 인스턴스의 originalDate)
+  final originalDate = DateTime.now();
+
+  // 3. RecurringException 생성 (수정된 내용 저장)
+  await db.createRecurringException(
+    RecurringExceptionCompanion(
+      recurringPatternId: Value(pattern.id),
+      originalDate: Value(originalDate),
+      isCancelled: const Value(false),
+      isRescheduled: const Value(false), // Habit은 시간 변경 없음
+      modifiedTitle: Value(controller.titleController.text.trim()),
+      modifiedColorId: Value(color),
+    ),
+  );
+
+  debugPrint('✅ [HabitWolt] この回のみ 수정 완료 (RFC 5545 Exception)');
+  debugPrint('   - Habit ID: ${habit.id}');
+  debugPrint('   - Pattern ID: ${pattern.id}');
+  debugPrint('   - Original Date: $originalDate');
+  debugPrint('   - Modified Title: ${controller.titleController.text.trim()}');
+}
+
+/// ✅ この予定以降 수정: RFC 5545 RRULE 분할
+Future<void> _editHabitFuture(
+  AppDatabase db,
+  HabitData habit,
+  HabitFormController controller,
+  String color,
+  String? reminder,
+  String? repeatRule,
+  DateTime selectedDate,
+) async {
+  // 1. 기존 RecurringPattern 조회
+  final oldPattern = await db.getRecurringPattern(
+    entityType: 'habit',
+    entityId: habit.id,
+  );
+
+  if (oldPattern == null) {
+    debugPrint('⚠️ [HabitWolt] RecurringPattern 없음');
+    return;
+  }
+
+  // 2. ✅ 선택된 날짜(selectedDate) 포함 이후 모두 수정 → 어제가 마지막 발생
+  final dateOnly = DateTime(
+    selectedDate.year,
+    selectedDate.month,
+    selectedDate.day,
+  );
+  final yesterday = dateOnly.subtract(const Duration(days: 1));
+  final until = DateTime(
+    yesterday.year,
+    yesterday.month,
+    yesterday.day,
+    23,
+    59,
+    59,
+  );
+
+  // 3. 기존 패턴에 UNTIL 설정 (선택 날짜 전까지만)
+  await db.updateRecurringPattern(
+    RecurringPatternCompanion(id: Value(oldPattern.id), until: Value(until)),
+  );
+
+  // 4. 새로운 Habit 생성 (선택 날짜부터 시작)
+  final newHabitId = await db.createHabit(
+    HabitCompanion(
+      title: Value(controller.titleController.text.trim()),
+      createdAt: Value(selectedDate),
+      reminder: Value(reminder ?? ''),
+      repeatRule: Value(repeatRule ?? ''),
+      colorId: Value(color),
+    ),
+  );
+
+  // 5. 새로운 RecurringPattern 생성 (반복 규칙이 있으면)
+  if (repeatRule != null && repeatRule.isNotEmpty) {
+    final rruleString = convertRepeatRuleToRRule(repeatRule, selectedDate);
+
+    if (rruleString != null) {
+      await db.createRecurringPattern(
+        RecurringPatternCompanion(
+          entityType: const Value('habit'),
+          entityId: Value(newHabitId),
+          rrule: Value(rruleString),
+          dtstart: Value(selectedDate),
+          until: Value(oldPattern.until), // 기존 종료일 유지
+        ),
+      );
+    }
+  }
+
+  debugPrint('✅ [HabitWolt] この予定以降 수정 완료 (RFC 5545 Split)');
+  debugPrint('   - Old Habit ID: ${habit.id} (UNTIL: $until)');
+  debugPrint('   - New Habit ID: $newHabitId (Start: $selectedDate)');
 }

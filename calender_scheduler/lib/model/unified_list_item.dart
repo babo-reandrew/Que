@@ -15,11 +15,13 @@
 /// // 점선 구분선
 /// UnifiedListItem.divider(sortOrder: 2);
 /// ```
+library;
 
 import '../Database/schedule_database.dart';
 
 /// 통합 리스트 아이템 타입
 enum UnifiedItemType {
+  dateHeader, // 📅 날짜 헤더 (DateDetailHeader - 스크롤 가능)
   inboxHeader, // 📋 인박스 모드 헤더 (今日の流れを整えて スタート)
   schedule, // 일정
   task, // 할일
@@ -124,7 +126,24 @@ class UnifiedListItem {
     );
   }
 
-  /// 📋 인박스 헤더 생성
+  /// � 날짜 헤더 생성 (DateDetailHeader - 스크롤 가능)
+  /// 이거를 설정하고 → 날짜 헤더를 리스트 최상단에 추가해서
+  /// 이거를 해서 → "10月 金曜日 / 3 今日" 정보를 함께 스크롤되게 하고
+  /// 이거는 이래서 → isDraggable = false로 절대 고정된다
+  factory UnifiedListItem.dateHeader({
+    required DateTime date,
+    required int sortOrder,
+  }) {
+    return UnifiedListItem(
+      uniqueId: 'date_header_${date.year}_${date.month}_${date.day}',
+      type: UnifiedItemType.dateHeader,
+      data: date, // DateTime 저장
+      sortOrder: sortOrder,
+      isDraggable: false, // 날짜 헤더는 드래그 불가 (절대 고정)
+    );
+  }
+
+  /// �📋 인박스 헤더 생성
   /// 이거를 설정하고 → 인박스 모드 전용 헤더를 생성해서
   /// 이거를 해서 → "今日の流れを整えて スタート" 텍스트를 표시하고
   /// 이거는 이래서 → isDraggable = false로 절대 고정된다
@@ -142,11 +161,14 @@ class UnifiedListItem {
   /// 이거를 설정하고 → 완료 섹션 아이템을 생성해서
   /// 이거를 해서 → 완료된 항목들을 별도로 표시하고
   /// 이거는 이래서 → isDraggable = false로 고정된다
-  factory UnifiedListItem.completed({required int sortOrder}) {
+  factory UnifiedListItem.completedSection({
+    required int completedCount,
+    required int sortOrder,
+  }) {
     return UnifiedListItem(
       uniqueId: 'completed_section',
       type: UnifiedItemType.completed,
-      data: null,
+      data: completedCount, // 완료 개수를 data에 저장
       sortOrder: sortOrder,
       isDraggable: false, // 완료 섹션은 드래그 불가
     );

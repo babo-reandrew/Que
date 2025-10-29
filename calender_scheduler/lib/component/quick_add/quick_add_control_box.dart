@@ -31,14 +31,14 @@ class QuickAddControlBox extends StatefulWidget {
   final VoidCallback? onInputFocused; // 🔥 입력 포커스 콜백 (키보드 락 해제)
 
   const QuickAddControlBox({
-    Key? key,
+    super.key,
     required this.selectedDate,
     this.onSave,
     this.externalSelectedType, // ✅ 외부 타입
     this.onInputFocused, // 🔥 입력 포커스 콜백
     this.onTypeChanged, // ✅ 타입 변경 알림
     this.onAddButtonPressed, // 🔥 추가 버튼 콜백
-  }) : super(key: key);
+  });
 
   @override
   State<QuickAddControlBox> createState() => _QuickAddControlBoxState();
@@ -60,8 +60,8 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   double _textFieldHeight = 20.0; // ✅ TextField 높이 추적 (개행 감지용)
 
   // ✅ 반복/리마인더 설정 상태 변수
-  String _repeatRule = ''; // 반복 규칙 (JSON 문자열)
-  String _reminder = ''; // 리마인더 설정 (JSON 문자열)
+  final String _repeatRule = ''; // 반복 규칙 (JSON 문자열)
+  final String _reminder = ''; // 리마인더 설정 (JSON 문자열)
 
   // ========================================
   // 애니메이션 컨트롤러
@@ -175,38 +175,12 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
     double baseHeight;
     switch (type) {
       case QuickAddType.schedule:
-        // 이거를 설정하고 → "今日のスケジュール" 선택 시 자동으로 시간을 설정해서
-        // 이거를 해서 → 현재 시간을 15분 단위로 반올림하여 시작/종료 시간 지정
-        final now = DateTime.now();
-
-        // 15분 단위로 반올림 (현재 시간 이후로만)
-        final currentMinute = now.minute;
-        final roundedMinute = ((currentMinute / 15).ceil() * 15) % 60;
-        final hourOffset = (currentMinute / 15).ceil() * 15 >= 60 ? 1 : 0;
-
-        final startTime = DateTime(
-          widget.selectedDate.year,
-          widget.selectedDate.month,
-          widget.selectedDate.day,
-          now.hour + hourOffset,
-          roundedMinute,
-        );
-        final endTime = startTime.add(
-          const Duration(hours: 1),
-        ); // 이거라면 → 1시간 후로 종료 시간 설정
-
-        setState(() {
-          _startDateTime = startTime;
-          _endDateTime = endTime;
-        });
-
-        print('⏰ [Quick Add] 자동 시간 설정 완료 (15분 단위)');
-        print('   → 현재: ${now.hour}:${now.minute}');
-        print('   → 시작: $startTime');
-        print('   → 종료: $endTime');
+        // ✅ 일정 타입 선택 시 시간을 자동 설정하지 않음
+        // 유저가 날짜 선택 바텀시트에서 "완료"를 눌러야만 시간이 설정됨
+        // 이거를 해서 → 기본 상태에서는 "開始-終了" 버튼만 표시된다
 
         baseHeight = QuickAddConfig.controlBoxScheduleHeight; // 148px
-        print('📅 [Quick Add] 일정 모드로 확장: ${baseHeight}px');
+        print('📅 [Quick Add] 일정 모드로 확장: ${baseHeight}px (시간 미설정)');
         break;
 
       case QuickAddType.task:
@@ -440,11 +414,22 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   void _showFullScheduleBottomSheet() async {
     print('📋 [Quick Add] 일정 Wolt 모달 열기');
 
+    // ✅ 현재 입력된 제목을 임시 캐시에 저장
+    final currentTitle = _textController.text.trim();
+    if (currentTitle.isNotEmpty) {
+      await TempInputCache.saveTempTitle(currentTitle);
+      print('💾 [Quick Add] 임시 캐시에 제목 저장됨: "$currentTitle"');
+    }
+
     // ✅ 현재 선택된 날짜/시간이 있으면 임시 캐시에 저장
     if (_startDateTime != null && _endDateTime != null) {
       await TempInputCache.saveTempDateTime(_startDateTime!, _endDateTime!);
       print('💾 [Quick Add] 임시 캐시에 날짜/시간 저장됨: $_startDateTime ~ $_endDateTime');
     }
+
+    // ✅ 선택된 색상을 임시 캐시에 저장
+    await TempInputCache.saveTempColor(_selectedColorId);
+    print('💾 [Quick Add] 임시 캐시에 색상 저장됨: $_selectedColorId');
 
     // ✅ 먼저 현재 bottom sheet 닫기 (검은 화면 방지!)
     Navigator.of(context).pop();
@@ -474,6 +459,16 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
       print('💾 [Quick Add] 임시 캐시에 제목 저장됨: "$currentTitle"');
     }
 
+    // ✅ 마감일이 있으면 임시 캐시에 저장
+    if (_startDateTime != null) {
+      await TempInputCache.saveTempDueDate(_startDateTime!);
+      print('💾 [Quick Add] 임시 캐시에 마감일 저장됨: $_startDateTime');
+    }
+
+    // ✅ 선택된 색상을 임시 캐시에 저장
+    await TempInputCache.saveTempColor(_selectedColorId);
+    print('💾 [Quick Add] 임시 캐시에 색상 저장됨: $_selectedColorId');
+
     // ✅ 먼저 현재 bottom sheet 닫기 (검은 화면 방지!)
     Navigator.of(context).pop();
 
@@ -492,8 +487,19 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   // ========================================
   // 전체 습관 Wolt 모달 표시
   // ========================================
-  void _showFullHabitBottomSheet() {
+  void _showFullHabitBottomSheet() async {
     print('📋 [Quick Add] 습관 Wolt 모달 열기');
+
+    // ✅ 현재 입력된 제목을 임시 캐시에 저장
+    final currentTitle = _textController.text.trim();
+    if (currentTitle.isNotEmpty) {
+      await TempInputCache.saveTempTitle(currentTitle);
+      print('💾 [Quick Add] 임시 캐시에 제목 저장됨: "$currentTitle"');
+    }
+
+    // ✅ 선택된 색상을 임시 캐시에 저장
+    await TempInputCache.saveTempColor(_selectedColorId);
+    print('💾 [Quick Add] 임시 캐시에 색상 저장됨: $_selectedColorId');
 
     // ✅ 먼저 현재 bottom sheet 닫기 (검은 화면 방지!)
     Navigator.of(context).pop();
@@ -725,7 +731,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
                   }
                 });
                 print(
-                  '📝 [Quick Add] 텍스트 입력: "$text" (${lineCount}행) → 追加버튼: $_isAddButtonActive',
+                  '📝 [Quick Add] 텍스트 입력: "$text" ($lineCount행) → 追加버튼: $_isAddButtonActive',
                 );
               },
               style: QuickAddTextStyles.inputText,
@@ -1156,20 +1162,16 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   void _saveDirectHabit() {
     final title = _textController.text.trim();
 
-    // ✅ 반복 규칙이 없으면 기본값 설정 (매일)
-    final repeatRule = _repeatRule.isEmpty
-        ? '{"type":"daily","display":"매일"}'
-        : _repeatRule;
-
     widget.onSave?.call({
       'type': QuickAddType.habit,
       'title': title,
       'colorId': _selectedColorId,
-      'repeatRule': repeatRule,
+      'repeatRule': _repeatRule, // ✅ 사용자가 설정한 값만 전달 (기본값 강제 설정 제거)
       'reminder': _reminder,
     });
 
     print('✅ [DirectAdd] 습관 직접 저장: $title');
+    print('   → 반복: ${_repeatRule.isEmpty ? "(미설정)" : _repeatRule}');
   }
 }
 

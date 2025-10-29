@@ -68,7 +68,7 @@ extension HomeScreenExtension on State {
               child: Center(
                 // 가운데 정렬한다
                 child: Text(
-                  '${scheduleCount}', // 스케줄 개수를 표시한다
+                  '$scheduleCount', // 스케줄 개수를 표시한다
                   style: TextStyle(
                     color: Colors.white, // 흰색으로 설정한다
                     fontSize: 6, // 작은 폰트로 설정한다

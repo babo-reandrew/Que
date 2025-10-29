@@ -47,7 +47,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
   // ========================================
   // ✅ Quick_Add 상태 변수 (새로 추가)
   // ========================================
-  bool _useQuickAdd = true; // ✅ Quick Add 모드 활성화! (피그마 디자인 적용)
+  final bool _useQuickAdd = true; // ✅ Quick Add 모드 활성화! (피그마 디자인 적용)
   final TextEditingController _quickAddController = TextEditingController();
   QuickAddType? _selectedQuickAddType; // ✅ 외부에서 관리하는 타입 상태
   bool _isKeyboardLocked = false; // 🔥 키보드 고정 상태
@@ -130,10 +130,12 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
           summary: title,
           // ✅ description, location 제거 (기본값 '' 자동 적용)
           colorId: colorId,
-          repeatRule: repeatRule, // ✅ 반복 규칙 포함
-          alertSetting: reminder, // ✅ 리마인더 포함
-          status: 'confirmed',
-          visibility: 'public',
+          repeatRule: repeatRule.isNotEmpty
+              ? Value(repeatRule)
+              : const Value.absent(), // ✅ 반복 규칙: 사용자가 설정한 경우에만 저장
+          alertSetting: reminder.isNotEmpty
+              ? Value(reminder)
+              : const Value.absent(), // ✅ 리마인더: 사용자가 설정한 경우에만 저장
         );
 
         final database = GetIt.I<AppDatabase>();
@@ -143,6 +145,8 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         print('   → 제목: $title');
         print('   → 시작: $startDateTime');
         print('   → 종료: $endDateTime');
+        print('   → 반복: ${repeatRule.isEmpty ? "(미설정)" : repeatRule}');
+        print('   → 리마인더: ${reminder.isEmpty ? "(미설정)" : reminder}');
       } else if (type == QuickAddType.task) {
         // ========================================
         // 할일 저장
@@ -190,8 +194,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         // 습관 저장
         // ========================================
         final repeatRule =
-            data['repeatRule'] as String? ??
-            '{"type":"daily","display":"매일"}'; // ✅ 기본값: 매일
+            data['repeatRule'] as String? ?? ''; // ✅ 기본값 강제 설정 제거
         final reminder = data['reminder'] as String? ?? '';
 
         // 1. 검증
@@ -369,10 +372,12 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         summary: _title ?? '제목 없음',
         // ✅ description, location 제거 (기본값 '' 자동 적용)
         colorId: controller.selectedColor,
-        repeatRule: controller.repeatRule, // ✅ 반복 규칙 포함
-        alertSetting: controller.reminder, // ✅ 리마인더 포함
-        status: 'confirmed',
-        visibility: 'public',
+        repeatRule: controller.repeatRule.isNotEmpty
+            ? Value(controller.repeatRule)
+            : const Value.absent(), // ✅ 반복 규칙: 사용자가 설정한 경우에만 저장
+        alertSetting: controller.reminder.isNotEmpty
+            ? Value(controller.reminder)
+            : const Value.absent(), // ✅ 리마인더: 사용자가 설정한 경우에만 저장
       );
 
       print('📦 [데이터] ScheduleCompanion 생성 완료:');
@@ -381,6 +386,12 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
       print('   → 종료: $endDateTime');
       print('   → 색상: ${controller.selectedColor}');
       print('   → 종일: $_isAllDay');
+      print(
+        '   → 반복: ${controller.repeatRule.isEmpty ? "(미설정)" : controller.repeatRule}',
+      );
+      print(
+        '   → 리마인더: ${controller.reminder.isEmpty ? "(미설정)" : controller.reminder}',
+      );
 
       // 9. DB에 저장한다
       // 이거는 이래서 → createSchedule()이 완료되면 DB 스트림이 자동으로 갱신된다
@@ -965,10 +976,8 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
       return;
     }
 
-    // ✅ 반복 규칙이 없으면 기본값 설정 (매일)
-    final repeatRule = controller.repeatRule.isEmpty
-        ? '{"type":"daily","display":"매일"}'
-        : controller.repeatRule;
+    // ✅ 사용자가 설정한 값만 사용 (기본값 강제 설정 제거)
+    final repeatRule = controller.repeatRule;
 
     // 기존 Quick Add 저장 로직 재사용
     final habitData = {
@@ -980,7 +989,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
     };
 
     print('💾 [습관 저장] 입력 필드에서 저장 시작: $title');
-    print('   → 반복: $repeatRule');
+    print('   → 반복: ${repeatRule.isEmpty ? "(미설정)" : repeatRule}');
     print('   → 리마인더: ${controller.reminder}');
     _saveQuickAdd(habitData);
   }

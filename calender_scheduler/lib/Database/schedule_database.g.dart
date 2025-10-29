@@ -95,7 +95,8 @@ class $ScheduleTable extends Schedule
     aliasedName,
     false,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
   );
   static const VerificationMeta _alertSettingMeta = const VerificationMeta(
     'alertSetting',
@@ -106,22 +107,8 @@ class $ScheduleTable extends Schedule
     aliasedName,
     false,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _isAllDayMeta = const VerificationMeta(
-    'isAllDay',
-  );
-  @override
-  late final GeneratedColumn<bool> isAllDay = GeneratedColumn<bool>(
-    'is_all_day',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
     requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("is_all_day" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
+    defaultValue: const Constant(''),
   );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
@@ -142,7 +129,8 @@ class $ScheduleTable extends Schedule
     aliasedName,
     false,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('confirmed'),
   );
   static const VerificationMeta _visibilityMeta = const VerificationMeta(
     'visibility',
@@ -153,7 +141,34 @@ class $ScheduleTable extends Schedule
     aliasedName,
     false,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('default'),
+  );
+  static const VerificationMeta _completedMeta = const VerificationMeta(
+    'completed',
+  );
+  @override
+  late final GeneratedColumn<bool> completed = GeneratedColumn<bool>(
+    'completed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("completed" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _completedAtMeta = const VerificationMeta(
+    'completedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
+    'completed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
   );
   @override
   List<GeneratedColumn> get $columns => [
@@ -166,10 +181,11 @@ class $ScheduleTable extends Schedule
     colorId,
     repeatRule,
     alertSetting,
-    isAllDay,
     createdAt,
     status,
     visibility,
+    completed,
+    completedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -238,8 +254,6 @@ class $ScheduleTable extends Schedule
         _repeatRuleMeta,
         repeatRule.isAcceptableOrUnknown(data['repeat_rule']!, _repeatRuleMeta),
       );
-    } else if (isInserting) {
-      context.missing(_repeatRuleMeta);
     }
     if (data.containsKey('alert_setting')) {
       context.handle(
@@ -248,14 +262,6 @@ class $ScheduleTable extends Schedule
           data['alert_setting']!,
           _alertSettingMeta,
         ),
-      );
-    } else if (isInserting) {
-      context.missing(_alertSettingMeta);
-    }
-    if (data.containsKey('is_all_day')) {
-      context.handle(
-        _isAllDayMeta,
-        isAllDay.isAcceptableOrUnknown(data['is_all_day']!, _isAllDayMeta),
       );
     }
     if (data.containsKey('created_at')) {
@@ -269,16 +275,27 @@ class $ScheduleTable extends Schedule
         _statusMeta,
         status.isAcceptableOrUnknown(data['status']!, _statusMeta),
       );
-    } else if (isInserting) {
-      context.missing(_statusMeta);
     }
     if (data.containsKey('visibility')) {
       context.handle(
         _visibilityMeta,
         visibility.isAcceptableOrUnknown(data['visibility']!, _visibilityMeta),
       );
-    } else if (isInserting) {
-      context.missing(_visibilityMeta);
+    }
+    if (data.containsKey('completed')) {
+      context.handle(
+        _completedMeta,
+        completed.isAcceptableOrUnknown(data['completed']!, _completedMeta),
+      );
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+        _completedAtMeta,
+        completedAt.isAcceptableOrUnknown(
+          data['completed_at']!,
+          _completedAtMeta,
+        ),
+      );
     }
     return context;
   }
@@ -325,10 +342,6 @@ class $ScheduleTable extends Schedule
         DriftSqlType.string,
         data['${effectivePrefix}alert_setting'],
       )!,
-      isAllDay: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}is_all_day'],
-      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -341,6 +354,14 @@ class $ScheduleTable extends Schedule
         DriftSqlType.string,
         data['${effectivePrefix}visibility'],
       )!,
+      completed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}completed'],
+      )!,
+      completedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}completed_at'],
+      ),
     );
   }
 
@@ -360,10 +381,11 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
   final String colorId;
   final String repeatRule;
   final String alertSetting;
-  final bool isAllDay;
   final DateTime createdAt;
   final String status;
   final String visibility;
+  final bool completed;
+  final DateTime? completedAt;
   const ScheduleData({
     required this.start,
     required this.end,
@@ -374,10 +396,11 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     required this.colorId,
     required this.repeatRule,
     required this.alertSetting,
-    required this.isAllDay,
     required this.createdAt,
     required this.status,
     required this.visibility,
+    required this.completed,
+    this.completedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -391,10 +414,13 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     map['color_id'] = Variable<String>(colorId);
     map['repeat_rule'] = Variable<String>(repeatRule);
     map['alert_setting'] = Variable<String>(alertSetting);
-    map['is_all_day'] = Variable<bool>(isAllDay);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['status'] = Variable<String>(status);
     map['visibility'] = Variable<String>(visibility);
+    map['completed'] = Variable<bool>(completed);
+    if (!nullToAbsent || completedAt != null) {
+      map['completed_at'] = Variable<DateTime>(completedAt);
+    }
     return map;
   }
 
@@ -409,10 +435,13 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
       colorId: Value(colorId),
       repeatRule: Value(repeatRule),
       alertSetting: Value(alertSetting),
-      isAllDay: Value(isAllDay),
       createdAt: Value(createdAt),
       status: Value(status),
       visibility: Value(visibility),
+      completed: Value(completed),
+      completedAt: completedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(completedAt),
     );
   }
 
@@ -431,10 +460,11 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
       colorId: serializer.fromJson<String>(json['colorId']),
       repeatRule: serializer.fromJson<String>(json['repeatRule']),
       alertSetting: serializer.fromJson<String>(json['alertSetting']),
-      isAllDay: serializer.fromJson<bool>(json['isAllDay']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       status: serializer.fromJson<String>(json['status']),
       visibility: serializer.fromJson<String>(json['visibility']),
+      completed: serializer.fromJson<bool>(json['completed']),
+      completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
     );
   }
   @override
@@ -450,10 +480,11 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
       'colorId': serializer.toJson<String>(colorId),
       'repeatRule': serializer.toJson<String>(repeatRule),
       'alertSetting': serializer.toJson<String>(alertSetting),
-      'isAllDay': serializer.toJson<bool>(isAllDay),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'status': serializer.toJson<String>(status),
       'visibility': serializer.toJson<String>(visibility),
+      'completed': serializer.toJson<bool>(completed),
+      'completedAt': serializer.toJson<DateTime?>(completedAt),
     };
   }
 
@@ -467,10 +498,11 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     String? colorId,
     String? repeatRule,
     String? alertSetting,
-    bool? isAllDay,
     DateTime? createdAt,
     String? status,
     String? visibility,
+    bool? completed,
+    Value<DateTime?> completedAt = const Value.absent(),
   }) => ScheduleData(
     start: start ?? this.start,
     end: end ?? this.end,
@@ -481,10 +513,11 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     colorId: colorId ?? this.colorId,
     repeatRule: repeatRule ?? this.repeatRule,
     alertSetting: alertSetting ?? this.alertSetting,
-    isAllDay: isAllDay ?? this.isAllDay,
     createdAt: createdAt ?? this.createdAt,
     status: status ?? this.status,
     visibility: visibility ?? this.visibility,
+    completed: completed ?? this.completed,
+    completedAt: completedAt.present ? completedAt.value : this.completedAt,
   );
   ScheduleData copyWithCompanion(ScheduleCompanion data) {
     return ScheduleData(
@@ -503,12 +536,15 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
       alertSetting: data.alertSetting.present
           ? data.alertSetting.value
           : this.alertSetting,
-      isAllDay: data.isAllDay.present ? data.isAllDay.value : this.isAllDay,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       status: data.status.present ? data.status.value : this.status,
       visibility: data.visibility.present
           ? data.visibility.value
           : this.visibility,
+      completed: data.completed.present ? data.completed.value : this.completed,
+      completedAt: data.completedAt.present
+          ? data.completedAt.value
+          : this.completedAt,
     );
   }
 
@@ -524,10 +560,11 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
           ..write('colorId: $colorId, ')
           ..write('repeatRule: $repeatRule, ')
           ..write('alertSetting: $alertSetting, ')
-          ..write('isAllDay: $isAllDay, ')
           ..write('createdAt: $createdAt, ')
           ..write('status: $status, ')
-          ..write('visibility: $visibility')
+          ..write('visibility: $visibility, ')
+          ..write('completed: $completed, ')
+          ..write('completedAt: $completedAt')
           ..write(')'))
         .toString();
   }
@@ -543,10 +580,11 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     colorId,
     repeatRule,
     alertSetting,
-    isAllDay,
     createdAt,
     status,
     visibility,
+    completed,
+    completedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -561,10 +599,11 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
           other.colorId == this.colorId &&
           other.repeatRule == this.repeatRule &&
           other.alertSetting == this.alertSetting &&
-          other.isAllDay == this.isAllDay &&
           other.createdAt == this.createdAt &&
           other.status == this.status &&
-          other.visibility == this.visibility);
+          other.visibility == this.visibility &&
+          other.completed == this.completed &&
+          other.completedAt == this.completedAt);
 }
 
 class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
@@ -577,10 +616,11 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
   final Value<String> colorId;
   final Value<String> repeatRule;
   final Value<String> alertSetting;
-  final Value<bool> isAllDay;
   final Value<DateTime> createdAt;
   final Value<String> status;
   final Value<String> visibility;
+  final Value<bool> completed;
+  final Value<DateTime?> completedAt;
   const ScheduleCompanion({
     this.start = const Value.absent(),
     this.end = const Value.absent(),
@@ -591,10 +631,11 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     this.colorId = const Value.absent(),
     this.repeatRule = const Value.absent(),
     this.alertSetting = const Value.absent(),
-    this.isAllDay = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.status = const Value.absent(),
     this.visibility = const Value.absent(),
+    this.completed = const Value.absent(),
+    this.completedAt = const Value.absent(),
   });
   ScheduleCompanion.insert({
     required DateTime start,
@@ -604,20 +645,17 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     this.description = const Value.absent(),
     this.location = const Value.absent(),
     required String colorId,
-    required String repeatRule,
-    required String alertSetting,
-    this.isAllDay = const Value.absent(),
+    this.repeatRule = const Value.absent(),
+    this.alertSetting = const Value.absent(),
     this.createdAt = const Value.absent(),
-    required String status,
-    required String visibility,
+    this.status = const Value.absent(),
+    this.visibility = const Value.absent(),
+    this.completed = const Value.absent(),
+    this.completedAt = const Value.absent(),
   }) : start = Value(start),
        end = Value(end),
        summary = Value(summary),
-       colorId = Value(colorId),
-       repeatRule = Value(repeatRule),
-       alertSetting = Value(alertSetting),
-       status = Value(status),
-       visibility = Value(visibility);
+       colorId = Value(colorId);
   static Insertable<ScheduleData> custom({
     Expression<DateTime>? start,
     Expression<DateTime>? end,
@@ -628,10 +666,11 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     Expression<String>? colorId,
     Expression<String>? repeatRule,
     Expression<String>? alertSetting,
-    Expression<bool>? isAllDay,
     Expression<DateTime>? createdAt,
     Expression<String>? status,
     Expression<String>? visibility,
+    Expression<bool>? completed,
+    Expression<DateTime>? completedAt,
   }) {
     return RawValuesInsertable({
       if (start != null) 'start': start,
@@ -643,10 +682,11 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
       if (colorId != null) 'color_id': colorId,
       if (repeatRule != null) 'repeat_rule': repeatRule,
       if (alertSetting != null) 'alert_setting': alertSetting,
-      if (isAllDay != null) 'is_all_day': isAllDay,
       if (createdAt != null) 'created_at': createdAt,
       if (status != null) 'status': status,
       if (visibility != null) 'visibility': visibility,
+      if (completed != null) 'completed': completed,
+      if (completedAt != null) 'completed_at': completedAt,
     });
   }
 
@@ -660,10 +700,11 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     Value<String>? colorId,
     Value<String>? repeatRule,
     Value<String>? alertSetting,
-    Value<bool>? isAllDay,
     Value<DateTime>? createdAt,
     Value<String>? status,
     Value<String>? visibility,
+    Value<bool>? completed,
+    Value<DateTime?>? completedAt,
   }) {
     return ScheduleCompanion(
       start: start ?? this.start,
@@ -675,10 +716,11 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
       colorId: colorId ?? this.colorId,
       repeatRule: repeatRule ?? this.repeatRule,
       alertSetting: alertSetting ?? this.alertSetting,
-      isAllDay: isAllDay ?? this.isAllDay,
       createdAt: createdAt ?? this.createdAt,
       status: status ?? this.status,
       visibility: visibility ?? this.visibility,
+      completed: completed ?? this.completed,
+      completedAt: completedAt ?? this.completedAt,
     );
   }
 
@@ -712,9 +754,6 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     if (alertSetting.present) {
       map['alert_setting'] = Variable<String>(alertSetting.value);
     }
-    if (isAllDay.present) {
-      map['is_all_day'] = Variable<bool>(isAllDay.value);
-    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -723,6 +762,12 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     }
     if (visibility.present) {
       map['visibility'] = Variable<String>(visibility.value);
+    }
+    if (completed.present) {
+      map['completed'] = Variable<bool>(completed.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<DateTime>(completedAt.value);
     }
     return map;
   }
@@ -739,10 +784,11 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
           ..write('colorId: $colorId, ')
           ..write('repeatRule: $repeatRule, ')
           ..write('alertSetting: $alertSetting, ')
-          ..write('isAllDay: $isAllDay, ')
           ..write('createdAt: $createdAt, ')
           ..write('status: $status, ')
-          ..write('visibility: $visibility')
+          ..write('visibility: $visibility, ')
+          ..write('completed: $completed, ')
+          ..write('completedAt: $completedAt')
           ..write(')'))
         .toString();
   }
@@ -3642,6 +3688,2289 @@ class TranscriptLinesCompanion extends UpdateCompanion<TranscriptLineData> {
   }
 }
 
+class $RecurringPatternTable extends RecurringPattern
+    with TableInfo<$RecurringPatternTable, RecurringPatternData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RecurringPatternTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _entityTypeMeta = const VerificationMeta(
+    'entityType',
+  );
+  @override
+  late final GeneratedColumn<String> entityType = GeneratedColumn<String>(
+    'entity_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _entityIdMeta = const VerificationMeta(
+    'entityId',
+  );
+  @override
+  late final GeneratedColumn<int> entityId = GeneratedColumn<int>(
+    'entity_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _rruleMeta = const VerificationMeta('rrule');
+  @override
+  late final GeneratedColumn<String> rrule = GeneratedColumn<String>(
+    'rrule',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dtstartMeta = const VerificationMeta(
+    'dtstart',
+  );
+  @override
+  late final GeneratedColumn<DateTime> dtstart = GeneratedColumn<DateTime>(
+    'dtstart',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _untilMeta = const VerificationMeta('until');
+  @override
+  late final GeneratedColumn<DateTime> until = GeneratedColumn<DateTime>(
+    'until',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _countMeta = const VerificationMeta('count');
+  @override
+  late final GeneratedColumn<int> count = GeneratedColumn<int>(
+    'count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _timezoneMeta = const VerificationMeta(
+    'timezone',
+  );
+  @override
+  late final GeneratedColumn<String> timezone = GeneratedColumn<String>(
+    'timezone',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('UTC'),
+  );
+  static const VerificationMeta _exdateMeta = const VerificationMeta('exdate');
+  @override
+  late final GeneratedColumn<String> exdate = GeneratedColumn<String>(
+    'exdate',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    entityType,
+    entityId,
+    rrule,
+    dtstart,
+    until,
+    count,
+    timezone,
+    exdate,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'recurring_pattern';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RecurringPatternData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('entity_type')) {
+      context.handle(
+        _entityTypeMeta,
+        entityType.isAcceptableOrUnknown(data['entity_type']!, _entityTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entityTypeMeta);
+    }
+    if (data.containsKey('entity_id')) {
+      context.handle(
+        _entityIdMeta,
+        entityId.isAcceptableOrUnknown(data['entity_id']!, _entityIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entityIdMeta);
+    }
+    if (data.containsKey('rrule')) {
+      context.handle(
+        _rruleMeta,
+        rrule.isAcceptableOrUnknown(data['rrule']!, _rruleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_rruleMeta);
+    }
+    if (data.containsKey('dtstart')) {
+      context.handle(
+        _dtstartMeta,
+        dtstart.isAcceptableOrUnknown(data['dtstart']!, _dtstartMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dtstartMeta);
+    }
+    if (data.containsKey('until')) {
+      context.handle(
+        _untilMeta,
+        until.isAcceptableOrUnknown(data['until']!, _untilMeta),
+      );
+    }
+    if (data.containsKey('count')) {
+      context.handle(
+        _countMeta,
+        count.isAcceptableOrUnknown(data['count']!, _countMeta),
+      );
+    }
+    if (data.containsKey('timezone')) {
+      context.handle(
+        _timezoneMeta,
+        timezone.isAcceptableOrUnknown(data['timezone']!, _timezoneMeta),
+      );
+    }
+    if (data.containsKey('exdate')) {
+      context.handle(
+        _exdateMeta,
+        exdate.isAcceptableOrUnknown(data['exdate']!, _exdateMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {entityType, entityId},
+  ];
+  @override
+  RecurringPatternData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RecurringPatternData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      entityType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_type'],
+      )!,
+      entityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}entity_id'],
+      )!,
+      rrule: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}rrule'],
+      )!,
+      dtstart: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}dtstart'],
+      )!,
+      until: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}until'],
+      ),
+      count: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}count'],
+      ),
+      timezone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}timezone'],
+      )!,
+      exdate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}exdate'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $RecurringPatternTable createAlias(String alias) {
+    return $RecurringPatternTable(attachedDatabase, alias);
+  }
+}
+
+class RecurringPatternData extends DataClass
+    implements Insertable<RecurringPatternData> {
+  final int id;
+  final String entityType;
+  final int entityId;
+  final String rrule;
+  final DateTime dtstart;
+  final DateTime? until;
+  final int? count;
+  final String timezone;
+  final String exdate;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const RecurringPatternData({
+    required this.id,
+    required this.entityType,
+    required this.entityId,
+    required this.rrule,
+    required this.dtstart,
+    this.until,
+    this.count,
+    required this.timezone,
+    required this.exdate,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['entity_type'] = Variable<String>(entityType);
+    map['entity_id'] = Variable<int>(entityId);
+    map['rrule'] = Variable<String>(rrule);
+    map['dtstart'] = Variable<DateTime>(dtstart);
+    if (!nullToAbsent || until != null) {
+      map['until'] = Variable<DateTime>(until);
+    }
+    if (!nullToAbsent || count != null) {
+      map['count'] = Variable<int>(count);
+    }
+    map['timezone'] = Variable<String>(timezone);
+    map['exdate'] = Variable<String>(exdate);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  RecurringPatternCompanion toCompanion(bool nullToAbsent) {
+    return RecurringPatternCompanion(
+      id: Value(id),
+      entityType: Value(entityType),
+      entityId: Value(entityId),
+      rrule: Value(rrule),
+      dtstart: Value(dtstart),
+      until: until == null && nullToAbsent
+          ? const Value.absent()
+          : Value(until),
+      count: count == null && nullToAbsent
+          ? const Value.absent()
+          : Value(count),
+      timezone: Value(timezone),
+      exdate: Value(exdate),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory RecurringPatternData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RecurringPatternData(
+      id: serializer.fromJson<int>(json['id']),
+      entityType: serializer.fromJson<String>(json['entityType']),
+      entityId: serializer.fromJson<int>(json['entityId']),
+      rrule: serializer.fromJson<String>(json['rrule']),
+      dtstart: serializer.fromJson<DateTime>(json['dtstart']),
+      until: serializer.fromJson<DateTime?>(json['until']),
+      count: serializer.fromJson<int?>(json['count']),
+      timezone: serializer.fromJson<String>(json['timezone']),
+      exdate: serializer.fromJson<String>(json['exdate']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'entityType': serializer.toJson<String>(entityType),
+      'entityId': serializer.toJson<int>(entityId),
+      'rrule': serializer.toJson<String>(rrule),
+      'dtstart': serializer.toJson<DateTime>(dtstart),
+      'until': serializer.toJson<DateTime?>(until),
+      'count': serializer.toJson<int?>(count),
+      'timezone': serializer.toJson<String>(timezone),
+      'exdate': serializer.toJson<String>(exdate),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  RecurringPatternData copyWith({
+    int? id,
+    String? entityType,
+    int? entityId,
+    String? rrule,
+    DateTime? dtstart,
+    Value<DateTime?> until = const Value.absent(),
+    Value<int?> count = const Value.absent(),
+    String? timezone,
+    String? exdate,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => RecurringPatternData(
+    id: id ?? this.id,
+    entityType: entityType ?? this.entityType,
+    entityId: entityId ?? this.entityId,
+    rrule: rrule ?? this.rrule,
+    dtstart: dtstart ?? this.dtstart,
+    until: until.present ? until.value : this.until,
+    count: count.present ? count.value : this.count,
+    timezone: timezone ?? this.timezone,
+    exdate: exdate ?? this.exdate,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  RecurringPatternData copyWithCompanion(RecurringPatternCompanion data) {
+    return RecurringPatternData(
+      id: data.id.present ? data.id.value : this.id,
+      entityType: data.entityType.present
+          ? data.entityType.value
+          : this.entityType,
+      entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      rrule: data.rrule.present ? data.rrule.value : this.rrule,
+      dtstart: data.dtstart.present ? data.dtstart.value : this.dtstart,
+      until: data.until.present ? data.until.value : this.until,
+      count: data.count.present ? data.count.value : this.count,
+      timezone: data.timezone.present ? data.timezone.value : this.timezone,
+      exdate: data.exdate.present ? data.exdate.value : this.exdate,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecurringPatternData(')
+          ..write('id: $id, ')
+          ..write('entityType: $entityType, ')
+          ..write('entityId: $entityId, ')
+          ..write('rrule: $rrule, ')
+          ..write('dtstart: $dtstart, ')
+          ..write('until: $until, ')
+          ..write('count: $count, ')
+          ..write('timezone: $timezone, ')
+          ..write('exdate: $exdate, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    entityType,
+    entityId,
+    rrule,
+    dtstart,
+    until,
+    count,
+    timezone,
+    exdate,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RecurringPatternData &&
+          other.id == this.id &&
+          other.entityType == this.entityType &&
+          other.entityId == this.entityId &&
+          other.rrule == this.rrule &&
+          other.dtstart == this.dtstart &&
+          other.until == this.until &&
+          other.count == this.count &&
+          other.timezone == this.timezone &&
+          other.exdate == this.exdate &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class RecurringPatternCompanion extends UpdateCompanion<RecurringPatternData> {
+  final Value<int> id;
+  final Value<String> entityType;
+  final Value<int> entityId;
+  final Value<String> rrule;
+  final Value<DateTime> dtstart;
+  final Value<DateTime?> until;
+  final Value<int?> count;
+  final Value<String> timezone;
+  final Value<String> exdate;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  const RecurringPatternCompanion({
+    this.id = const Value.absent(),
+    this.entityType = const Value.absent(),
+    this.entityId = const Value.absent(),
+    this.rrule = const Value.absent(),
+    this.dtstart = const Value.absent(),
+    this.until = const Value.absent(),
+    this.count = const Value.absent(),
+    this.timezone = const Value.absent(),
+    this.exdate = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  RecurringPatternCompanion.insert({
+    this.id = const Value.absent(),
+    required String entityType,
+    required int entityId,
+    required String rrule,
+    required DateTime dtstart,
+    this.until = const Value.absent(),
+    this.count = const Value.absent(),
+    this.timezone = const Value.absent(),
+    this.exdate = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  }) : entityType = Value(entityType),
+       entityId = Value(entityId),
+       rrule = Value(rrule),
+       dtstart = Value(dtstart);
+  static Insertable<RecurringPatternData> custom({
+    Expression<int>? id,
+    Expression<String>? entityType,
+    Expression<int>? entityId,
+    Expression<String>? rrule,
+    Expression<DateTime>? dtstart,
+    Expression<DateTime>? until,
+    Expression<int>? count,
+    Expression<String>? timezone,
+    Expression<String>? exdate,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (entityType != null) 'entity_type': entityType,
+      if (entityId != null) 'entity_id': entityId,
+      if (rrule != null) 'rrule': rrule,
+      if (dtstart != null) 'dtstart': dtstart,
+      if (until != null) 'until': until,
+      if (count != null) 'count': count,
+      if (timezone != null) 'timezone': timezone,
+      if (exdate != null) 'exdate': exdate,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  RecurringPatternCompanion copyWith({
+    Value<int>? id,
+    Value<String>? entityType,
+    Value<int>? entityId,
+    Value<String>? rrule,
+    Value<DateTime>? dtstart,
+    Value<DateTime?>? until,
+    Value<int?>? count,
+    Value<String>? timezone,
+    Value<String>? exdate,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+  }) {
+    return RecurringPatternCompanion(
+      id: id ?? this.id,
+      entityType: entityType ?? this.entityType,
+      entityId: entityId ?? this.entityId,
+      rrule: rrule ?? this.rrule,
+      dtstart: dtstart ?? this.dtstart,
+      until: until ?? this.until,
+      count: count ?? this.count,
+      timezone: timezone ?? this.timezone,
+      exdate: exdate ?? this.exdate,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (entityType.present) {
+      map['entity_type'] = Variable<String>(entityType.value);
+    }
+    if (entityId.present) {
+      map['entity_id'] = Variable<int>(entityId.value);
+    }
+    if (rrule.present) {
+      map['rrule'] = Variable<String>(rrule.value);
+    }
+    if (dtstart.present) {
+      map['dtstart'] = Variable<DateTime>(dtstart.value);
+    }
+    if (until.present) {
+      map['until'] = Variable<DateTime>(until.value);
+    }
+    if (count.present) {
+      map['count'] = Variable<int>(count.value);
+    }
+    if (timezone.present) {
+      map['timezone'] = Variable<String>(timezone.value);
+    }
+    if (exdate.present) {
+      map['exdate'] = Variable<String>(exdate.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecurringPatternCompanion(')
+          ..write('id: $id, ')
+          ..write('entityType: $entityType, ')
+          ..write('entityId: $entityId, ')
+          ..write('rrule: $rrule, ')
+          ..write('dtstart: $dtstart, ')
+          ..write('until: $until, ')
+          ..write('count: $count, ')
+          ..write('timezone: $timezone, ')
+          ..write('exdate: $exdate, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $RecurringExceptionTable extends RecurringException
+    with TableInfo<$RecurringExceptionTable, RecurringExceptionData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RecurringExceptionTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _recurringPatternIdMeta =
+      const VerificationMeta('recurringPatternId');
+  @override
+  late final GeneratedColumn<int> recurringPatternId = GeneratedColumn<int>(
+    'recurring_pattern_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES recurring_pattern (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _originalDateMeta = const VerificationMeta(
+    'originalDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> originalDate = GeneratedColumn<DateTime>(
+    'original_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isCancelledMeta = const VerificationMeta(
+    'isCancelled',
+  );
+  @override
+  late final GeneratedColumn<bool> isCancelled = GeneratedColumn<bool>(
+    'is_cancelled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_cancelled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _isRescheduledMeta = const VerificationMeta(
+    'isRescheduled',
+  );
+  @override
+  late final GeneratedColumn<bool> isRescheduled = GeneratedColumn<bool>(
+    'is_rescheduled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_rescheduled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _newStartDateMeta = const VerificationMeta(
+    'newStartDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> newStartDate = GeneratedColumn<DateTime>(
+    'new_start_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _newEndDateMeta = const VerificationMeta(
+    'newEndDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> newEndDate = GeneratedColumn<DateTime>(
+    'new_end_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _modifiedTitleMeta = const VerificationMeta(
+    'modifiedTitle',
+  );
+  @override
+  late final GeneratedColumn<String> modifiedTitle = GeneratedColumn<String>(
+    'modified_title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _modifiedDescriptionMeta =
+      const VerificationMeta('modifiedDescription');
+  @override
+  late final GeneratedColumn<String> modifiedDescription =
+      GeneratedColumn<String>(
+        'modified_description',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _modifiedLocationMeta = const VerificationMeta(
+    'modifiedLocation',
+  );
+  @override
+  late final GeneratedColumn<String> modifiedLocation = GeneratedColumn<String>(
+    'modified_location',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _modifiedColorIdMeta = const VerificationMeta(
+    'modifiedColorId',
+  );
+  @override
+  late final GeneratedColumn<String> modifiedColorId = GeneratedColumn<String>(
+    'modified_color_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    recurringPatternId,
+    originalDate,
+    isCancelled,
+    isRescheduled,
+    newStartDate,
+    newEndDate,
+    modifiedTitle,
+    modifiedDescription,
+    modifiedLocation,
+    modifiedColorId,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'recurring_exception';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RecurringExceptionData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('recurring_pattern_id')) {
+      context.handle(
+        _recurringPatternIdMeta,
+        recurringPatternId.isAcceptableOrUnknown(
+          data['recurring_pattern_id']!,
+          _recurringPatternIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_recurringPatternIdMeta);
+    }
+    if (data.containsKey('original_date')) {
+      context.handle(
+        _originalDateMeta,
+        originalDate.isAcceptableOrUnknown(
+          data['original_date']!,
+          _originalDateMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_originalDateMeta);
+    }
+    if (data.containsKey('is_cancelled')) {
+      context.handle(
+        _isCancelledMeta,
+        isCancelled.isAcceptableOrUnknown(
+          data['is_cancelled']!,
+          _isCancelledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_rescheduled')) {
+      context.handle(
+        _isRescheduledMeta,
+        isRescheduled.isAcceptableOrUnknown(
+          data['is_rescheduled']!,
+          _isRescheduledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('new_start_date')) {
+      context.handle(
+        _newStartDateMeta,
+        newStartDate.isAcceptableOrUnknown(
+          data['new_start_date']!,
+          _newStartDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('new_end_date')) {
+      context.handle(
+        _newEndDateMeta,
+        newEndDate.isAcceptableOrUnknown(
+          data['new_end_date']!,
+          _newEndDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('modified_title')) {
+      context.handle(
+        _modifiedTitleMeta,
+        modifiedTitle.isAcceptableOrUnknown(
+          data['modified_title']!,
+          _modifiedTitleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('modified_description')) {
+      context.handle(
+        _modifiedDescriptionMeta,
+        modifiedDescription.isAcceptableOrUnknown(
+          data['modified_description']!,
+          _modifiedDescriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('modified_location')) {
+      context.handle(
+        _modifiedLocationMeta,
+        modifiedLocation.isAcceptableOrUnknown(
+          data['modified_location']!,
+          _modifiedLocationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('modified_color_id')) {
+      context.handle(
+        _modifiedColorIdMeta,
+        modifiedColorId.isAcceptableOrUnknown(
+          data['modified_color_id']!,
+          _modifiedColorIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {recurringPatternId, originalDate},
+  ];
+  @override
+  RecurringExceptionData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RecurringExceptionData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      recurringPatternId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}recurring_pattern_id'],
+      )!,
+      originalDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}original_date'],
+      )!,
+      isCancelled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_cancelled'],
+      )!,
+      isRescheduled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_rescheduled'],
+      )!,
+      newStartDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}new_start_date'],
+      ),
+      newEndDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}new_end_date'],
+      ),
+      modifiedTitle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}modified_title'],
+      ),
+      modifiedDescription: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}modified_description'],
+      ),
+      modifiedLocation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}modified_location'],
+      ),
+      modifiedColorId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}modified_color_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $RecurringExceptionTable createAlias(String alias) {
+    return $RecurringExceptionTable(attachedDatabase, alias);
+  }
+}
+
+class RecurringExceptionData extends DataClass
+    implements Insertable<RecurringExceptionData> {
+  final int id;
+  final int recurringPatternId;
+  final DateTime originalDate;
+  final bool isCancelled;
+  final bool isRescheduled;
+  final DateTime? newStartDate;
+  final DateTime? newEndDate;
+  final String? modifiedTitle;
+  final String? modifiedDescription;
+  final String? modifiedLocation;
+  final String? modifiedColorId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const RecurringExceptionData({
+    required this.id,
+    required this.recurringPatternId,
+    required this.originalDate,
+    required this.isCancelled,
+    required this.isRescheduled,
+    this.newStartDate,
+    this.newEndDate,
+    this.modifiedTitle,
+    this.modifiedDescription,
+    this.modifiedLocation,
+    this.modifiedColorId,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['recurring_pattern_id'] = Variable<int>(recurringPatternId);
+    map['original_date'] = Variable<DateTime>(originalDate);
+    map['is_cancelled'] = Variable<bool>(isCancelled);
+    map['is_rescheduled'] = Variable<bool>(isRescheduled);
+    if (!nullToAbsent || newStartDate != null) {
+      map['new_start_date'] = Variable<DateTime>(newStartDate);
+    }
+    if (!nullToAbsent || newEndDate != null) {
+      map['new_end_date'] = Variable<DateTime>(newEndDate);
+    }
+    if (!nullToAbsent || modifiedTitle != null) {
+      map['modified_title'] = Variable<String>(modifiedTitle);
+    }
+    if (!nullToAbsent || modifiedDescription != null) {
+      map['modified_description'] = Variable<String>(modifiedDescription);
+    }
+    if (!nullToAbsent || modifiedLocation != null) {
+      map['modified_location'] = Variable<String>(modifiedLocation);
+    }
+    if (!nullToAbsent || modifiedColorId != null) {
+      map['modified_color_id'] = Variable<String>(modifiedColorId);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  RecurringExceptionCompanion toCompanion(bool nullToAbsent) {
+    return RecurringExceptionCompanion(
+      id: Value(id),
+      recurringPatternId: Value(recurringPatternId),
+      originalDate: Value(originalDate),
+      isCancelled: Value(isCancelled),
+      isRescheduled: Value(isRescheduled),
+      newStartDate: newStartDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(newStartDate),
+      newEndDate: newEndDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(newEndDate),
+      modifiedTitle: modifiedTitle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modifiedTitle),
+      modifiedDescription: modifiedDescription == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modifiedDescription),
+      modifiedLocation: modifiedLocation == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modifiedLocation),
+      modifiedColorId: modifiedColorId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modifiedColorId),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory RecurringExceptionData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RecurringExceptionData(
+      id: serializer.fromJson<int>(json['id']),
+      recurringPatternId: serializer.fromJson<int>(json['recurringPatternId']),
+      originalDate: serializer.fromJson<DateTime>(json['originalDate']),
+      isCancelled: serializer.fromJson<bool>(json['isCancelled']),
+      isRescheduled: serializer.fromJson<bool>(json['isRescheduled']),
+      newStartDate: serializer.fromJson<DateTime?>(json['newStartDate']),
+      newEndDate: serializer.fromJson<DateTime?>(json['newEndDate']),
+      modifiedTitle: serializer.fromJson<String?>(json['modifiedTitle']),
+      modifiedDescription: serializer.fromJson<String?>(
+        json['modifiedDescription'],
+      ),
+      modifiedLocation: serializer.fromJson<String?>(json['modifiedLocation']),
+      modifiedColorId: serializer.fromJson<String?>(json['modifiedColorId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'recurringPatternId': serializer.toJson<int>(recurringPatternId),
+      'originalDate': serializer.toJson<DateTime>(originalDate),
+      'isCancelled': serializer.toJson<bool>(isCancelled),
+      'isRescheduled': serializer.toJson<bool>(isRescheduled),
+      'newStartDate': serializer.toJson<DateTime?>(newStartDate),
+      'newEndDate': serializer.toJson<DateTime?>(newEndDate),
+      'modifiedTitle': serializer.toJson<String?>(modifiedTitle),
+      'modifiedDescription': serializer.toJson<String?>(modifiedDescription),
+      'modifiedLocation': serializer.toJson<String?>(modifiedLocation),
+      'modifiedColorId': serializer.toJson<String?>(modifiedColorId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  RecurringExceptionData copyWith({
+    int? id,
+    int? recurringPatternId,
+    DateTime? originalDate,
+    bool? isCancelled,
+    bool? isRescheduled,
+    Value<DateTime?> newStartDate = const Value.absent(),
+    Value<DateTime?> newEndDate = const Value.absent(),
+    Value<String?> modifiedTitle = const Value.absent(),
+    Value<String?> modifiedDescription = const Value.absent(),
+    Value<String?> modifiedLocation = const Value.absent(),
+    Value<String?> modifiedColorId = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => RecurringExceptionData(
+    id: id ?? this.id,
+    recurringPatternId: recurringPatternId ?? this.recurringPatternId,
+    originalDate: originalDate ?? this.originalDate,
+    isCancelled: isCancelled ?? this.isCancelled,
+    isRescheduled: isRescheduled ?? this.isRescheduled,
+    newStartDate: newStartDate.present ? newStartDate.value : this.newStartDate,
+    newEndDate: newEndDate.present ? newEndDate.value : this.newEndDate,
+    modifiedTitle: modifiedTitle.present
+        ? modifiedTitle.value
+        : this.modifiedTitle,
+    modifiedDescription: modifiedDescription.present
+        ? modifiedDescription.value
+        : this.modifiedDescription,
+    modifiedLocation: modifiedLocation.present
+        ? modifiedLocation.value
+        : this.modifiedLocation,
+    modifiedColorId: modifiedColorId.present
+        ? modifiedColorId.value
+        : this.modifiedColorId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  RecurringExceptionData copyWithCompanion(RecurringExceptionCompanion data) {
+    return RecurringExceptionData(
+      id: data.id.present ? data.id.value : this.id,
+      recurringPatternId: data.recurringPatternId.present
+          ? data.recurringPatternId.value
+          : this.recurringPatternId,
+      originalDate: data.originalDate.present
+          ? data.originalDate.value
+          : this.originalDate,
+      isCancelled: data.isCancelled.present
+          ? data.isCancelled.value
+          : this.isCancelled,
+      isRescheduled: data.isRescheduled.present
+          ? data.isRescheduled.value
+          : this.isRescheduled,
+      newStartDate: data.newStartDate.present
+          ? data.newStartDate.value
+          : this.newStartDate,
+      newEndDate: data.newEndDate.present
+          ? data.newEndDate.value
+          : this.newEndDate,
+      modifiedTitle: data.modifiedTitle.present
+          ? data.modifiedTitle.value
+          : this.modifiedTitle,
+      modifiedDescription: data.modifiedDescription.present
+          ? data.modifiedDescription.value
+          : this.modifiedDescription,
+      modifiedLocation: data.modifiedLocation.present
+          ? data.modifiedLocation.value
+          : this.modifiedLocation,
+      modifiedColorId: data.modifiedColorId.present
+          ? data.modifiedColorId.value
+          : this.modifiedColorId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecurringExceptionData(')
+          ..write('id: $id, ')
+          ..write('recurringPatternId: $recurringPatternId, ')
+          ..write('originalDate: $originalDate, ')
+          ..write('isCancelled: $isCancelled, ')
+          ..write('isRescheduled: $isRescheduled, ')
+          ..write('newStartDate: $newStartDate, ')
+          ..write('newEndDate: $newEndDate, ')
+          ..write('modifiedTitle: $modifiedTitle, ')
+          ..write('modifiedDescription: $modifiedDescription, ')
+          ..write('modifiedLocation: $modifiedLocation, ')
+          ..write('modifiedColorId: $modifiedColorId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    recurringPatternId,
+    originalDate,
+    isCancelled,
+    isRescheduled,
+    newStartDate,
+    newEndDate,
+    modifiedTitle,
+    modifiedDescription,
+    modifiedLocation,
+    modifiedColorId,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RecurringExceptionData &&
+          other.id == this.id &&
+          other.recurringPatternId == this.recurringPatternId &&
+          other.originalDate == this.originalDate &&
+          other.isCancelled == this.isCancelled &&
+          other.isRescheduled == this.isRescheduled &&
+          other.newStartDate == this.newStartDate &&
+          other.newEndDate == this.newEndDate &&
+          other.modifiedTitle == this.modifiedTitle &&
+          other.modifiedDescription == this.modifiedDescription &&
+          other.modifiedLocation == this.modifiedLocation &&
+          other.modifiedColorId == this.modifiedColorId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class RecurringExceptionCompanion
+    extends UpdateCompanion<RecurringExceptionData> {
+  final Value<int> id;
+  final Value<int> recurringPatternId;
+  final Value<DateTime> originalDate;
+  final Value<bool> isCancelled;
+  final Value<bool> isRescheduled;
+  final Value<DateTime?> newStartDate;
+  final Value<DateTime?> newEndDate;
+  final Value<String?> modifiedTitle;
+  final Value<String?> modifiedDescription;
+  final Value<String?> modifiedLocation;
+  final Value<String?> modifiedColorId;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  const RecurringExceptionCompanion({
+    this.id = const Value.absent(),
+    this.recurringPatternId = const Value.absent(),
+    this.originalDate = const Value.absent(),
+    this.isCancelled = const Value.absent(),
+    this.isRescheduled = const Value.absent(),
+    this.newStartDate = const Value.absent(),
+    this.newEndDate = const Value.absent(),
+    this.modifiedTitle = const Value.absent(),
+    this.modifiedDescription = const Value.absent(),
+    this.modifiedLocation = const Value.absent(),
+    this.modifiedColorId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  RecurringExceptionCompanion.insert({
+    this.id = const Value.absent(),
+    required int recurringPatternId,
+    required DateTime originalDate,
+    this.isCancelled = const Value.absent(),
+    this.isRescheduled = const Value.absent(),
+    this.newStartDate = const Value.absent(),
+    this.newEndDate = const Value.absent(),
+    this.modifiedTitle = const Value.absent(),
+    this.modifiedDescription = const Value.absent(),
+    this.modifiedLocation = const Value.absent(),
+    this.modifiedColorId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  }) : recurringPatternId = Value(recurringPatternId),
+       originalDate = Value(originalDate);
+  static Insertable<RecurringExceptionData> custom({
+    Expression<int>? id,
+    Expression<int>? recurringPatternId,
+    Expression<DateTime>? originalDate,
+    Expression<bool>? isCancelled,
+    Expression<bool>? isRescheduled,
+    Expression<DateTime>? newStartDate,
+    Expression<DateTime>? newEndDate,
+    Expression<String>? modifiedTitle,
+    Expression<String>? modifiedDescription,
+    Expression<String>? modifiedLocation,
+    Expression<String>? modifiedColorId,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (recurringPatternId != null)
+        'recurring_pattern_id': recurringPatternId,
+      if (originalDate != null) 'original_date': originalDate,
+      if (isCancelled != null) 'is_cancelled': isCancelled,
+      if (isRescheduled != null) 'is_rescheduled': isRescheduled,
+      if (newStartDate != null) 'new_start_date': newStartDate,
+      if (newEndDate != null) 'new_end_date': newEndDate,
+      if (modifiedTitle != null) 'modified_title': modifiedTitle,
+      if (modifiedDescription != null)
+        'modified_description': modifiedDescription,
+      if (modifiedLocation != null) 'modified_location': modifiedLocation,
+      if (modifiedColorId != null) 'modified_color_id': modifiedColorId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  RecurringExceptionCompanion copyWith({
+    Value<int>? id,
+    Value<int>? recurringPatternId,
+    Value<DateTime>? originalDate,
+    Value<bool>? isCancelled,
+    Value<bool>? isRescheduled,
+    Value<DateTime?>? newStartDate,
+    Value<DateTime?>? newEndDate,
+    Value<String?>? modifiedTitle,
+    Value<String?>? modifiedDescription,
+    Value<String?>? modifiedLocation,
+    Value<String?>? modifiedColorId,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+  }) {
+    return RecurringExceptionCompanion(
+      id: id ?? this.id,
+      recurringPatternId: recurringPatternId ?? this.recurringPatternId,
+      originalDate: originalDate ?? this.originalDate,
+      isCancelled: isCancelled ?? this.isCancelled,
+      isRescheduled: isRescheduled ?? this.isRescheduled,
+      newStartDate: newStartDate ?? this.newStartDate,
+      newEndDate: newEndDate ?? this.newEndDate,
+      modifiedTitle: modifiedTitle ?? this.modifiedTitle,
+      modifiedDescription: modifiedDescription ?? this.modifiedDescription,
+      modifiedLocation: modifiedLocation ?? this.modifiedLocation,
+      modifiedColorId: modifiedColorId ?? this.modifiedColorId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (recurringPatternId.present) {
+      map['recurring_pattern_id'] = Variable<int>(recurringPatternId.value);
+    }
+    if (originalDate.present) {
+      map['original_date'] = Variable<DateTime>(originalDate.value);
+    }
+    if (isCancelled.present) {
+      map['is_cancelled'] = Variable<bool>(isCancelled.value);
+    }
+    if (isRescheduled.present) {
+      map['is_rescheduled'] = Variable<bool>(isRescheduled.value);
+    }
+    if (newStartDate.present) {
+      map['new_start_date'] = Variable<DateTime>(newStartDate.value);
+    }
+    if (newEndDate.present) {
+      map['new_end_date'] = Variable<DateTime>(newEndDate.value);
+    }
+    if (modifiedTitle.present) {
+      map['modified_title'] = Variable<String>(modifiedTitle.value);
+    }
+    if (modifiedDescription.present) {
+      map['modified_description'] = Variable<String>(modifiedDescription.value);
+    }
+    if (modifiedLocation.present) {
+      map['modified_location'] = Variable<String>(modifiedLocation.value);
+    }
+    if (modifiedColorId.present) {
+      map['modified_color_id'] = Variable<String>(modifiedColorId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecurringExceptionCompanion(')
+          ..write('id: $id, ')
+          ..write('recurringPatternId: $recurringPatternId, ')
+          ..write('originalDate: $originalDate, ')
+          ..write('isCancelled: $isCancelled, ')
+          ..write('isRescheduled: $isRescheduled, ')
+          ..write('newStartDate: $newStartDate, ')
+          ..write('newEndDate: $newEndDate, ')
+          ..write('modifiedTitle: $modifiedTitle, ')
+          ..write('modifiedDescription: $modifiedDescription, ')
+          ..write('modifiedLocation: $modifiedLocation, ')
+          ..write('modifiedColorId: $modifiedColorId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TempExtractedItemsTable extends TempExtractedItems
+    with TableInfo<$TempExtractedItemsTable, TempExtractedItemData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TempExtractedItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _itemTypeMeta = const VerificationMeta(
+    'itemType',
+  );
+  @override
+  late final GeneratedColumn<String> itemType = GeneratedColumn<String>(
+    'item_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startDateMeta = const VerificationMeta(
+    'startDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startDate = GeneratedColumn<DateTime>(
+    'start_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _endDateMeta = const VerificationMeta(
+    'endDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> endDate = GeneratedColumn<DateTime>(
+    'end_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dueDateMeta = const VerificationMeta(
+    'dueDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> dueDate = GeneratedColumn<DateTime>(
+    'due_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _executionDateMeta = const VerificationMeta(
+    'executionDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> executionDate =
+      GeneratedColumn<DateTime>(
+        'execution_date',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _locationMeta = const VerificationMeta(
+    'location',
+  );
+  @override
+  late final GeneratedColumn<String> location = GeneratedColumn<String>(
+    'location',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _colorIdMeta = const VerificationMeta(
+    'colorId',
+  );
+  @override
+  late final GeneratedColumn<String> colorId = GeneratedColumn<String>(
+    'color_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('gray'),
+  );
+  static const VerificationMeta _repeatRuleMeta = const VerificationMeta(
+    'repeatRule',
+  );
+  @override
+  late final GeneratedColumn<String> repeatRule = GeneratedColumn<String>(
+    'repeat_rule',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _listIdMeta = const VerificationMeta('listId');
+  @override
+  late final GeneratedColumn<String> listId = GeneratedColumn<String>(
+    'list_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('inbox'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _isConfirmedMeta = const VerificationMeta(
+    'isConfirmed',
+  );
+  @override
+  late final GeneratedColumn<bool> isConfirmed = GeneratedColumn<bool>(
+    'is_confirmed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_confirmed" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    itemType,
+    title,
+    startDate,
+    endDate,
+    dueDate,
+    executionDate,
+    description,
+    location,
+    colorId,
+    repeatRule,
+    listId,
+    createdAt,
+    isConfirmed,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'temp_extracted_items';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TempExtractedItemData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('item_type')) {
+      context.handle(
+        _itemTypeMeta,
+        itemType.isAcceptableOrUnknown(data['item_type']!, _itemTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_itemTypeMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('start_date')) {
+      context.handle(
+        _startDateMeta,
+        startDate.isAcceptableOrUnknown(data['start_date']!, _startDateMeta),
+      );
+    }
+    if (data.containsKey('end_date')) {
+      context.handle(
+        _endDateMeta,
+        endDate.isAcceptableOrUnknown(data['end_date']!, _endDateMeta),
+      );
+    }
+    if (data.containsKey('due_date')) {
+      context.handle(
+        _dueDateMeta,
+        dueDate.isAcceptableOrUnknown(data['due_date']!, _dueDateMeta),
+      );
+    }
+    if (data.containsKey('execution_date')) {
+      context.handle(
+        _executionDateMeta,
+        executionDate.isAcceptableOrUnknown(
+          data['execution_date']!,
+          _executionDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('location')) {
+      context.handle(
+        _locationMeta,
+        location.isAcceptableOrUnknown(data['location']!, _locationMeta),
+      );
+    }
+    if (data.containsKey('color_id')) {
+      context.handle(
+        _colorIdMeta,
+        colorId.isAcceptableOrUnknown(data['color_id']!, _colorIdMeta),
+      );
+    }
+    if (data.containsKey('repeat_rule')) {
+      context.handle(
+        _repeatRuleMeta,
+        repeatRule.isAcceptableOrUnknown(data['repeat_rule']!, _repeatRuleMeta),
+      );
+    }
+    if (data.containsKey('list_id')) {
+      context.handle(
+        _listIdMeta,
+        listId.isAcceptableOrUnknown(data['list_id']!, _listIdMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('is_confirmed')) {
+      context.handle(
+        _isConfirmedMeta,
+        isConfirmed.isAcceptableOrUnknown(
+          data['is_confirmed']!,
+          _isConfirmedMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TempExtractedItemData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TempExtractedItemData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      itemType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}item_type'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      startDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}start_date'],
+      ),
+      endDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}end_date'],
+      ),
+      dueDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}due_date'],
+      ),
+      executionDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}execution_date'],
+      ),
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      )!,
+      location: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}location'],
+      )!,
+      colorId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color_id'],
+      )!,
+      repeatRule: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}repeat_rule'],
+      )!,
+      listId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}list_id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      isConfirmed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_confirmed'],
+      )!,
+    );
+  }
+
+  @override
+  $TempExtractedItemsTable createAlias(String alias) {
+    return $TempExtractedItemsTable(attachedDatabase, alias);
+  }
+}
+
+class TempExtractedItemData extends DataClass
+    implements Insertable<TempExtractedItemData> {
+  /// ID (자동 증가)
+  final int id;
+
+  /// 항목 타입 (schedule, task, habit)
+  final String itemType;
+
+  /// 제목 또는 요약
+  final String title;
+
+  /// 시작 날짜/시간 (일정용, nullable)
+  final DateTime? startDate;
+
+  /// 종료 날짜/시간 (일정용, nullable)
+  final DateTime? endDate;
+
+  /// 마감일 (할일용, nullable)
+  final DateTime? dueDate;
+
+  /// 실행일 (할일용, nullable)
+  final DateTime? executionDate;
+
+  /// 설명
+  final String description;
+
+  /// 장소
+  final String location;
+
+  /// 색상 ID
+  final String colorId;
+
+  /// 반복 규칙 (RRULE 형식)
+  final String repeatRule;
+
+  /// 리스트 ID (할일용, 기본: inbox)
+  final String listId;
+
+  /// 생성 시간
+  final DateTime createdAt;
+
+  /// 사용자 확인 여부 (체크박스)
+  final bool isConfirmed;
+  const TempExtractedItemData({
+    required this.id,
+    required this.itemType,
+    required this.title,
+    this.startDate,
+    this.endDate,
+    this.dueDate,
+    this.executionDate,
+    required this.description,
+    required this.location,
+    required this.colorId,
+    required this.repeatRule,
+    required this.listId,
+    required this.createdAt,
+    required this.isConfirmed,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['item_type'] = Variable<String>(itemType);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || startDate != null) {
+      map['start_date'] = Variable<DateTime>(startDate);
+    }
+    if (!nullToAbsent || endDate != null) {
+      map['end_date'] = Variable<DateTime>(endDate);
+    }
+    if (!nullToAbsent || dueDate != null) {
+      map['due_date'] = Variable<DateTime>(dueDate);
+    }
+    if (!nullToAbsent || executionDate != null) {
+      map['execution_date'] = Variable<DateTime>(executionDate);
+    }
+    map['description'] = Variable<String>(description);
+    map['location'] = Variable<String>(location);
+    map['color_id'] = Variable<String>(colorId);
+    map['repeat_rule'] = Variable<String>(repeatRule);
+    map['list_id'] = Variable<String>(listId);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['is_confirmed'] = Variable<bool>(isConfirmed);
+    return map;
+  }
+
+  TempExtractedItemsCompanion toCompanion(bool nullToAbsent) {
+    return TempExtractedItemsCompanion(
+      id: Value(id),
+      itemType: Value(itemType),
+      title: Value(title),
+      startDate: startDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startDate),
+      endDate: endDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endDate),
+      dueDate: dueDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dueDate),
+      executionDate: executionDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(executionDate),
+      description: Value(description),
+      location: Value(location),
+      colorId: Value(colorId),
+      repeatRule: Value(repeatRule),
+      listId: Value(listId),
+      createdAt: Value(createdAt),
+      isConfirmed: Value(isConfirmed),
+    );
+  }
+
+  factory TempExtractedItemData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TempExtractedItemData(
+      id: serializer.fromJson<int>(json['id']),
+      itemType: serializer.fromJson<String>(json['itemType']),
+      title: serializer.fromJson<String>(json['title']),
+      startDate: serializer.fromJson<DateTime?>(json['startDate']),
+      endDate: serializer.fromJson<DateTime?>(json['endDate']),
+      dueDate: serializer.fromJson<DateTime?>(json['dueDate']),
+      executionDate: serializer.fromJson<DateTime?>(json['executionDate']),
+      description: serializer.fromJson<String>(json['description']),
+      location: serializer.fromJson<String>(json['location']),
+      colorId: serializer.fromJson<String>(json['colorId']),
+      repeatRule: serializer.fromJson<String>(json['repeatRule']),
+      listId: serializer.fromJson<String>(json['listId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      isConfirmed: serializer.fromJson<bool>(json['isConfirmed']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'itemType': serializer.toJson<String>(itemType),
+      'title': serializer.toJson<String>(title),
+      'startDate': serializer.toJson<DateTime?>(startDate),
+      'endDate': serializer.toJson<DateTime?>(endDate),
+      'dueDate': serializer.toJson<DateTime?>(dueDate),
+      'executionDate': serializer.toJson<DateTime?>(executionDate),
+      'description': serializer.toJson<String>(description),
+      'location': serializer.toJson<String>(location),
+      'colorId': serializer.toJson<String>(colorId),
+      'repeatRule': serializer.toJson<String>(repeatRule),
+      'listId': serializer.toJson<String>(listId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'isConfirmed': serializer.toJson<bool>(isConfirmed),
+    };
+  }
+
+  TempExtractedItemData copyWith({
+    int? id,
+    String? itemType,
+    String? title,
+    Value<DateTime?> startDate = const Value.absent(),
+    Value<DateTime?> endDate = const Value.absent(),
+    Value<DateTime?> dueDate = const Value.absent(),
+    Value<DateTime?> executionDate = const Value.absent(),
+    String? description,
+    String? location,
+    String? colorId,
+    String? repeatRule,
+    String? listId,
+    DateTime? createdAt,
+    bool? isConfirmed,
+  }) => TempExtractedItemData(
+    id: id ?? this.id,
+    itemType: itemType ?? this.itemType,
+    title: title ?? this.title,
+    startDate: startDate.present ? startDate.value : this.startDate,
+    endDate: endDate.present ? endDate.value : this.endDate,
+    dueDate: dueDate.present ? dueDate.value : this.dueDate,
+    executionDate: executionDate.present
+        ? executionDate.value
+        : this.executionDate,
+    description: description ?? this.description,
+    location: location ?? this.location,
+    colorId: colorId ?? this.colorId,
+    repeatRule: repeatRule ?? this.repeatRule,
+    listId: listId ?? this.listId,
+    createdAt: createdAt ?? this.createdAt,
+    isConfirmed: isConfirmed ?? this.isConfirmed,
+  );
+  TempExtractedItemData copyWithCompanion(TempExtractedItemsCompanion data) {
+    return TempExtractedItemData(
+      id: data.id.present ? data.id.value : this.id,
+      itemType: data.itemType.present ? data.itemType.value : this.itemType,
+      title: data.title.present ? data.title.value : this.title,
+      startDate: data.startDate.present ? data.startDate.value : this.startDate,
+      endDate: data.endDate.present ? data.endDate.value : this.endDate,
+      dueDate: data.dueDate.present ? data.dueDate.value : this.dueDate,
+      executionDate: data.executionDate.present
+          ? data.executionDate.value
+          : this.executionDate,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      location: data.location.present ? data.location.value : this.location,
+      colorId: data.colorId.present ? data.colorId.value : this.colorId,
+      repeatRule: data.repeatRule.present
+          ? data.repeatRule.value
+          : this.repeatRule,
+      listId: data.listId.present ? data.listId.value : this.listId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      isConfirmed: data.isConfirmed.present
+          ? data.isConfirmed.value
+          : this.isConfirmed,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TempExtractedItemData(')
+          ..write('id: $id, ')
+          ..write('itemType: $itemType, ')
+          ..write('title: $title, ')
+          ..write('startDate: $startDate, ')
+          ..write('endDate: $endDate, ')
+          ..write('dueDate: $dueDate, ')
+          ..write('executionDate: $executionDate, ')
+          ..write('description: $description, ')
+          ..write('location: $location, ')
+          ..write('colorId: $colorId, ')
+          ..write('repeatRule: $repeatRule, ')
+          ..write('listId: $listId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('isConfirmed: $isConfirmed')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    itemType,
+    title,
+    startDate,
+    endDate,
+    dueDate,
+    executionDate,
+    description,
+    location,
+    colorId,
+    repeatRule,
+    listId,
+    createdAt,
+    isConfirmed,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TempExtractedItemData &&
+          other.id == this.id &&
+          other.itemType == this.itemType &&
+          other.title == this.title &&
+          other.startDate == this.startDate &&
+          other.endDate == this.endDate &&
+          other.dueDate == this.dueDate &&
+          other.executionDate == this.executionDate &&
+          other.description == this.description &&
+          other.location == this.location &&
+          other.colorId == this.colorId &&
+          other.repeatRule == this.repeatRule &&
+          other.listId == this.listId &&
+          other.createdAt == this.createdAt &&
+          other.isConfirmed == this.isConfirmed);
+}
+
+class TempExtractedItemsCompanion
+    extends UpdateCompanion<TempExtractedItemData> {
+  final Value<int> id;
+  final Value<String> itemType;
+  final Value<String> title;
+  final Value<DateTime?> startDate;
+  final Value<DateTime?> endDate;
+  final Value<DateTime?> dueDate;
+  final Value<DateTime?> executionDate;
+  final Value<String> description;
+  final Value<String> location;
+  final Value<String> colorId;
+  final Value<String> repeatRule;
+  final Value<String> listId;
+  final Value<DateTime> createdAt;
+  final Value<bool> isConfirmed;
+  const TempExtractedItemsCompanion({
+    this.id = const Value.absent(),
+    this.itemType = const Value.absent(),
+    this.title = const Value.absent(),
+    this.startDate = const Value.absent(),
+    this.endDate = const Value.absent(),
+    this.dueDate = const Value.absent(),
+    this.executionDate = const Value.absent(),
+    this.description = const Value.absent(),
+    this.location = const Value.absent(),
+    this.colorId = const Value.absent(),
+    this.repeatRule = const Value.absent(),
+    this.listId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.isConfirmed = const Value.absent(),
+  });
+  TempExtractedItemsCompanion.insert({
+    this.id = const Value.absent(),
+    required String itemType,
+    required String title,
+    this.startDate = const Value.absent(),
+    this.endDate = const Value.absent(),
+    this.dueDate = const Value.absent(),
+    this.executionDate = const Value.absent(),
+    this.description = const Value.absent(),
+    this.location = const Value.absent(),
+    this.colorId = const Value.absent(),
+    this.repeatRule = const Value.absent(),
+    this.listId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.isConfirmed = const Value.absent(),
+  }) : itemType = Value(itemType),
+       title = Value(title);
+  static Insertable<TempExtractedItemData> custom({
+    Expression<int>? id,
+    Expression<String>? itemType,
+    Expression<String>? title,
+    Expression<DateTime>? startDate,
+    Expression<DateTime>? endDate,
+    Expression<DateTime>? dueDate,
+    Expression<DateTime>? executionDate,
+    Expression<String>? description,
+    Expression<String>? location,
+    Expression<String>? colorId,
+    Expression<String>? repeatRule,
+    Expression<String>? listId,
+    Expression<DateTime>? createdAt,
+    Expression<bool>? isConfirmed,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (itemType != null) 'item_type': itemType,
+      if (title != null) 'title': title,
+      if (startDate != null) 'start_date': startDate,
+      if (endDate != null) 'end_date': endDate,
+      if (dueDate != null) 'due_date': dueDate,
+      if (executionDate != null) 'execution_date': executionDate,
+      if (description != null) 'description': description,
+      if (location != null) 'location': location,
+      if (colorId != null) 'color_id': colorId,
+      if (repeatRule != null) 'repeat_rule': repeatRule,
+      if (listId != null) 'list_id': listId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (isConfirmed != null) 'is_confirmed': isConfirmed,
+    });
+  }
+
+  TempExtractedItemsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? itemType,
+    Value<String>? title,
+    Value<DateTime?>? startDate,
+    Value<DateTime?>? endDate,
+    Value<DateTime?>? dueDate,
+    Value<DateTime?>? executionDate,
+    Value<String>? description,
+    Value<String>? location,
+    Value<String>? colorId,
+    Value<String>? repeatRule,
+    Value<String>? listId,
+    Value<DateTime>? createdAt,
+    Value<bool>? isConfirmed,
+  }) {
+    return TempExtractedItemsCompanion(
+      id: id ?? this.id,
+      itemType: itemType ?? this.itemType,
+      title: title ?? this.title,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
+      dueDate: dueDate ?? this.dueDate,
+      executionDate: executionDate ?? this.executionDate,
+      description: description ?? this.description,
+      location: location ?? this.location,
+      colorId: colorId ?? this.colorId,
+      repeatRule: repeatRule ?? this.repeatRule,
+      listId: listId ?? this.listId,
+      createdAt: createdAt ?? this.createdAt,
+      isConfirmed: isConfirmed ?? this.isConfirmed,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (itemType.present) {
+      map['item_type'] = Variable<String>(itemType.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (startDate.present) {
+      map['start_date'] = Variable<DateTime>(startDate.value);
+    }
+    if (endDate.present) {
+      map['end_date'] = Variable<DateTime>(endDate.value);
+    }
+    if (dueDate.present) {
+      map['due_date'] = Variable<DateTime>(dueDate.value);
+    }
+    if (executionDate.present) {
+      map['execution_date'] = Variable<DateTime>(executionDate.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (location.present) {
+      map['location'] = Variable<String>(location.value);
+    }
+    if (colorId.present) {
+      map['color_id'] = Variable<String>(colorId.value);
+    }
+    if (repeatRule.present) {
+      map['repeat_rule'] = Variable<String>(repeatRule.value);
+    }
+    if (listId.present) {
+      map['list_id'] = Variable<String>(listId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (isConfirmed.present) {
+      map['is_confirmed'] = Variable<bool>(isConfirmed.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TempExtractedItemsCompanion(')
+          ..write('id: $id, ')
+          ..write('itemType: $itemType, ')
+          ..write('title: $title, ')
+          ..write('startDate: $startDate, ')
+          ..write('endDate: $endDate, ')
+          ..write('dueDate: $dueDate, ')
+          ..write('executionDate: $executionDate, ')
+          ..write('description: $description, ')
+          ..write('location: $location, ')
+          ..write('colorId: $colorId, ')
+          ..write('repeatRule: $repeatRule, ')
+          ..write('listId: $listId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('isConfirmed: $isConfirmed')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3656,6 +5985,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TranscriptLinesTable transcriptLines = $TranscriptLinesTable(
     this,
   );
+  late final $RecurringPatternTable recurringPattern = $RecurringPatternTable(
+    this,
+  );
+  late final $RecurringExceptionTable recurringException =
+      $RecurringExceptionTable(this);
+  late final $TempExtractedItemsTable tempExtractedItems =
+      $TempExtractedItemsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3668,6 +6004,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     dailyCardOrder,
     audioContents,
     transcriptLines,
+    recurringPattern,
+    recurringException,
+    tempExtractedItems,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -3677,6 +6016,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('transcript_lines', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'recurring_pattern',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('recurring_exception', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -3690,12 +6036,13 @@ typedef $$ScheduleTableCreateCompanionBuilder =
       Value<String> description,
       Value<String> location,
       required String colorId,
-      required String repeatRule,
-      required String alertSetting,
-      Value<bool> isAllDay,
+      Value<String> repeatRule,
+      Value<String> alertSetting,
       Value<DateTime> createdAt,
-      required String status,
-      required String visibility,
+      Value<String> status,
+      Value<String> visibility,
+      Value<bool> completed,
+      Value<DateTime?> completedAt,
     });
 typedef $$ScheduleTableUpdateCompanionBuilder =
     ScheduleCompanion Function({
@@ -3708,10 +6055,11 @@ typedef $$ScheduleTableUpdateCompanionBuilder =
       Value<String> colorId,
       Value<String> repeatRule,
       Value<String> alertSetting,
-      Value<bool> isAllDay,
       Value<DateTime> createdAt,
       Value<String> status,
       Value<String> visibility,
+      Value<bool> completed,
+      Value<DateTime?> completedAt,
     });
 
 class $$ScheduleTableFilterComposer
@@ -3768,11 +6116,6 @@ class $$ScheduleTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<bool> get isAllDay => $composableBuilder(
-    column: $table.isAllDay,
-    builder: (column) => ColumnFilters(column),
-  );
-
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
@@ -3785,6 +6128,16 @@ class $$ScheduleTableFilterComposer
 
   ColumnFilters<String> get visibility => $composableBuilder(
     column: $table.visibility,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get completed => $composableBuilder(
+    column: $table.completed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3843,11 +6196,6 @@ class $$ScheduleTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<bool> get isAllDay => $composableBuilder(
-    column: $table.isAllDay,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -3860,6 +6208,16 @@ class $$ScheduleTableOrderingComposer
 
   ColumnOrderings<String> get visibility => $composableBuilder(
     column: $table.visibility,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get completed => $composableBuilder(
+    column: $table.completed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -3906,9 +6264,6 @@ class $$ScheduleTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<bool> get isAllDay =>
-      $composableBuilder(column: $table.isAllDay, builder: (column) => column);
-
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -3917,6 +6272,14 @@ class $$ScheduleTableAnnotationComposer
 
   GeneratedColumn<String> get visibility => $composableBuilder(
     column: $table.visibility,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get completed =>
+      $composableBuilder(column: $table.completed, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
     builder: (column) => column,
   );
 }
@@ -3961,10 +6324,11 @@ class $$ScheduleTableTableManager
                 Value<String> colorId = const Value.absent(),
                 Value<String> repeatRule = const Value.absent(),
                 Value<String> alertSetting = const Value.absent(),
-                Value<bool> isAllDay = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String> visibility = const Value.absent(),
+                Value<bool> completed = const Value.absent(),
+                Value<DateTime?> completedAt = const Value.absent(),
               }) => ScheduleCompanion(
                 start: start,
                 end: end,
@@ -3975,10 +6339,11 @@ class $$ScheduleTableTableManager
                 colorId: colorId,
                 repeatRule: repeatRule,
                 alertSetting: alertSetting,
-                isAllDay: isAllDay,
                 createdAt: createdAt,
                 status: status,
                 visibility: visibility,
+                completed: completed,
+                completedAt: completedAt,
               ),
           createCompanionCallback:
               ({
@@ -3989,12 +6354,13 @@ class $$ScheduleTableTableManager
                 Value<String> description = const Value.absent(),
                 Value<String> location = const Value.absent(),
                 required String colorId,
-                required String repeatRule,
-                required String alertSetting,
-                Value<bool> isAllDay = const Value.absent(),
+                Value<String> repeatRule = const Value.absent(),
+                Value<String> alertSetting = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
-                required String status,
-                required String visibility,
+                Value<String> status = const Value.absent(),
+                Value<String> visibility = const Value.absent(),
+                Value<bool> completed = const Value.absent(),
+                Value<DateTime?> completedAt = const Value.absent(),
               }) => ScheduleCompanion.insert(
                 start: start,
                 end: end,
@@ -4005,10 +6371,11 @@ class $$ScheduleTableTableManager
                 colorId: colorId,
                 repeatRule: repeatRule,
                 alertSetting: alertSetting,
-                isAllDay: isAllDay,
                 createdAt: createdAt,
                 status: status,
                 visibility: visibility,
+                completed: completed,
+                completedAt: completedAt,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -5759,6 +8126,1333 @@ typedef $$TranscriptLinesTableProcessedTableManager =
       TranscriptLineData,
       PrefetchHooks Function({bool audioContentId})
     >;
+typedef $$RecurringPatternTableCreateCompanionBuilder =
+    RecurringPatternCompanion Function({
+      Value<int> id,
+      required String entityType,
+      required int entityId,
+      required String rrule,
+      required DateTime dtstart,
+      Value<DateTime?> until,
+      Value<int?> count,
+      Value<String> timezone,
+      Value<String> exdate,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
+typedef $$RecurringPatternTableUpdateCompanionBuilder =
+    RecurringPatternCompanion Function({
+      Value<int> id,
+      Value<String> entityType,
+      Value<int> entityId,
+      Value<String> rrule,
+      Value<DateTime> dtstart,
+      Value<DateTime?> until,
+      Value<int?> count,
+      Value<String> timezone,
+      Value<String> exdate,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
+
+final class $$RecurringPatternTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $RecurringPatternTable,
+          RecurringPatternData
+        > {
+  $$RecurringPatternTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static MultiTypedResultKey<
+    $RecurringExceptionTable,
+    List<RecurringExceptionData>
+  >
+  _recurringExceptionRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.recurringException,
+        aliasName: $_aliasNameGenerator(
+          db.recurringPattern.id,
+          db.recurringException.recurringPatternId,
+        ),
+      );
+
+  $$RecurringExceptionTableProcessedTableManager get recurringExceptionRefs {
+    final manager =
+        $$RecurringExceptionTableTableManager(
+          $_db,
+          $_db.recurringException,
+        ).filter(
+          (f) => f.recurringPatternId.id.sqlEquals($_itemColumn<int>('id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _recurringExceptionRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$RecurringPatternTableFilterComposer
+    extends Composer<_$AppDatabase, $RecurringPatternTable> {
+  $$RecurringPatternTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rrule => $composableBuilder(
+    column: $table.rrule,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get dtstart => $composableBuilder(
+    column: $table.dtstart,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get until => $composableBuilder(
+    column: $table.until,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get count => $composableBuilder(
+    column: $table.count,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get timezone => $composableBuilder(
+    column: $table.timezone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get exdate => $composableBuilder(
+    column: $table.exdate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> recurringExceptionRefs(
+    Expression<bool> Function($$RecurringExceptionTableFilterComposer f) f,
+  ) {
+    final $$RecurringExceptionTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.recurringException,
+      getReferencedColumn: (t) => t.recurringPatternId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RecurringExceptionTableFilterComposer(
+            $db: $db,
+            $table: $db.recurringException,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$RecurringPatternTableOrderingComposer
+    extends Composer<_$AppDatabase, $RecurringPatternTable> {
+  $$RecurringPatternTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rrule => $composableBuilder(
+    column: $table.rrule,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get dtstart => $composableBuilder(
+    column: $table.dtstart,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get until => $composableBuilder(
+    column: $table.until,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get count => $composableBuilder(
+    column: $table.count,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get timezone => $composableBuilder(
+    column: $table.timezone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get exdate => $composableBuilder(
+    column: $table.exdate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$RecurringPatternTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RecurringPatternTable> {
+  $$RecurringPatternTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get entityType => $composableBuilder(
+    column: $table.entityType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get entityId =>
+      $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<String> get rrule =>
+      $composableBuilder(column: $table.rrule, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get dtstart =>
+      $composableBuilder(column: $table.dtstart, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get until =>
+      $composableBuilder(column: $table.until, builder: (column) => column);
+
+  GeneratedColumn<int> get count =>
+      $composableBuilder(column: $table.count, builder: (column) => column);
+
+  GeneratedColumn<String> get timezone =>
+      $composableBuilder(column: $table.timezone, builder: (column) => column);
+
+  GeneratedColumn<String> get exdate =>
+      $composableBuilder(column: $table.exdate, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  Expression<T> recurringExceptionRefs<T extends Object>(
+    Expression<T> Function($$RecurringExceptionTableAnnotationComposer a) f,
+  ) {
+    final $$RecurringExceptionTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.recurringException,
+          getReferencedColumn: (t) => t.recurringPatternId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$RecurringExceptionTableAnnotationComposer(
+                $db: $db,
+                $table: $db.recurringException,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$RecurringPatternTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RecurringPatternTable,
+          RecurringPatternData,
+          $$RecurringPatternTableFilterComposer,
+          $$RecurringPatternTableOrderingComposer,
+          $$RecurringPatternTableAnnotationComposer,
+          $$RecurringPatternTableCreateCompanionBuilder,
+          $$RecurringPatternTableUpdateCompanionBuilder,
+          (RecurringPatternData, $$RecurringPatternTableReferences),
+          RecurringPatternData,
+          PrefetchHooks Function({bool recurringExceptionRefs})
+        > {
+  $$RecurringPatternTableTableManager(
+    _$AppDatabase db,
+    $RecurringPatternTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RecurringPatternTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RecurringPatternTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RecurringPatternTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> entityType = const Value.absent(),
+                Value<int> entityId = const Value.absent(),
+                Value<String> rrule = const Value.absent(),
+                Value<DateTime> dtstart = const Value.absent(),
+                Value<DateTime?> until = const Value.absent(),
+                Value<int?> count = const Value.absent(),
+                Value<String> timezone = const Value.absent(),
+                Value<String> exdate = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => RecurringPatternCompanion(
+                id: id,
+                entityType: entityType,
+                entityId: entityId,
+                rrule: rrule,
+                dtstart: dtstart,
+                until: until,
+                count: count,
+                timezone: timezone,
+                exdate: exdate,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String entityType,
+                required int entityId,
+                required String rrule,
+                required DateTime dtstart,
+                Value<DateTime?> until = const Value.absent(),
+                Value<int?> count = const Value.absent(),
+                Value<String> timezone = const Value.absent(),
+                Value<String> exdate = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => RecurringPatternCompanion.insert(
+                id: id,
+                entityType: entityType,
+                entityId: entityId,
+                rrule: rrule,
+                dtstart: dtstart,
+                until: until,
+                count: count,
+                timezone: timezone,
+                exdate: exdate,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$RecurringPatternTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({recurringExceptionRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (recurringExceptionRefs) db.recurringException,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (recurringExceptionRefs)
+                    await $_getPrefetchedData<
+                      RecurringPatternData,
+                      $RecurringPatternTable,
+                      RecurringExceptionData
+                    >(
+                      currentTable: table,
+                      referencedTable: $$RecurringPatternTableReferences
+                          ._recurringExceptionRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$RecurringPatternTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).recurringExceptionRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where(
+                            (e) => e.recurringPatternId == item.id,
+                          ),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$RecurringPatternTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RecurringPatternTable,
+      RecurringPatternData,
+      $$RecurringPatternTableFilterComposer,
+      $$RecurringPatternTableOrderingComposer,
+      $$RecurringPatternTableAnnotationComposer,
+      $$RecurringPatternTableCreateCompanionBuilder,
+      $$RecurringPatternTableUpdateCompanionBuilder,
+      (RecurringPatternData, $$RecurringPatternTableReferences),
+      RecurringPatternData,
+      PrefetchHooks Function({bool recurringExceptionRefs})
+    >;
+typedef $$RecurringExceptionTableCreateCompanionBuilder =
+    RecurringExceptionCompanion Function({
+      Value<int> id,
+      required int recurringPatternId,
+      required DateTime originalDate,
+      Value<bool> isCancelled,
+      Value<bool> isRescheduled,
+      Value<DateTime?> newStartDate,
+      Value<DateTime?> newEndDate,
+      Value<String?> modifiedTitle,
+      Value<String?> modifiedDescription,
+      Value<String?> modifiedLocation,
+      Value<String?> modifiedColorId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
+typedef $$RecurringExceptionTableUpdateCompanionBuilder =
+    RecurringExceptionCompanion Function({
+      Value<int> id,
+      Value<int> recurringPatternId,
+      Value<DateTime> originalDate,
+      Value<bool> isCancelled,
+      Value<bool> isRescheduled,
+      Value<DateTime?> newStartDate,
+      Value<DateTime?> newEndDate,
+      Value<String?> modifiedTitle,
+      Value<String?> modifiedDescription,
+      Value<String?> modifiedLocation,
+      Value<String?> modifiedColorId,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
+
+final class $$RecurringExceptionTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $RecurringExceptionTable,
+          RecurringExceptionData
+        > {
+  $$RecurringExceptionTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $RecurringPatternTable _recurringPatternIdTable(_$AppDatabase db) =>
+      db.recurringPattern.createAlias(
+        $_aliasNameGenerator(
+          db.recurringException.recurringPatternId,
+          db.recurringPattern.id,
+        ),
+      );
+
+  $$RecurringPatternTableProcessedTableManager get recurringPatternId {
+    final $_column = $_itemColumn<int>('recurring_pattern_id')!;
+
+    final manager = $$RecurringPatternTableTableManager(
+      $_db,
+      $_db.recurringPattern,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_recurringPatternIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$RecurringExceptionTableFilterComposer
+    extends Composer<_$AppDatabase, $RecurringExceptionTable> {
+  $$RecurringExceptionTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get originalDate => $composableBuilder(
+    column: $table.originalDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isCancelled => $composableBuilder(
+    column: $table.isCancelled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isRescheduled => $composableBuilder(
+    column: $table.isRescheduled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get newStartDate => $composableBuilder(
+    column: $table.newStartDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get newEndDate => $composableBuilder(
+    column: $table.newEndDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get modifiedTitle => $composableBuilder(
+    column: $table.modifiedTitle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get modifiedDescription => $composableBuilder(
+    column: $table.modifiedDescription,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get modifiedLocation => $composableBuilder(
+    column: $table.modifiedLocation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get modifiedColorId => $composableBuilder(
+    column: $table.modifiedColorId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$RecurringPatternTableFilterComposer get recurringPatternId {
+    final $$RecurringPatternTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.recurringPatternId,
+      referencedTable: $db.recurringPattern,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RecurringPatternTableFilterComposer(
+            $db: $db,
+            $table: $db.recurringPattern,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RecurringExceptionTableOrderingComposer
+    extends Composer<_$AppDatabase, $RecurringExceptionTable> {
+  $$RecurringExceptionTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get originalDate => $composableBuilder(
+    column: $table.originalDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isCancelled => $composableBuilder(
+    column: $table.isCancelled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isRescheduled => $composableBuilder(
+    column: $table.isRescheduled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get newStartDate => $composableBuilder(
+    column: $table.newStartDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get newEndDate => $composableBuilder(
+    column: $table.newEndDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get modifiedTitle => $composableBuilder(
+    column: $table.modifiedTitle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get modifiedDescription => $composableBuilder(
+    column: $table.modifiedDescription,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get modifiedLocation => $composableBuilder(
+    column: $table.modifiedLocation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get modifiedColorId => $composableBuilder(
+    column: $table.modifiedColorId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$RecurringPatternTableOrderingComposer get recurringPatternId {
+    final $$RecurringPatternTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.recurringPatternId,
+      referencedTable: $db.recurringPattern,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RecurringPatternTableOrderingComposer(
+            $db: $db,
+            $table: $db.recurringPattern,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RecurringExceptionTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RecurringExceptionTable> {
+  $$RecurringExceptionTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get originalDate => $composableBuilder(
+    column: $table.originalDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isCancelled => $composableBuilder(
+    column: $table.isCancelled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isRescheduled => $composableBuilder(
+    column: $table.isRescheduled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get newStartDate => $composableBuilder(
+    column: $table.newStartDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get newEndDate => $composableBuilder(
+    column: $table.newEndDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get modifiedTitle => $composableBuilder(
+    column: $table.modifiedTitle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get modifiedDescription => $composableBuilder(
+    column: $table.modifiedDescription,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get modifiedLocation => $composableBuilder(
+    column: $table.modifiedLocation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get modifiedColorId => $composableBuilder(
+    column: $table.modifiedColorId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$RecurringPatternTableAnnotationComposer get recurringPatternId {
+    final $$RecurringPatternTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.recurringPatternId,
+      referencedTable: $db.recurringPattern,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RecurringPatternTableAnnotationComposer(
+            $db: $db,
+            $table: $db.recurringPattern,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RecurringExceptionTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RecurringExceptionTable,
+          RecurringExceptionData,
+          $$RecurringExceptionTableFilterComposer,
+          $$RecurringExceptionTableOrderingComposer,
+          $$RecurringExceptionTableAnnotationComposer,
+          $$RecurringExceptionTableCreateCompanionBuilder,
+          $$RecurringExceptionTableUpdateCompanionBuilder,
+          (RecurringExceptionData, $$RecurringExceptionTableReferences),
+          RecurringExceptionData,
+          PrefetchHooks Function({bool recurringPatternId})
+        > {
+  $$RecurringExceptionTableTableManager(
+    _$AppDatabase db,
+    $RecurringExceptionTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RecurringExceptionTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RecurringExceptionTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RecurringExceptionTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> recurringPatternId = const Value.absent(),
+                Value<DateTime> originalDate = const Value.absent(),
+                Value<bool> isCancelled = const Value.absent(),
+                Value<bool> isRescheduled = const Value.absent(),
+                Value<DateTime?> newStartDate = const Value.absent(),
+                Value<DateTime?> newEndDate = const Value.absent(),
+                Value<String?> modifiedTitle = const Value.absent(),
+                Value<String?> modifiedDescription = const Value.absent(),
+                Value<String?> modifiedLocation = const Value.absent(),
+                Value<String?> modifiedColorId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => RecurringExceptionCompanion(
+                id: id,
+                recurringPatternId: recurringPatternId,
+                originalDate: originalDate,
+                isCancelled: isCancelled,
+                isRescheduled: isRescheduled,
+                newStartDate: newStartDate,
+                newEndDate: newEndDate,
+                modifiedTitle: modifiedTitle,
+                modifiedDescription: modifiedDescription,
+                modifiedLocation: modifiedLocation,
+                modifiedColorId: modifiedColorId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int recurringPatternId,
+                required DateTime originalDate,
+                Value<bool> isCancelled = const Value.absent(),
+                Value<bool> isRescheduled = const Value.absent(),
+                Value<DateTime?> newStartDate = const Value.absent(),
+                Value<DateTime?> newEndDate = const Value.absent(),
+                Value<String?> modifiedTitle = const Value.absent(),
+                Value<String?> modifiedDescription = const Value.absent(),
+                Value<String?> modifiedLocation = const Value.absent(),
+                Value<String?> modifiedColorId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => RecurringExceptionCompanion.insert(
+                id: id,
+                recurringPatternId: recurringPatternId,
+                originalDate: originalDate,
+                isCancelled: isCancelled,
+                isRescheduled: isRescheduled,
+                newStartDate: newStartDate,
+                newEndDate: newEndDate,
+                modifiedTitle: modifiedTitle,
+                modifiedDescription: modifiedDescription,
+                modifiedLocation: modifiedLocation,
+                modifiedColorId: modifiedColorId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$RecurringExceptionTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({recurringPatternId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (recurringPatternId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.recurringPatternId,
+                                referencedTable:
+                                    $$RecurringExceptionTableReferences
+                                        ._recurringPatternIdTable(db),
+                                referencedColumn:
+                                    $$RecurringExceptionTableReferences
+                                        ._recurringPatternIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$RecurringExceptionTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RecurringExceptionTable,
+      RecurringExceptionData,
+      $$RecurringExceptionTableFilterComposer,
+      $$RecurringExceptionTableOrderingComposer,
+      $$RecurringExceptionTableAnnotationComposer,
+      $$RecurringExceptionTableCreateCompanionBuilder,
+      $$RecurringExceptionTableUpdateCompanionBuilder,
+      (RecurringExceptionData, $$RecurringExceptionTableReferences),
+      RecurringExceptionData,
+      PrefetchHooks Function({bool recurringPatternId})
+    >;
+typedef $$TempExtractedItemsTableCreateCompanionBuilder =
+    TempExtractedItemsCompanion Function({
+      Value<int> id,
+      required String itemType,
+      required String title,
+      Value<DateTime?> startDate,
+      Value<DateTime?> endDate,
+      Value<DateTime?> dueDate,
+      Value<DateTime?> executionDate,
+      Value<String> description,
+      Value<String> location,
+      Value<String> colorId,
+      Value<String> repeatRule,
+      Value<String> listId,
+      Value<DateTime> createdAt,
+      Value<bool> isConfirmed,
+    });
+typedef $$TempExtractedItemsTableUpdateCompanionBuilder =
+    TempExtractedItemsCompanion Function({
+      Value<int> id,
+      Value<String> itemType,
+      Value<String> title,
+      Value<DateTime?> startDate,
+      Value<DateTime?> endDate,
+      Value<DateTime?> dueDate,
+      Value<DateTime?> executionDate,
+      Value<String> description,
+      Value<String> location,
+      Value<String> colorId,
+      Value<String> repeatRule,
+      Value<String> listId,
+      Value<DateTime> createdAt,
+      Value<bool> isConfirmed,
+    });
+
+class $$TempExtractedItemsTableFilterComposer
+    extends Composer<_$AppDatabase, $TempExtractedItemsTable> {
+  $$TempExtractedItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get itemType => $composableBuilder(
+    column: $table.itemType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startDate => $composableBuilder(
+    column: $table.startDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get endDate => $composableBuilder(
+    column: $table.endDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get dueDate => $composableBuilder(
+    column: $table.dueDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get executionDate => $composableBuilder(
+    column: $table.executionDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get colorId => $composableBuilder(
+    column: $table.colorId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get repeatRule => $composableBuilder(
+    column: $table.repeatRule,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get listId => $composableBuilder(
+    column: $table.listId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isConfirmed => $composableBuilder(
+    column: $table.isConfirmed,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TempExtractedItemsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TempExtractedItemsTable> {
+  $$TempExtractedItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get itemType => $composableBuilder(
+    column: $table.itemType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startDate => $composableBuilder(
+    column: $table.startDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get endDate => $composableBuilder(
+    column: $table.endDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get dueDate => $composableBuilder(
+    column: $table.dueDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get executionDate => $composableBuilder(
+    column: $table.executionDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get colorId => $composableBuilder(
+    column: $table.colorId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get repeatRule => $composableBuilder(
+    column: $table.repeatRule,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get listId => $composableBuilder(
+    column: $table.listId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isConfirmed => $composableBuilder(
+    column: $table.isConfirmed,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TempExtractedItemsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TempExtractedItemsTable> {
+  $$TempExtractedItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get itemType =>
+      $composableBuilder(column: $table.itemType, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startDate =>
+      $composableBuilder(column: $table.startDate, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get endDate =>
+      $composableBuilder(column: $table.endDate, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get dueDate =>
+      $composableBuilder(column: $table.dueDate, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get executionDate => $composableBuilder(
+    column: $table.executionDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get location =>
+      $composableBuilder(column: $table.location, builder: (column) => column);
+
+  GeneratedColumn<String> get colorId =>
+      $composableBuilder(column: $table.colorId, builder: (column) => column);
+
+  GeneratedColumn<String> get repeatRule => $composableBuilder(
+    column: $table.repeatRule,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get listId =>
+      $composableBuilder(column: $table.listId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get isConfirmed => $composableBuilder(
+    column: $table.isConfirmed,
+    builder: (column) => column,
+  );
+}
+
+class $$TempExtractedItemsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TempExtractedItemsTable,
+          TempExtractedItemData,
+          $$TempExtractedItemsTableFilterComposer,
+          $$TempExtractedItemsTableOrderingComposer,
+          $$TempExtractedItemsTableAnnotationComposer,
+          $$TempExtractedItemsTableCreateCompanionBuilder,
+          $$TempExtractedItemsTableUpdateCompanionBuilder,
+          (
+            TempExtractedItemData,
+            BaseReferences<
+              _$AppDatabase,
+              $TempExtractedItemsTable,
+              TempExtractedItemData
+            >,
+          ),
+          TempExtractedItemData,
+          PrefetchHooks Function()
+        > {
+  $$TempExtractedItemsTableTableManager(
+    _$AppDatabase db,
+    $TempExtractedItemsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TempExtractedItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TempExtractedItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TempExtractedItemsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> itemType = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<DateTime?> startDate = const Value.absent(),
+                Value<DateTime?> endDate = const Value.absent(),
+                Value<DateTime?> dueDate = const Value.absent(),
+                Value<DateTime?> executionDate = const Value.absent(),
+                Value<String> description = const Value.absent(),
+                Value<String> location = const Value.absent(),
+                Value<String> colorId = const Value.absent(),
+                Value<String> repeatRule = const Value.absent(),
+                Value<String> listId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<bool> isConfirmed = const Value.absent(),
+              }) => TempExtractedItemsCompanion(
+                id: id,
+                itemType: itemType,
+                title: title,
+                startDate: startDate,
+                endDate: endDate,
+                dueDate: dueDate,
+                executionDate: executionDate,
+                description: description,
+                location: location,
+                colorId: colorId,
+                repeatRule: repeatRule,
+                listId: listId,
+                createdAt: createdAt,
+                isConfirmed: isConfirmed,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String itemType,
+                required String title,
+                Value<DateTime?> startDate = const Value.absent(),
+                Value<DateTime?> endDate = const Value.absent(),
+                Value<DateTime?> dueDate = const Value.absent(),
+                Value<DateTime?> executionDate = const Value.absent(),
+                Value<String> description = const Value.absent(),
+                Value<String> location = const Value.absent(),
+                Value<String> colorId = const Value.absent(),
+                Value<String> repeatRule = const Value.absent(),
+                Value<String> listId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<bool> isConfirmed = const Value.absent(),
+              }) => TempExtractedItemsCompanion.insert(
+                id: id,
+                itemType: itemType,
+                title: title,
+                startDate: startDate,
+                endDate: endDate,
+                dueDate: dueDate,
+                executionDate: executionDate,
+                description: description,
+                location: location,
+                colorId: colorId,
+                repeatRule: repeatRule,
+                listId: listId,
+                createdAt: createdAt,
+                isConfirmed: isConfirmed,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TempExtractedItemsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TempExtractedItemsTable,
+      TempExtractedItemData,
+      $$TempExtractedItemsTableFilterComposer,
+      $$TempExtractedItemsTableOrderingComposer,
+      $$TempExtractedItemsTableAnnotationComposer,
+      $$TempExtractedItemsTableCreateCompanionBuilder,
+      $$TempExtractedItemsTableUpdateCompanionBuilder,
+      (
+        TempExtractedItemData,
+        BaseReferences<
+          _$AppDatabase,
+          $TempExtractedItemsTable,
+          TempExtractedItemData
+        >,
+      ),
+      TempExtractedItemData,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5776,4 +9470,10 @@ class $AppDatabaseManager {
       $$AudioContentsTableTableManager(_db, _db.audioContents);
   $$TranscriptLinesTableTableManager get transcriptLines =>
       $$TranscriptLinesTableTableManager(_db, _db.transcriptLines);
+  $$RecurringPatternTableTableManager get recurringPattern =>
+      $$RecurringPatternTableTableManager(_db, _db.recurringPattern);
+  $$RecurringExceptionTableTableManager get recurringException =>
+      $$RecurringExceptionTableTableManager(_db, _db.recurringException);
+  $$TempExtractedItemsTableTableManager get tempExtractedItems =>
+      $$TempExtractedItemsTableTableManager(_db, _db.tempExtractedItems);
 }

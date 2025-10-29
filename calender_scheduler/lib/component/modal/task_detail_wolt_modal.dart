@@ -4,6 +4,7 @@ import 'package:smooth_sheets/smooth_sheets.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:get_it/get_it.dart';
 import 'package:figma_squircle/figma_squircle.dart';
+import 'package:rrule/rrule.dart';
 
 import '../../Database/schedule_database.dart';
 import '../../providers/bottom_sheet_controller.dart';
@@ -16,7 +17,7 @@ import 'deadline_picker_modal.dart'; // ✅ 마감일 선택 바텀시트
 import 'discard_changes_modal.dart'; // ✅ 변경 취소 확인 모달
 import 'delete_confirmation_modal.dart'; // ✅ 삭제 확인 모달
 import 'delete_repeat_confirmation_modal.dart'; // ✅ 반복 삭제 확인 모달
-import 'change_repeat_confirmation_modal.dart'; // ✅ 반복 변경 확인 모달
+import 'edit_repeat_confirmation_modal.dart'; // ✅ 반복 수정 확인 모달
 import '../toast/action_toast.dart'; // ✅ 변경 토스트
 import '../toast/save_toast.dart'; // ✅ 저장 토스트
 
@@ -56,11 +57,19 @@ import '../toast/save_toast.dart'; // ✅ 저장 토스트
 /// - Repeat: "月火\n水木" (줄바꿈)
 /// - Reminder: "15:30"
 /// - Color: icon
-void showTaskDetailWoltModal(
+Future<void> showTaskDetailWoltModal(
   BuildContext context, {
   required TaskData? task,
   required DateTime selectedDate,
 }) async {
+  print('');
+  print('╔═══════════════════════════════════════════════════════════════╗');
+  print('║  🚀 [MODAL OPEN] showTaskDetailWoltModal() 시작             ║');
+  print('╚═══════════════════════════════════════════════════════════════╝');
+  print(
+    '📋 Task: ${task != null ? '${task.id} - ${task.title}' : 'null (신규)'}',
+  );
+  print('📅 Selected Date: $selectedDate');
   // Provider 초기화 (모달 띄우기 전에!)
   final taskController = Provider.of<TaskFormController>(
     context,
@@ -128,6 +137,7 @@ void showTaskDetailWoltModal(
   }
 
   debugPrint('✅ [TaskWolt] Provider 초기화 완료');
+  print('✅ Provider 초기화 완료');
 
   // ✅ 초기 값 저장 (변경사항 감지용)
   final initialTitle = taskController.titleController.text;
@@ -137,108 +147,193 @@ void showTaskDetailWoltModal(
   final initialReminder = bottomSheetController.reminder;
   final initialRepeatRule = bottomSheetController.repeatRule;
 
-  showModalBottomSheet(
+  print('📊 초기 상태:');
+  print('   Title: $initialTitle');
+  print('   DueDate: $initialDueDate');
+  print('   ExecutionDate: $initialExecutionDate');
+  print('   Color: $initialColor');
+  print('   Reminder: $initialReminder');
+  print('   RepeatRule: $initialRepeatRule');
+
+  // ✅ 드래그 방향 추적 변수
+  double? previousExtent;
+  bool isDismissing = false; // 팝업 중복 방지
+
+  print('🔓 showModalBottomSheet 호출 시작...');
+  await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withOpacity(0.3), // ✅ 약간 어둡게 (터치 감지용)
     isDismissible: false, // ✅ 기본 드래그 닫기 비활성화
-    enableDrag: true, // ✅ 드래그는 활성화
-    builder: (sheetContext) {
-      // ✅ DraggableScrollableController 생성
-      final scrollableController = DraggableScrollableController();
+    enableDrag: false, // ✅ 기본 드래그 비활성화 (수동으로 처리)
+    builder: (sheetContext) => WillPopScope(
+      onWillPop: () async {
+        // ✅ 변경사항 감지
+        final hasChanges =
+            initialTitle != taskController.titleController.text ||
+            initialDueDate != taskController.dueDate ||
+            initialExecutionDate != taskController.executionDate ||
+            initialColor != bottomSheetController.selectedColor ||
+            initialReminder != bottomSheetController.reminder ||
+            initialRepeatRule != bottomSheetController.repeatRule;
 
-      return WillPopScope(
-        onWillPop: () async {
-          // ✅ 변경사항 감지
-          final hasChanges =
-              initialTitle != taskController.titleController.text ||
-              initialDueDate != taskController.dueDate ||
-              initialExecutionDate != taskController.executionDate ||
-              initialColor != bottomSheetController.selectedColor ||
-              initialReminder != bottomSheetController.reminder ||
-              initialRepeatRule != bottomSheetController.repeatRule;
+        if (hasChanges) {
+          // ✅ 변경사항 있으면 확인 모달
+          final confirmed = await showDiscardChangesModal(context);
+          return confirmed == true;
+        }
+        // ✅ 변경사항 없으면 바로 닫기
+        return true;
+      },
+      child: Stack(
+        children: [
+          // ✅ 배리어 영역 (전체 화면)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () async {
+                // ✅ 배리어 영역 터치 시
+                print('');
+                print(
+                  '╔═══════════════════════════════════════════════════════════════╗',
+                );
+                print('║  🎯 [BARRIER TAP] 배리어 영역 터치 감지                    ║');
+                print(
+                  '╚═══════════════════════════════════════════════════════════════╝',
+                );
+                debugPrint('🐛 [TaskWolt] 배리어 터치 감지');
 
-          if (hasChanges) {
-            // ✅ 변경사항 있으면 확인 모달
-            final confirmed = await showDiscardChangesModal(context);
-            return confirmed == true;
-          }
-          // ✅ 변경사항 없으면 바로 닫기
-          return true;
-        },
-        child: GestureDetector(
-          onTap: () async {
-            // ✅ 바깥 영역 터치 시 변경사항 확인
-            final hasChanges =
-                initialTitle != taskController.titleController.text ||
-                initialDueDate != taskController.dueDate ||
-                initialExecutionDate != taskController.executionDate ||
-                initialColor != bottomSheetController.selectedColor ||
-                initialReminder != bottomSheetController.reminder ||
-                initialRepeatRule != bottomSheetController.repeatRule;
+                final hasChanges =
+                    initialTitle != taskController.titleController.text ||
+                    initialDueDate != taskController.dueDate ||
+                    initialExecutionDate != taskController.executionDate ||
+                    initialColor != bottomSheetController.selectedColor ||
+                    initialReminder != bottomSheetController.reminder ||
+                    initialRepeatRule != bottomSheetController.repeatRule;
 
-            if (hasChanges) {
-              final confirmed = await showDiscardChangesModal(context);
-              if (confirmed == true && sheetContext.mounted) {
-                Navigator.of(sheetContext).pop();
-              }
-              // ✅ 취소했으면 아무것도 하지 않음 (바텀시트 유지)
-            } else {
-              Navigator.of(sheetContext).pop();
-            }
-          },
-          behavior: HitTestBehavior.opaque,
-          child: GestureDetector(
-            onTap: () {}, // ✅ 내부 터치는 무시 (이벤트 버블링 방지)
-            child: NotificationListener<DraggableScrollableNotification>(
-              onNotification: (notification) {
-                // ✅ 바텀시트를 minChildSize 이하로 내릴 때 감지
-                if (notification.extent <= notification.minExtent + 0.05) {
-                  // ✅ 변경사항 확인
-                  final hasChanges =
-                      initialTitle != taskController.titleController.text ||
-                      initialDueDate != taskController.dueDate ||
-                      initialExecutionDate != taskController.executionDate ||
-                      initialColor != bottomSheetController.selectedColor ||
-                      initialReminder != bottomSheetController.reminder ||
-                      initialRepeatRule != bottomSheetController.repeatRule;
+                print('📊 변경사항 감지: $hasChanges');
 
-                  if (hasChanges) {
-                    // ✅ 변경사항 있으면 확인 모달
-                    showDiscardChangesModal(context).then((confirmed) {
-                      if (confirmed == true && sheetContext.mounted) {
-                        Navigator.of(sheetContext).pop();
-                      } else if (confirmed == false) {
-                        // ✅ 취소했으면 바텀시트를 다시 올림
-                        try {
-                          scrollableController.animateTo(
-                            0.7, // initialChildSize로 복귀
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOut,
-                          );
-                        } catch (e) {
-                          debugPrint('❌ 바텀시트 복귀 실패: $e');
-                        }
-                      }
-                    });
-                    return true; // ✅ 이벤트 소비 (기본 닫기 방지)
+                if (hasChanges) {
+                  print('⚠️ 변경사항 있음 - 확인 모달 표시');
+                  // ✅ 변경사항 있으면 확인 모달
+                  final confirmed = await showDiscardChangesModal(context);
+                  print('✅ 사용자 확인 결과: $confirmed');
+                  if (confirmed == true && sheetContext.mounted) {
+                    print('❌ 모달 닫기 - Navigator.pop() 호출');
+                    Navigator.of(sheetContext).pop();
+                    print('✅ Navigator.pop() 완료');
                   } else {
-                    // ✅ 변경사항 없으면 바로 닫기
-                    if (sheetContext.mounted) {
-                      Navigator.of(sheetContext).pop();
-                    }
+                    print('ℹ️ 사용자가 취소 - 모달 유지');
+                  }
+                } else {
+                  print('ℹ️ 변경사항 없음 - 바로 닫기');
+                  // ✅ 변경사항 없으면 바로 닫기
+                  if (sheetContext.mounted) {
+                    print('❌ 모달 닫기 - Navigator.pop() 호출');
+                    Navigator.of(sheetContext).pop();
+                    print('✅ Navigator.pop() 완료');
                   }
                 }
-                return false;
+                print('');
               },
-              child: DraggableScrollableSheet(
-                controller: scrollableController, // ✅ 컨트롤러 연결
-                initialChildSize: 0.7,
-                minChildSize: 0.5,
-                maxChildSize: 0.95,
-                snap: true,
-                snapSizes: const [0.5, 0.7, 0.95],
-                builder: (context, scrollController) => Container(
+            ),
+          ),
+          // ✅ 바텀시트 (배리어 위에)
+          NotificationListener<DraggableScrollableNotification>(
+            onNotification: (notification) {
+              // ✅ 바텀시트를 minChildSize 이하로 내릴 때 감지
+              // ✅ 드래그 방향 감지 (아래로만)
+              final isMovingDown =
+                  previousExtent != null &&
+                  notification.extent < previousExtent!;
+              previousExtent = notification.extent;
+
+              // ✅ 바텀시트를 아래로 드래그하여 minChildSize 이하로 내릴 때만
+              if (isMovingDown &&
+                  notification.extent <= notification.minExtent + 0.05 &&
+                  !isDismissing) {
+                print('');
+                print(
+                  '╔═══════════════════════════════════════════════════════════════╗',
+                );
+                print('║  ⬇️ [DRAG DOWN] 아래로 드래그 닫기 감지                   ║');
+                print(
+                  '╚═══════════════════════════════════════════════════════════════╝',
+                );
+                debugPrint('🐛 [TaskWolt] 아래로 드래그 닫기 감지');
+                print('📊 Extent: ${notification.extent}');
+                print('📊 MinExtent: ${notification.minExtent}');
+
+                isDismissing = true; // ✅ 즉시 플래그 설정하여 중복 호출 방지
+                print('🔒 isDismissing 플래그 설정: true');
+
+                // ✅ 변경사항 확인
+                final hasChanges =
+                    initialTitle != taskController.titleController.text ||
+                    initialDueDate != taskController.dueDate ||
+                    initialExecutionDate != taskController.executionDate ||
+                    initialColor != bottomSheetController.selectedColor ||
+                    initialReminder != bottomSheetController.reminder ||
+                    initialRepeatRule != bottomSheetController.repeatRule;
+
+                print('📊 변경사항 감지: $hasChanges');
+
+                if (hasChanges) {
+                  print('⚠️ 변경사항 있음 - 확인 모달 표시 (PostFrameCallback)');
+                  // ✅ 변경사항 있으면 확인 모달 띄우기
+                  WidgetsBinding.instance.addPostFrameCallback((_) async {
+                    if (sheetContext.mounted) {
+                      final confirmed = await showDiscardChangesModal(context);
+                      print('✅ 사용자 확인 결과: $confirmed');
+                      if (confirmed == true && sheetContext.mounted) {
+                        print('❌ 모달 닫기 - Navigator.pop() 호출');
+                        Navigator.of(sheetContext).pop();
+                        print('✅ Navigator.pop() 완료');
+                      } else {
+                        print('ℹ️ 사용자가 취소 - 모달 유지, isDismissing 리셋');
+                        // ✅ 사용자가 취소한 경우에만 플래그 리셋
+                        isDismissing = false;
+                      }
+                    }
+                  });
+                  print('');
+                  return true; // ✅ 드래그 이벤트 소비 (닫기 방지)
+                } else {
+                  print('ℹ️ 변경사항 없음 - 바로 닫기 (PostFrameCallback)');
+                  // ✅ 변경사항 없으면 바로 닫기
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (sheetContext.mounted) {
+                      try {
+                        print('❌ 모달 닫기 - Navigator.pop() 호출');
+                        Navigator.of(sheetContext, rootNavigator: false).pop();
+                        print('✅ Navigator.pop() 완료');
+                        // ✅ pop 성공 후에는 리셋하지 않음 (이미 dispose됨)
+                      } catch (e) {
+                        debugPrint('❌ 바텀시트 닫기 실패: $e');
+                        print('❌ 닫기 실패: $e - isDismissing 리셋');
+                        isDismissing = false; // ✅ 실패한 경우에만 리셋
+                      }
+                    }
+                  });
+                  return false;
+                }
+              }
+              return false;
+            },
+            child: DraggableScrollableSheet(
+              initialChildSize: 0.7,
+              minChildSize: 0.5,
+              maxChildSize: 0.95,
+              snap: true,
+              snapSizes: const [0.5, 0.7, 0.95],
+              builder: (context, scrollController) => GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  // ✅ 바텀시트 내부 터치는 아무것도 안함 (포커스 해제 등)
+                  debugPrint('🐛 [TaskWolt] 바텀시트 내부 터치');
+                },
+                child: Container(
                   decoration: ShapeDecoration(
                     color: const Color(0xFFFCFCFC),
                     shape: SmoothRectangleBorder(
@@ -253,14 +348,20 @@ void showTaskDetailWoltModal(
                     scrollController: scrollController,
                     task: task,
                     selectedDate: selectedDate,
+                    initialTitle: initialTitle,
+                    initialExecutionDate: initialExecutionDate,
+                    initialDueDate: initialDueDate,
+                    initialColor: initialColor,
+                    initialReminder: initialReminder,
+                    initialRepeatRule: initialRepeatRule,
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      );
-    },
+        ],
+      ),
+    ),
   );
 }
 
@@ -273,13 +374,29 @@ Widget _buildTaskDetailPage(
   required ScrollController scrollController,
   required TaskData? task,
   required DateTime selectedDate,
+  required String initialTitle,
+  required DateTime? initialExecutionDate,
+  required DateTime? initialDueDate,
+  required String initialColor,
+  required String initialReminder,
+  required String initialRepeatRule,
 }) {
   return ListView(
     controller: scrollController,
     padding: EdgeInsets.zero,
     children: [
       // ========== TopNavi (60px) ==========
-      _buildTopNavi(context, task: task, selectedDate: selectedDate),
+      _buildTopNavi(
+        context,
+        task: task,
+        selectedDate: selectedDate,
+        initialTitle: initialTitle,
+        initialExecutionDate: initialExecutionDate,
+        initialDueDate: initialDueDate,
+        initialColor: initialColor,
+        initialReminder: initialReminder,
+        initialRepeatRule: initialRepeatRule,
+      ),
 
       // ========== TextField (51px) ==========
       _buildTextField(context),
@@ -296,7 +413,7 @@ Widget _buildTaskDetailPage(
       // ========== Delete Button (52px) ==========
       if (task != null) _buildDeleteButton(context, task: task),
 
-      const SizedBox(height: 32), // ✅ 하단 패딩 32px
+      const SizedBox(height: 20), // ✅ 하단 패딩 20px (최대 확장 시 바텀시트 끝에서 20px 여백)
     ],
   );
 }
@@ -309,74 +426,136 @@ Widget _buildTopNavi(
   BuildContext context, {
   required TaskData? task,
   required DateTime selectedDate,
+  required String initialTitle,
+  required DateTime? initialExecutionDate,
+  required DateTime? initialDueDate,
+  required String initialColor,
+  required String initialReminder,
+  required String initialRepeatRule,
 }) {
-  return Consumer<TaskFormController>(
-    builder: (context, controller, child) {
-      // 텍스트 입력 여부에 따라 색상 변경
-      final hasTitle = controller.hasTitle;
-      final titleColor = hasTitle
-          ? const Color(0xFF7A7A7A)
-          : const Color(0xFF505050);
+  final taskController = Provider.of<TaskFormController>(
+    context,
+    listen: false,
+  );
 
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(28, 28, 28, 9),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Title
-            Text(
-              'タスク',
-              style: TextStyle(
-                fontFamily: 'LINE Seed JP App_TTF',
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                height: 1.4,
-                letterSpacing: -0.08,
-                color: titleColor,
-              ),
-            ),
+  return ValueListenableBuilder<TextEditingValue>(
+    valueListenable: taskController.titleController,
+    builder: (context, titleValue, child) {
+      return Consumer2<TaskFormController, BottomSheetController>(
+        builder: (context, taskController, bottomSheetController, child) {
+          // ✅ 변경사항 또는 캐시 감지 (초기값과 비교)
+          final hasChanges =
+              initialTitle != titleValue.text ||
+              initialExecutionDate != taskController.executionDate ||
+              initialDueDate != taskController.dueDate ||
+              initialColor != bottomSheetController.selectedColor.toString() ||
+              initialReminder != bottomSheetController.reminder ||
+              initialRepeatRule != bottomSheetController.repeatRule;
 
-            // Save Button
-            GestureDetector(
-              onTap: () =>
-                  _handleSave(context, task: task, selectedDate: selectedDate),
-              child: Container(
-                width: 74,
-                height: 42,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF111111),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color.fromRGBO(186, 186, 186, 0.08),
-                      offset: Offset(0, -2),
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-                alignment: Alignment.center,
-                child: const Text(
-                  '完了',
+          // 텍스트 입력 여부에 따라 색상 변경
+          final hasTitle = taskController.hasTitle;
+          final titleColor = hasTitle
+              ? const Color(0xFF7A7A7A)
+              : const Color(0xFF505050);
+
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(28, 28, 28, 9),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Title
+                Text(
+                  'タスク',
                   style: TextStyle(
                     fontFamily: 'LINE Seed JP App_TTF',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                     height: 1.4,
-                    letterSpacing: -0.065,
-                    color: Color(0xFFFAFAFA),
+                    letterSpacing: -0.08,
+                    color: titleColor,
                   ),
                 ),
-              ),
+
+                // ✅ 조건부 버튼: 변경사항 있으면 完了, 없으면 X 아이콘
+                hasChanges
+                    ? GestureDetector(
+                        onTap: () => _handleSave(
+                          context,
+                          task: task,
+                          selectedDate: selectedDate,
+                        ),
+                        child: Container(
+                          width: 74,
+                          height: 42,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF111111),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color.fromRGBO(186, 186, 186, 0.08),
+                                offset: Offset(0, -2),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            '完了',
+                            style: TextStyle(
+                              fontFamily: 'LINE Seed JP App_TTF',
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              height: 1.4,
+                              letterSpacing: -0.065,
+                              color: Color(0xFFFAFAFA),
+                            ),
+                          ),
+                        ),
+                      )
+                    : GestureDetector(
+                        onTap: () => Navigator.of(context).pop(),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE4E4E4).withOpacity(0.9),
+                            border: Border.all(
+                              color: const Color(0xFF111111).withOpacity(0.02),
+                              width: 1,
+                            ),
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                          alignment: Alignment.center,
+                          child: SvgPicture.asset(
+                            'asset/icon/X_icon.svg',
+                            width: 20,
+                            height: 20,
+                            colorFilter: const ColorFilter.mode(
+                              Color(0xFF111111),
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                        ),
+                      ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       );
     },
   );
+
+  print('');
+  print('╔═══════════════════════════════════════════════════════════════╗');
+  print('║  ❌ [MODAL CLOSED] showModalBottomSheet 완료 - 모달 닫힘    ║');
+  print('╚═══════════════════════════════════════════════════════════════╝');
+  print('⏰ 모달 닫힌 시각: ${DateTime.now()}');
+  print('');
 }
 
 // ========================================
@@ -1443,12 +1622,17 @@ void _handleSave(
   final db = GetIt.I<AppDatabase>();
 
   try {
-    if (task != null) {
-      // ========== 🔄 기존에 반복 규칙이 있었거나, 반복 규칙을 제거하려는 경우 ==========
-      final hadRepeatRule =
-          task.repeatRule.isNotEmpty &&
-          task.repeatRule != '{}' &&
-          task.repeatRule != '[]';
+    if (task != null && task.id != -1) {
+      // ========== 🔄 RecurringPattern 테이블에서 실제 반복 여부 확인 ==========
+      final recurringPattern = await db.getRecurringPattern(
+        entityType: 'task',
+        entityId: task.id,
+      );
+      final hadRepeatRule = recurringPattern != null;
+
+      debugPrint(
+        '🔍 [TaskWolt] 저장 시 반복 확인: Task #${task.id} → ${hadRepeatRule ? "반복 있음" : "반복 없음"}',
+      );
 
       if (hadRepeatRule) {
         // 변경사항이 있는지 확인
@@ -1461,39 +1645,62 @@ void _handleSave(
             task.repeatRule != (safeRepeatRule ?? '');
 
         if (hasChanges) {
-          // 변경 확인 모달 표시
-          await showChangeRepeatConfirmationModal(
+          // ✅ 반복 할일 수정 확인 모달 표시
+          await showEditRepeatConfirmationModal(
             context,
-            type: RepeatItemType.task,
-            onChangeThis: () async {
-              // ✅ この回のみ: 현재 할일만 포크해서 별도 항목으로 분리
-              await _updateTaskThisOnly(
-                db: db,
-                originalTask: task,
-                title: taskController.title.trim(),
-                dueDate: finalDueDate,
-                executionDate: finalExecutionDate,
-                colorId: finalColor,
-                reminder: safeReminder,
-                selectedDate: selectedDate,
+            onEditThis: () async {
+              // ✅ この回のみ 수정: RecurringException 생성
+              await _editTaskThisOnly(
+                db,
+                task,
+                taskController,
+                finalDueDate,
+                finalExecutionDate,
+                finalColor,
+                safeReminder,
               );
+              debugPrint('✅ [TaskWolt] この回のみ 수정 완료');
+              if (context.mounted) {
+                // ✅ 1. 확인 모달 닫기
+                Navigator.pop(context);
+                // ✅ 2. Detail modal 닫기 (변경 신호 전달)
+                Navigator.pop(context, true);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('この回のみ変更しました'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
             },
-            onChangeFuture: () async {
-              // ✅ この予定以降: 원본은 현재 날짜 전까지, 새 항목은 현재 날짜부터
-              await _updateTaskFuture(
-                db: db,
-                originalTask: task,
-                title: taskController.title.trim(),
-                dueDate: finalDueDate,
-                executionDate: finalExecutionDate,
-                colorId: finalColor,
-                reminder: safeReminder,
-                repeatRule: safeRepeatRule,
-                selectedDate: selectedDate,
+            onEditFuture: () async {
+              // ✅ この予定以降 수정: RRULE 분할
+              await _editTaskFuture(
+                db,
+                task,
+                taskController,
+                finalDueDate,
+                finalExecutionDate,
+                finalColor,
+                safeReminder,
+                safeRepeatRule,
               );
+              debugPrint('✅ [TaskWolt] この予定以降 수정 완료');
+              if (context.mounted) {
+                // ✅ 1. 확인 모달 닫기
+                Navigator.pop(context);
+                // ✅ 2. Detail modal 닫기 (변경 신호 전달)
+                Navigator.pop(context, true);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('この予定以降を変更しました'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
             },
-            onChangeAll: () async {
-              // ✅ すべての回: 원본 항목의 모든 필드 업데이트 (포크 없음)
+            onEditAll: () async {
+              // ✅ すべての回 수정: Base Event + RecurringPattern 업데이트
               await _updateTaskAll(
                 db: db,
                 task: task,
@@ -1507,20 +1714,7 @@ void _handleSave(
             },
           );
 
-          // ✅ 캐시 클리어
-          await TempInputCache.clearTempInput();
-          debugPrint('🗑️ [TaskWolt] 캐시 클리어 완료');
-
-          // 성공 피드백
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('タスクを更新しました'),
-                duration: Duration(seconds: 1),
-              ),
-            );
-          }
-          return; // ✅ 모달 처리 완료 후 리턴
+          return; // ✅ 모달 작업 완료 후 함수 종료
         }
       }
 
@@ -1544,6 +1738,66 @@ void _handleSave(
       debugPrint('   - 완료 상태 유지: ${task.completed}');
       debugPrint('   - 실행일: $finalExecutionDate');
       debugPrint('   - 마감일: $finalDueDate');
+
+      // ========== RecurringPattern 업데이트 ==========
+      if (safeRepeatRule != null && safeRepeatRule.isNotEmpty) {
+        final dtstart = finalExecutionDate ?? task.createdAt;
+        final rrule = convertRepeatRuleToRRule(safeRepeatRule, dtstart);
+
+        // 🔥 날짜만 추출 (시간은 00:00:00으로 통일)
+        final dtstartDateOnly = DateTime(
+          dtstart.year,
+          dtstart.month,
+          dtstart.day,
+        );
+
+        if (rrule != null) {
+          // 기존 패턴 확인
+          final existingPattern = await db.getRecurringPattern(
+            entityType: 'task',
+            entityId: task.id,
+          );
+
+          if (existingPattern != null) {
+            // 업데이트
+            await (db.update(
+              db.recurringPattern,
+            )..where((tbl) => tbl.id.equals(existingPattern.id))).write(
+              RecurringPatternCompanion(
+                rrule: Value(rrule),
+                dtstart: Value(dtstartDateOnly),
+              ),
+            );
+            debugPrint('✅ [TaskWolt] RecurringPattern 업데이트 완료');
+          } else {
+            // 생성
+            await db.createRecurringPattern(
+              RecurringPatternCompanion.insert(
+                entityType: 'task',
+                entityId: task.id,
+                rrule: rrule,
+                dtstart: dtstartDateOnly,
+                exdate: const Value(''),
+              ),
+            );
+            debugPrint('✅ [TaskWolt] RecurringPattern 생성 완료');
+          }
+          debugPrint('   - RRULE: $rrule');
+          debugPrint('   - DTSTART: $dtstartDateOnly (날짜만)');
+        }
+      } else {
+        // 반복 규칙이 없으면 기존 패턴 삭제
+        final existingPattern = await db.getRecurringPattern(
+          entityType: 'task',
+          entityId: task.id,
+        );
+        if (existingPattern != null) {
+          await (db.delete(
+            db.recurringPattern,
+          )..where((tbl) => tbl.id.equals(existingPattern.id))).go();
+          debugPrint('✅ [TaskWolt] RecurringPattern 삭제 완료');
+        }
+      }
 
       // ✅ 수정 완료 후 캐시 클리어
       await TempInputCache.clearTempInput();
@@ -1577,6 +1831,36 @@ void _handleSave(
       debugPrint(
         '   ⚠️ executionDate가 ${finalExecutionDate == null ? "NULL → Inbox에 표시됨" : "설정됨 → DetailView에 표시됨"}',
       );
+
+      // ========== 5.5단계: RecurringPattern 생성 (반복 규칙이 있으면) ==========
+      if (safeRepeatRule != null && safeRepeatRule.isNotEmpty) {
+        final dtstart = finalExecutionDate ?? DateTime.now();
+        final rrule = convertRepeatRuleToRRule(safeRepeatRule, dtstart);
+
+        // 🔥 날짜만 추출 (시간은 00:00:00으로 통일)
+        final dtstartDateOnly = DateTime(
+          dtstart.year,
+          dtstart.month,
+          dtstart.day,
+        );
+
+        if (rrule != null) {
+          await db.createRecurringPattern(
+            RecurringPatternCompanion.insert(
+              entityType: 'task',
+              entityId: newId,
+              rrule: rrule,
+              dtstart: dtstartDateOnly,
+              exdate: const Value(''),
+            ),
+          );
+          debugPrint('✅ [TaskWolt] RecurringPattern 생성 완료');
+          debugPrint('   - RRULE: $rrule');
+          debugPrint('   - DTSTART: $dtstartDateOnly (날짜만)');
+        } else {
+          debugPrint('⚠️ [TaskWolt] RRULE 변환 실패');
+        }
+      }
 
       // ========== 6단계: 캐시 클리어 ==========
       await TempInputCache.clearTempInput();
@@ -1620,33 +1904,71 @@ void _handleSave(
 }
 
 void _handleDelete(BuildContext context, {required TaskData task}) async {
-  // ✅ 반복 여부 확인
-  final hasRepeat =
-      task.repeatRule.isNotEmpty &&
-      task.repeatRule != '{}' &&
-      task.repeatRule != '[]';
-
   final db = GetIt.I<AppDatabase>();
+
+  // ✅ RecurringPattern 테이블에서 실제 반복 여부 확인
+  final recurringPattern = await db.getRecurringPattern(
+    entityType: 'task',
+    entityId: task.id,
+  );
+  final hasRepeat = recurringPattern != null;
+
+  debugPrint(
+    '🔍 [TaskWolt] 삭제 시 반복 확인: Task #${task.id} → ${hasRepeat ? "반복 있음" : "반복 없음"}',
+  );
 
   if (hasRepeat) {
     // ✅ 반복 있으면 → 반복 삭제 모달
     await showDeleteRepeatConfirmationModal(
       context,
       onDeleteThis: () async {
-        // ✅ この回のみ 삭제: 내일부터 시작하도록 변경
+        // ✅ この回のみ 삭제: RecurringException 생성
         await _deleteTaskThisOnly(db, task);
-        if (context.mounted) Navigator.pop(context);
+        if (context.mounted) {
+          // ✅ 1. 확인 모달 닫기
+          Navigator.pop(context);
+          // ✅ 2. Detail modal 닫기 (변경 신호 전달)
+          Navigator.pop(context, true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('この回のみ削除しました'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       },
       onDeleteFuture: () async {
-        // ✅ この予定以降 삭제: 어제까지로 종료
+        // ✅ この予定以降 삭제: UNTIL 설정
         await _deleteTaskFuture(db, task);
-        if (context.mounted) Navigator.pop(context);
+        if (context.mounted) {
+          // ✅ 1. 확인 모달 닫기
+          Navigator.pop(context);
+          // ✅ 2. Detail modal 닫기 (변경 신호 전달)
+          Navigator.pop(context, true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('この予定以降を削除しました'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       },
       onDeleteAll: () async {
         // すべての回 삭제 (전체 삭제)
         debugPrint('✅ [TaskWolt] すべての回 삭제');
         await db.deleteTask(task.id);
-        if (context.mounted) Navigator.pop(context);
+        if (context.mounted) {
+          // ✅ 1. 확인 모달 닫기
+          Navigator.pop(context);
+          // ✅ 2. Detail modal 닫기 (변경 신호 전달)
+          Navigator.pop(context, true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('すべての回を削除しました'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       },
     );
   } else {
@@ -1849,40 +2171,410 @@ Future<void> _updateTaskAll({
 // ==================== 삭제 헬퍼 함수 ====================
 
 /// ✅ この回のみ 삭제: 오늘만 제외하고 내일부터 다시 시작
+/// ✅ この回のみ 삭제: RFC 5545 EXDATE로 예외 처리
 Future<void> _deleteTaskThisOnly(AppDatabase db, TaskData task) async {
-  // 1. 오늘을 제외한 새로운 시작일 계산
-  final today = DateTime.now();
-  final tomorrow = DateTime(today.year, today.month, today.day + 1);
-
-  // 2. executionDate를 내일로 변경하여 업데이트
-  await (db.update(db.task)..where((tbl) => tbl.id.equals(task.id))).write(
-    TaskCompanion(id: Value(task.id), executionDate: Value(tomorrow)),
+  // 1. RecurringPattern 조회
+  final pattern = await db.getRecurringPattern(
+    entityType: 'task',
+    entityId: task.id,
   );
 
-  debugPrint('✅ [TaskWolt] この回のみ 삭제 완료');
-  debugPrint('   - ID: ${task.id}');
-  debugPrint('   - 새 시작일: $tomorrow');
-}
+  if (pattern == null) {
+    debugPrint('⚠️ [TaskWolt] RecurringPattern 없음');
+    return;
+  }
 
-/// ✅ この予定以降 삭제: 어제까지만 유지하고 이후 반복 종료
-Future<void> _deleteTaskFuture(AppDatabase db, TaskData task) async {
-  // 1. 어제 날짜 계산
-  final today = DateTime.now();
-  final yesterday = DateTime(today.year, today.month, today.day - 1);
+  // 2. 현재 날짜 (선택된 인스턴스의 originalDate)
+  final originalDate = task.executionDate ?? DateTime.now();
 
-  // 2. 반복 규칙에서 endDate를 어제로 설정
-  // TODO: repeatRule JSON 파싱 및 endDate 추가 로직 필요
-  // 현재는 단순히 오늘부터 표시 안 되도록 executionDate를 과거로 변경
-  await (db.update(db.task)..where((tbl) => tbl.id.equals(task.id))).write(
-    TaskCompanion(
-      id: Value(task.id),
-      dueDate: Value(yesterday), // 마감일을 어제로 변경
-      repeatRule: const Value(''), // 반복 제거 (임시)
+  // 3. RecurringException 생성 (취소 표시)
+  await db.createRecurringException(
+    RecurringExceptionCompanion(
+      recurringPatternId: Value(pattern.id),
+      originalDate: Value(originalDate),
+      isCancelled: const Value(true), // 취소 (삭제)
+      isRescheduled: const Value(false),
     ),
   );
 
-  debugPrint('✅ [TaskWolt] この予定以降 삭제 완료');
-  debugPrint('   - ID: ${task.id}');
-  debugPrint('   - 종료일: $yesterday');
-  debugPrint('   ⚠️ TODO: repeatRule endDate 설정 필요');
+  debugPrint('✅ [TaskWolt] この回のみ 삭제 완료 (RFC 5545 EXDATE)');
+  debugPrint('   - Task ID: ${task.id}');
+  debugPrint('   - Pattern ID: ${pattern.id}');
+  debugPrint('   - Original Date: $originalDate');
+}
+
+/// ✅ この予定以降 삭제: RFC 5545 UNTIL로 종료일 설정
+Future<void> _deleteTaskFuture(AppDatabase db, TaskData task) async {
+  // 1. RecurringPattern 조회
+  final pattern = await db.getRecurringPattern(
+    entityType: 'task',
+    entityId: task.id,
+  );
+
+  if (pattern == null) {
+    debugPrint('⚠️ [TaskWolt] RecurringPattern 없음');
+    return;
+  }
+
+  // 2. ✅ 선택된 날짜(executionDate) 포함 이후 모두 삭제 → 어제가 마지막 발생
+  final selectedDate = task.executionDate ?? DateTime.now();
+  final dateOnly = DateTime(
+    selectedDate.year,
+    selectedDate.month,
+    selectedDate.day,
+  );
+  final yesterday = dateOnly.subtract(const Duration(days: 1));
+  final until = DateTime(
+    yesterday.year,
+    yesterday.month,
+    yesterday.day,
+    23,
+    59,
+    59,
+  );
+
+  // 3. RRULE에 UNTIL 파라미터 추가 (RecurringPattern 업데이트)
+  await db.updateRecurringPattern(
+    RecurringPatternCompanion(
+      id: Value(pattern.id),
+      until: Value(until), // UNTIL 설정
+    ),
+  );
+
+  debugPrint('✅ [TaskWolt] この予定以降 삭제 완료 (RFC 5545 UNTIL)');
+  debugPrint('   - Task ID: ${task.id}');
+  debugPrint('   - Pattern ID: ${pattern.id}');
+  debugPrint('   - Selected Date: $dateOnly');
+  debugPrint('   - UNTIL (종료일): $until');
+}
+
+// ========================================
+// Task/Habit repeatRule JSON → RRULE 변환
+// ========================================
+
+/// Task/Habit의 repeatRule JSON을 RRULE로 변환
+///
+/// JSON 형식:
+///   - 새 형식: {"value":"daily:月,火,水","display":"月火\n水"}
+///   - 구 형식: {"type":"daily","weekdays":[1,2,3,4,5,6,7],"display":"毎日"}
+/// RRULE 형식: FREQ=WEEKLY;BYDAY=MO,TU,WE
+String? convertRepeatRuleToRRule(String? repeatRuleJson, DateTime dtstart) {
+  if (repeatRuleJson == null || repeatRuleJson.trim().isEmpty) {
+    return null;
+  }
+
+  try {
+    // 구 형식: {"type":"daily","weekdays":[1,2,3,4,5,6,7],"display":"毎日"}
+    if (repeatRuleJson.contains('"type":"') &&
+        repeatRuleJson.contains('"weekdays":[')) {
+      debugPrint('🔍 [RepeatConvert] 구 형식 감지');
+
+      // type 추출
+      final typeStart = repeatRuleJson.indexOf('"type":"') + 8;
+      final typeEnd = repeatRuleJson.indexOf('"', typeStart);
+      final type = repeatRuleJson.substring(typeStart, typeEnd);
+
+      if (type == 'daily') {
+        // weekdays 배열 추출
+        final weekdaysStart = repeatRuleJson.indexOf(
+          '[',
+          repeatRuleJson.indexOf('"weekdays":'),
+        );
+        final weekdaysEnd = repeatRuleJson.indexOf(']', weekdaysStart);
+        final weekdaysStr = repeatRuleJson.substring(
+          weekdaysStart + 1,
+          weekdaysEnd,
+        );
+        final weekdays = weekdaysStr
+            .split(',')
+            .map((s) => int.tryParse(s.trim()))
+            .whereType<int>()
+            .toList();
+
+        if (weekdays.isEmpty) {
+          debugPrint('⚠️ [RepeatConvert] 유효한 요일 없음');
+          return null;
+        }
+
+        debugPrint('🔍 [RepeatConvert] weekdays 추출: $weekdays');
+
+        // RecurrenceRule API 사용
+        final rrule = RecurrenceRule(
+          frequency: Frequency.weekly,
+          byWeekDays: weekdays.map((wd) => ByWeekDayEntry(wd)).toList(),
+        );
+
+        final rruleString = rrule.toString();
+        final result = rruleString.replaceFirst('RRULE:', '');
+
+        debugPrint('✅ [RepeatConvert] RRULE 생성 (구 형식): $result');
+        return result;
+      }
+
+      return null;
+    }
+
+    // 새 형식: {"value":"daily:月,火,水","display":"月火\n水"}
+    if (!repeatRuleJson.contains('"value":"')) {
+      debugPrint('⚠️ [RepeatConvert] 알 수 없는 형식: $repeatRuleJson');
+      return null;
+    }
+
+    final startIndex = repeatRuleJson.indexOf('"value":"') + 9;
+    final endIndex = repeatRuleJson.indexOf('"', startIndex);
+    final value = repeatRuleJson.substring(startIndex, endIndex);
+
+    debugPrint('🔍 [RepeatConvert] value 추출: $value');
+
+    // daily: 요일 기반 반복
+    if (value.startsWith('daily:')) {
+      final daysStr = value.substring(6); // "月,火,水"
+      final days = daysStr
+          .split(',')
+          .map((d) => d.trim())
+          .where((d) => d.isNotEmpty)
+          .toList();
+
+      debugPrint('🐛 [TaskWolt-RepeatConvert] daysStr: $daysStr');
+      debugPrint('🐛 [TaskWolt-RepeatConvert] days split: $days');
+
+      // 일본어 요일 → DateTime.weekday (with -1 보정)
+      final weekdays = days.map(_jpDayToWeekday).whereType<int>().toList();
+
+      debugPrint('🐛 [TaskWolt-RepeatConvert] weekdays 변환: $weekdays');
+
+      if (weekdays.isEmpty) {
+        debugPrint('⚠️ [RepeatConvert] 유효한 요일 없음');
+        return null;
+      }
+
+      // RecurrenceRule API 사용 (버그 보정 적용)
+      final rrule = RecurrenceRule(
+        frequency: Frequency.weekly,
+        byWeekDays: weekdays.map((wd) => ByWeekDayEntry(wd)).toList(),
+      );
+
+      final rruleString = rrule.toString();
+      final result = rruleString.replaceFirst('RRULE:', '');
+
+      debugPrint('✅ [RepeatConvert] RRULE 생성: $result');
+      return result;
+    }
+    // monthly: 날짜 기반 반복
+    else if (value.startsWith('monthly:')) {
+      final daysStr = value.substring(8); // "1,15"
+      final days = daysStr
+          .split(',')
+          .map((d) => int.tryParse(d))
+          .whereType<int>()
+          .toList();
+
+      if (days.isEmpty) {
+        debugPrint('⚠️ [RepeatConvert] 유효한 날짜 없음');
+        return null;
+      }
+
+      // RecurrenceRule API 사용
+      final rrule = RecurrenceRule(
+        frequency: Frequency.monthly,
+        byMonthDays: days,
+      );
+
+      final rruleString = rrule.toString();
+      final result = rruleString.replaceFirst('RRULE:', '');
+
+      debugPrint('✅ [RepeatConvert] RRULE 생성: $result');
+      return result;
+    }
+    // 간격 기반 (2日毎, 1週間毎, etc.)
+    else if (value.contains('日毎')) {
+      // "2日毎" → FREQ=DAILY;INTERVAL=2
+      final intervalStr = value.replaceAll('日毎', '');
+      final interval = int.tryParse(intervalStr) ?? 1;
+
+      final rrule = RecurrenceRule(
+        frequency: Frequency.daily,
+        interval: interval,
+      );
+
+      final rruleString = rrule.toString();
+      final result = rruleString.replaceFirst('RRULE:', '');
+
+      debugPrint('✅ [RepeatConvert] RRULE 생성: $result');
+      return result;
+    } else if (value.contains('週間毎')) {
+      // "1週間毎" → FREQ=WEEKLY
+      final intervalStr = value.replaceAll('週間毎', '');
+      final interval = int.tryParse(intervalStr) ?? 1;
+
+      final rrule = RecurrenceRule(
+        frequency: Frequency.weekly,
+        interval: interval,
+        byWeekDays: [ByWeekDayEntry(dtstart.weekday - 1)], // -1 보정
+      );
+
+      final rruleString = rrule.toString();
+      final result = rruleString.replaceFirst('RRULE:', '');
+
+      debugPrint('✅ [RepeatConvert] RRULE 생성: $result');
+      return result;
+    }
+
+    debugPrint('⚠️ [RepeatConvert] 알 수 없는 형식: $value');
+    return null;
+  } catch (e) {
+    debugPrint('❌ [RepeatConvert] 변환 실패: $e');
+    return null;
+  }
+}
+
+/// ✅ この回のみ 수정: RFC 5545 RecurringException으로 예외 처리
+Future<void> _editTaskThisOnly(
+  AppDatabase db,
+  TaskData task,
+  TaskFormController controller,
+  DateTime? dueDate,
+  DateTime? executionDate,
+  String color,
+  String? reminder,
+) async {
+  // 1. RecurringPattern 조회
+  final pattern = await db.getRecurringPattern(
+    entityType: 'task',
+    entityId: task.id,
+  );
+
+  if (pattern == null) {
+    debugPrint('⚠️ [TaskWolt] RecurringPattern 없음');
+    return;
+  }
+
+  // 2. 현재 날짜 (선택된 인스턴스의 originalDate)
+  final originalDate = task.executionDate ?? DateTime.now();
+
+  // 3. RecurringException 생성 (수정된 내용 저장)
+  await db.createRecurringException(
+    RecurringExceptionCompanion(
+      recurringPatternId: Value(pattern.id),
+      originalDate: Value(originalDate),
+      isCancelled: const Value(false),
+      isRescheduled: Value(executionDate != task.executionDate),
+      newStartDate: Value(executionDate),
+      newEndDate: Value(dueDate),
+      modifiedTitle: Value(controller.title.trim()),
+      modifiedColorId: Value(color),
+    ),
+  );
+
+  debugPrint('✅ [TaskWolt] この回のみ 수정 완료 (RFC 5545 Exception)');
+  debugPrint('   - Task ID: ${task.id}');
+  debugPrint('   - Pattern ID: ${pattern.id}');
+  debugPrint('   - Original Date: $originalDate');
+  debugPrint('   - Modified Title: ${controller.title.trim()}');
+}
+
+/// ✅ この予定以降 수정: RFC 5545 RRULE 분할
+Future<void> _editTaskFuture(
+  AppDatabase db,
+  TaskData task,
+  TaskFormController controller,
+  DateTime? dueDate,
+  DateTime? executionDate,
+  String color,
+  String? reminder,
+  String? repeatRule,
+) async {
+  // 1. 기존 RecurringPattern 조회
+  final oldPattern = await db.getRecurringPattern(
+    entityType: 'task',
+    entityId: task.id,
+  );
+
+  if (oldPattern == null) {
+    debugPrint('⚠️ [TaskWolt] RecurringPattern 없음');
+    return;
+  }
+
+  // 2. ✅ 선택된 날짜(executionDate) 포함 이후 모두 수정 → 어제가 마지막 발생
+  final selectedDate = task.executionDate ?? DateTime.now();
+  final dateOnly = DateTime(
+    selectedDate.year,
+    selectedDate.month,
+    selectedDate.day,
+  );
+  final yesterday = dateOnly.subtract(const Duration(days: 1));
+  final until = DateTime(
+    yesterday.year,
+    yesterday.month,
+    yesterday.day,
+    23,
+    59,
+    59,
+  );
+
+  // 3. 기존 패턴에 UNTIL 설정 (선택 날짜 전까지만)
+  await db.updateRecurringPattern(
+    RecurringPatternCompanion(id: Value(oldPattern.id), until: Value(until)),
+  );
+
+  // 4. 새로운 Task 생성 (선택 날짜부터 시작)
+  final newTaskId = await db.createTask(
+    TaskCompanion(
+      title: Value(controller.title.trim()),
+      dueDate: Value(dueDate),
+      executionDate: Value(executionDate),
+      colorId: Value(color),
+      repeatRule: Value(repeatRule ?? ''),
+      listId: Value(task.listId),
+      completed: const Value(false),
+    ),
+  );
+
+  // 5. 새로운 RecurringPattern 생성 (반복 규칙이 있으면)
+  if (repeatRule != null && repeatRule.isNotEmpty) {
+    final rruleString = convertRepeatRuleToRRule(
+      repeatRule,
+      executionDate ?? DateTime.now(),
+    );
+
+    if (rruleString != null) {
+      await db.createRecurringPattern(
+        RecurringPatternCompanion(
+          entityType: const Value('task'),
+          entityId: Value(newTaskId),
+          rrule: Value(rruleString),
+          dtstart: Value(executionDate ?? DateTime.now()),
+          until: Value(oldPattern.until), // 기존 종료일 유지
+        ),
+      );
+    }
+  }
+
+  debugPrint('✅ [TaskWolt] この予定以降 수정 완료 (RFC 5545 Split)');
+  debugPrint('   - Old Task ID: ${task.id} (UNTIL: $yesterday)');
+  debugPrint('   - New Task ID: $newTaskId (Start: $executionDate)');
+}
+
+/// 일본어 요일을 DateTime.weekday 상수로 변환
+/// ⚠️ 보정 없이 정확한 weekday 반환 (RRuleUtils에서 -1 보정 적용)
+int? _jpDayToWeekday(String jpDay) {
+  switch (jpDay) {
+    case '月':
+      return DateTime.monday; // 1
+    case '火':
+      return DateTime.tuesday; // 2
+    case '水':
+      return DateTime.wednesday; // 3
+    case '木':
+      return DateTime.thursday; // 4
+    case '金':
+      return DateTime.friday; // 5
+    case '土':
+      return DateTime.saturday; // 6
+    case '日':
+      return DateTime.sunday; // 7
+    default:
+      debugPrint('⚠️ [RepeatConvert] 알 수 없는 요일: $jpDay');
+      return null;
+  }
 }

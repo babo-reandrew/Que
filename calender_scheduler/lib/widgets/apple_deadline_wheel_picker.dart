@@ -9,10 +9,10 @@ class AppleDeadlineWheelPicker extends StatefulWidget {
   final Function(DateTime) onDateTimeChanged;
 
   const AppleDeadlineWheelPicker({
-    Key? key,
+    super.key,
     required this.initialDateTime,
     required this.onDateTimeChanged,
-  }) : super(key: key);
+  });
 
   @override
   State<AppleDeadlineWheelPicker> createState() =>

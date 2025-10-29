@@ -43,8 +43,8 @@ class ImagePickerSmoothSheet extends StatefulWidget {
 class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
   final SheetController _sheetController = SheetController();
   final List<PickedImage> _selectedImages = [];
-  List<AssetEntity> _galleryAssets = [];
-  List<PickedImage> _capturedPhotos = []; // 📸 카메라로 촬영한 사진들 (임시, 앨범에 저장 안함)
+  final List<AssetEntity> _galleryAssets = [];
+  final List<PickedImage> _capturedPhotos = []; // 📸 카메라로 촬영한 사진들 (임시, 앨범에 저장 안함)
   bool _isLoading = false; // false로 변경 - 첫 로드를 위해
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -54,6 +54,7 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
   int _totalCount = 0;
   bool _hasMore = true;
   static const int _pageSize = 24; // 24개씩 로드
+  bool _isLimitedAccess = false; // 제한적 권한 여부
 
   @override
   void initState() {
@@ -69,13 +70,23 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
 
     try {
       final PermissionState ps = await PhotoManager.requestPermissionExtend();
-      if (!ps.isAuth) {
+      if (!ps.hasAccess) {
         print('❌ [ImagePicker] 갤러리 권한 거부됨');
         if (mounted) {
           _showPermissionDialog();
           setState(() => _isLoading = false);
         }
         return;
+      }
+
+      // 제한적 권한일 경우 알림
+      if (ps.isAuth == false && ps.hasAccess) {
+        print('⚠️ [ImagePicker] 제한적 갤러리 권한으로 접근 중');
+        if (mounted) {
+          setState(() {
+            _isLimitedAccess = true;
+          });
+        }
       }
 
       // 첫 로드: 앨범 경로 가져오기
@@ -87,6 +98,7 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
             );
 
         if (albums.isEmpty) {
+          print('⚠️ [ImagePicker] 앨범이 비어있음 (제한적 권한일 수 있음)');
           if (mounted) {
             setState(() => _isLoading = false);
           }
@@ -95,7 +107,9 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
 
         _currentPath = albums.first;
         _totalCount = await _currentPath!.assetCountAsync;
-        print('✅ [ImagePicker] 총 이미지 개수: $_totalCount');
+        print(
+          '✅ [ImagePicker] 총 이미지 개수: $_totalCount (제한적: $_isLimitedAccess)',
+        );
       }
 
       // 페이징 로드
@@ -370,11 +384,14 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
 
   /// 이미지 그리드
   Widget _buildImageGrid() {
-    if (_isLoading) {
+    if (_isLoading && _galleryAssets.isEmpty && _capturedPhotos.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_galleryAssets.isEmpty) {
+    // 갤러리가 비어있어도 제한적 권한이면 버튼들은 표시
+    if (_galleryAssets.isEmpty &&
+        _capturedPhotos.isEmpty &&
+        !_isLimitedAccess) {
       return const Center(
         child: Text(
           '画像がありません',
@@ -394,28 +411,36 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
         crossAxisCount: 3,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
+        childAspectRatio: 9 / 16, // 9:16 비율 (세로로 길게)
       ),
       itemCount:
           1 +
+          (_isLimitedAccess ? 1 : 0) + // 제한적 권한 시 추가 선택 버튼
           _capturedPhotos.length +
           _galleryAssets.length +
-          (_isLoading ? 1 : 0), // 카메라 + 촬영사진 + 갤러리 + 로딩
+          (_isLoading ? 1 : 0), // 카메라 + 추가선택버튼 + 촬영사진 + 갤러리 + 로딩
       itemBuilder: (context, index) {
         // 첫 번째 아이템: 카메라 버튼
         if (index == 0) {
           return _buildCameraButton();
         }
 
-        final capturedCount = _capturedPhotos.length;
+        // 두 번째 아이템: 제한적 권한 시 추가 선택 버튼
+        if (_isLimitedAccess && index == 1) {
+          return _buildAddMoreButton();
+        }
 
-        // 촬영한 사진 영역 (카메라 슬롯 바로 다음)
-        if (index <= capturedCount) {
-          final capturedIndex = index - 1;
+        final capturedCount = _capturedPhotos.length;
+        final buttonOffset = _isLimitedAccess ? 2 : 1; // 카메라 + (추가선택)
+
+        // 촬영한 사진 영역 (버튼들 바로 다음)
+        if (index <= buttonOffset + capturedCount - 1) {
+          final capturedIndex = index - buttonOffset;
           return _buildImageSlot(_capturedPhotos[capturedIndex]);
         }
 
         // 갤러리 사진 영역 (촬영한 사진들 뒤)
-        final assetIndex = index - capturedCount - 1;
+        final assetIndex = index - capturedCount - buttonOffset;
 
         // 스크롤 끝 감지 - 다음 페이지 로드
         if (assetIndex == _galleryAssets.length && _hasMore && !_isLoading) {
@@ -464,22 +489,25 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
         children: [
           // 이미지
           Positioned.fill(
-            child: image.isAsset && image.asset != null
-                ? AssetEntityImage(
-                    image.asset!,
-                    fit: BoxFit.cover,
-                    isOriginal: false,
-                    thumbnailSize: const ThumbnailSize.square(
-                      150,
-                    ), // 150x150 압축 썸네일
-                  )
-                : image.isFile && image.file != null
-                ? Image.file(
-                    File(image.file!.path),
-                    fit: BoxFit.cover,
-                    cacheWidth: 150, // 압축된 크기로 메모리 캐시
-                  )
-                : const SizedBox.shrink(),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: image.isAsset && image.asset != null
+                  ? AssetEntityImage(
+                      image.asset!,
+                      fit: BoxFit.cover,
+                      isOriginal: false,
+                      thumbnailSize: const ThumbnailSize.square(
+                        150,
+                      ), // 150x150 압축 썸네일
+                    )
+                  : image.isFile && image.file != null
+                  ? Image.file(
+                      File(image.file!.path),
+                      fit: BoxFit.cover,
+                      cacheWidth: 150, // 압축된 크기로 메모리 캐시
+                    )
+                  : const SizedBox.shrink(),
+            ),
           ),
           // 선택 표시 (SVG 아이콘)
           Positioned(
@@ -522,6 +550,31 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
     );
   }
 
+  /// 제한적 권한 시 추가 이미지 선택 (iOS 시스템 피커 사용)
+  Future<void> _pickAdditionalImages() async {
+    try {
+      final List<XFile> images = await _imagePicker.pickMultiImage(
+        imageQuality: 85,
+      );
+
+      if (images.isEmpty) {
+        print('📸 [ImagePicker] 추가 이미지 선택 취소');
+        return;
+      }
+
+      setState(() {
+        for (var image in images) {
+          final picked = PickedImage(file: image);
+          _capturedPhotos.insert(0, picked);
+        }
+      });
+
+      print('📸 [ImagePicker] 추가 이미지 ${images.length}개 선택됨');
+    } catch (e) {
+      print('📸 [ImagePicker] 추가 이미지 선택 에러: $e');
+    }
+  }
+
   /// 카메라 버튼
   Widget _buildCameraButton() {
     return GestureDetector(
@@ -553,9 +606,42 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFFE4E4E4),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(4),
         ),
         child: const Icon(Icons.camera_alt, size: 36, color: Color(0xFF566099)),
+      ),
+    );
+  }
+
+  /// 추가 이미지 선택 버튼 (제한적 권한 시)
+  Widget _buildAddMoreButton() {
+    return GestureDetector(
+      onTap: _pickAdditionalImages,
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFE4E4E4),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.add_photo_alternate,
+              size: 32,
+              color: Color(0xFF566099),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '追加',
+              style: const TextStyle(
+                fontFamily: 'LINE Seed JP App_TTF',
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF566099),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

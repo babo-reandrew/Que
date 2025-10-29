@@ -28,6 +28,7 @@
 /// - Title: font-weight: 700, font-size: 16px, line-height: 140%, color: #111111
 /// - Description: font-weight: 400, font-size: 11px, line-height: 140%, color: #AAAAAA
 /// - Toggle: 40 x 24px, border-radius: 100px
+library;
 
 import 'package:flutter/material.dart';
 import 'package:wolt_modal_sheet/wolt_modal_sheet.dart';

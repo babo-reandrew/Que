@@ -3,7 +3,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:figma_squircle/figma_squircle.dart';
 import 'dart:convert';
 import '../const/color.dart';
-import '../const/typography.dart';
 
 class ScheduleCard extends StatelessWidget {
   // schedule.dart의 필드명과 통일: start, end, summary, colorId, repeatRule, alertSetting
@@ -32,6 +31,16 @@ class ScheduleCard extends StatelessWidget {
   // 시간 포맷: "17時 - 18時" 형식
   String _formatTime(DateTime time) {
     return '${time.hour}時';
+  }
+
+  // 🎯 종일 일정 확인: 시작 00:00 ~ 종료 23:59 또는 다음날 00:00
+  bool _isAllDayEvent() {
+    // 시작이 00:00이고, 종료가 23:59 또는 다음날 00:00인 경우
+    final isStartMidnight = start.hour == 0 && start.minute == 0;
+    final isEndMidnight =
+        (end.hour == 23 && end.minute == 59) ||
+        (end.hour == 0 && end.minute == 0 && end.day != start.day);
+    return isStartMidnight && isEndMidnight;
   }
 
   // 알림 텍스트 파싱: JSON → "10分前" 형식
@@ -138,49 +147,63 @@ class ScheduleCard extends StatelessWidget {
                             // 제목
                             Text(
                               summary ?? '',
-                              style: CalendarTypography.calendarText.copyWith(
+                              style: const TextStyle(
+                                fontFamily: 'LINE Seed JP App_TTF',
                                 fontSize: 16,
                                 color: gray950,
                                 fontWeight: FontWeight.w800, // extrabold
                                 height: 1.4, // 행간 140%
+                                letterSpacing:
+                                    -0.08, // 자간 -0.5% (16 * -0.005 = -0.08)
                               ),
                               maxLines: 2, // 최대 2줄
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 8),
-                            // 시간
-                            Row(
-                              children: [
-                                Text(
-                                  _formatTime(start),
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: gray950,
-                                    fontWeight: FontWeight.w700,
-                                    fontFamily: 'LINESeedJP',
+                            // 시간 (종일이면 "終日" 표시)
+                            _isAllDayEvent()
+                                ? const Text(
+                                    '終日',
+                                    style: TextStyle(
+                                      fontFamily: 'LINE Seed JP App_TTF',
+                                      fontSize: 13,
+                                      color: gray950,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  )
+                                : Row(
+                                    children: [
+                                      Text(
+                                        _formatTime(start),
+                                        style: const TextStyle(
+                                          fontFamily: 'LINE Seed JP App_TTF',
+                                          fontSize: 13,
+                                          color: gray950,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Text(
+                                        '-',
+                                        style: TextStyle(
+                                          fontFamily: 'LINE Seed JP App_TTF',
+                                          fontSize: 13,
+                                          color: gray950,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _formatTime(end),
+                                        style: TextStyle(
+                                          fontFamily: 'LINE Seed JP App_TTF',
+                                          fontSize: 13,
+                                          color: _getDisplayColor(),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '-',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: gray950,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  _formatTime(end),
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: _getDisplayColor(),
-                                    fontWeight: FontWeight.w700,
-                                    fontFamily: 'LINESeedJP',
-                                  ),
-                                ),
-                              ],
-                            ),
                             if (alertText != null || repeatText != null) ...[
                               const SizedBox(height: 8), // 위 여백 8px
                               // 옵션 행 (알림, 반복) - 제목, 시간과 같은 좌측 시작점에 정렬

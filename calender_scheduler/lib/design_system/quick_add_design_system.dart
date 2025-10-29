@@ -61,7 +61,7 @@ class QuickAddColors {
   static const Color addButtonActiveBackground = Color(0xFF111111);
 
   /// 추가 버튼 비활성화 배경 (Figma: #DDDDDD)
-  static const Color addButtonInactiveBackground = Color(0xFFDDDDD);
+  static const Color addButtonInactiveBackground = Color(0x0ffddddd);
 
   // === Icon Colors ===
   /// 기본 아이콘 (Figma: rgba(186, 186, 186, 0.54))

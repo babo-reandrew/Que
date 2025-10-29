@@ -30,14 +30,14 @@ class QuickAddControlBox extends StatefulWidget {
   final VoidCallback? onInputFocused; // 🔥 입력 포커스 콜백 (키보드 락 해제)
 
   const QuickAddControlBox({
-    Key? key,
+    super.key,
     required this.selectedDate,
     this.onSave,
     this.externalSelectedType, // ✅ 외부 타입
     this.onInputFocused, // 🔥 입력 포커스 콜백
     this.onTypeChanged, // ✅ 타입 변경 알림
     this.onAddButtonPressed, // 🔥 추가 버튼 콜백
-  }) : super(key: key);
+  });
 
   @override
   State<QuickAddControlBox> createState() => _QuickAddControlBoxState();
@@ -59,8 +59,8 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   double _textFieldHeight = 20.0; // ✅ TextField 높이 추적 (개행 감지용)
 
   // ✅ 반복/리마인더 설정 상태 변수
-  String _repeatRule = ''; // 반복 규칙 (JSON 문자열)
-  String _reminder = ''; // 리마인더 설정 (JSON 문자열)
+  final String _repeatRule = ''; // 반복 규칙 (JSON 문자열)
+  final String _reminder = ''; // 리마인더 설정 (JSON 문자열)
 
   // ========================================
   // 애니메이션 컨트롤러
@@ -670,7 +670,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
                   }
                 });
                 print(
-                  '📝 [Quick Add] 텍스트 입력: "$text" (${lineCount}행) → 追加버튼: $_isAddButtonActive',
+                  '📝 [Quick Add] 텍스트 입력: "$text" ($lineCount행) → 追加버튼: $_isAddButtonActive',
                 );
               },
               style: QuickAddTextStyles.inputText,
@@ -1026,19 +1026,15 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   void _saveDirectHabit() {
     final title = _textController.text.trim();
 
-    // ✅ 반복 규칙이 없으면 기본값 설정 (매일)
-    final repeatRule = _repeatRule.isEmpty
-        ? '{"type":"daily","display":"매일"}'
-        : _repeatRule;
-
     widget.onSave?.call({
       'type': QuickAddType.habit,
       'title': title,
       'colorId': _selectedColorId,
-      'repeatRule': repeatRule,
+      'repeatRule': _repeatRule, // ✅ 사용자가 설정한 값만 전달 (기본값 강제 설정 제거)
       'reminder': _reminder,
     });
 
     print('✅ [DirectAdd] 습관 직접 저장: $title');
+    print('   → 반복: ${_repeatRule.isEmpty ? "(미설정)" : _repeatRule}');
   }
 }

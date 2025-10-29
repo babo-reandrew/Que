@@ -7,6 +7,7 @@
 /// - Deadline_Option: 제목 + 마감일 + 리마인드/반복
 ///
 /// 높이는 컨텐츠에 따라 동적으로 조정됨
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -314,12 +315,22 @@ class TaskCard extends StatelessWidget {
       child: Container(
         width: 40,
         height: 40,
-        padding: const EdgeInsets.all(8), // 주변 8px 패딩
+        padding: const EdgeInsets.all(4),
+        alignment: Alignment.center,
         child: task.completed
-            ? SvgPicture.asset(
-                'asset/icon/check_box_check.svg',
-                width: 24,
-                height: 24,
+            ? Container(
+                width: 32,
+                height: 32,
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE9FDE9), // #E9FDE9 연한 초록
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: SvgPicture.asset(
+                  'asset/icon/check_box_checked.svg',
+                  width: 24,
+                  height: 24,
+                ),
               )
             : SvgPicture.asset(
                 'asset/icon/check_box_icon.svg',

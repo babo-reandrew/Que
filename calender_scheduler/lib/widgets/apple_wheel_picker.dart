@@ -15,13 +15,13 @@ class AppleWheelPicker extends StatelessWidget {
   final bool useMagnification; // 확대 효과 사용 여부
 
   const AppleWheelPicker({
-    Key? key,
+    super.key,
     required this.items,
     this.initialIndex = 0,
     required this.onSelectedItemChanged,
     this.itemExtent = 31.0, // 피그마: WheelPicker_Object 높이 31px
     this.useMagnification = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -78,11 +78,11 @@ class AppleDateTimeWheelPicker extends StatefulWidget {
   final bool isAllDay; // ✅ 終日 모드 (true면 연도+월일요일만 표시)
 
   const AppleDateTimeWheelPicker({
-    Key? key,
+    super.key,
     required this.initialDateTime,
     required this.onDateTimeChanged,
     this.isAllDay = false, // ✅ 기본값 false
-  }) : super(key: key);
+  });
 
   @override
   State<AppleDateTimeWheelPicker> createState() =>

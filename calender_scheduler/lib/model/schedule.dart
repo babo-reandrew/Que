@@ -16,14 +16,27 @@ class Schedule extends Table {
   TextColumn get location => text().withDefault(const Constant(''))();
 
   TextColumn get colorId => text()(); // String (선택) - category 대신
-  TextColumn get repeatRule => text()(); // recurrence로 매핑 가능
-  TextColumn get alertSetting => text()(); // reminders로 매핑 가능
+
+  // ✅ 반복 규칙과 알림 설정은 기본값 빈 문자열 (사용자가 선택하지 않으면 반복 없음)
+  TextColumn get repeatRule =>
+      text().withDefault(const Constant(''))(); // recurrence로 매핑 가능
+  TextColumn get alertSetting =>
+      text().withDefault(const Constant(''))(); // reminders로 매핑 가능
 
   // 로컬 앱용 추가 필드들 (구글 API 연동용으로 나중에 사용)
 
   DateTimeColumn get createdAt => dateTime().clientDefault(
     () => DateTime.now().toUtc(),
   )(); //생성된 날짜를 자동으로 넣어라.
-  TextColumn get status => text()(); // String (선택)
-  TextColumn get visibility => text()(); // String (선택) - publicRange 대신
+
+  // ✅ status와 visibility는 기본값 설정 (사용자 입력 없음)
+  TextColumn get status =>
+      text().withDefault(const Constant('confirmed'))(); // String (선택)
+  TextColumn get visibility => text().withDefault(
+    const Constant('default'),
+  )(); // String (선택) - publicRange 대신
+
+  // 완료 기능
+  BoolColumn get completed => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get completedAt => dateTime().nullable()();
 }

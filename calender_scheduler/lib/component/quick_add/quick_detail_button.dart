@@ -15,15 +15,14 @@ class QuickDetailButton extends StatelessWidget {
   final Color? selectedColor; // ✅ 선택된 색상 (색상 버튼 전용)
 
   const QuickDetailButton({
-    Key? key,
+    super.key,
     this.icon,
     this.svgPath, // ✅ SVG 경로 추가
     this.text,
     this.onTap,
     this.showIconOnly = false,
     this.selectedColor, // ✅ 색상 선택 시 전달
-  }) : assert(icon != null || svgPath != null, 'icon 또는 svgPath 중 하나는 필수입니다'),
-       super(key: key);
+  }) : assert(icon != null || svgPath != null, 'icon 또는 svgPath 중 하나는 필수입니다');
 
   @override
   Widget build(BuildContext context) {

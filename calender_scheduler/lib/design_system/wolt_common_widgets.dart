@@ -271,7 +271,7 @@ class WoltAllDayToggle extends StatelessWidget {
             child: Switch(
               value: value,
               onChanged: onChanged,
-              activeColor: WoltDesignTokens.primaryBlue,
+              activeThumbColor: WoltDesignTokens.primaryBlue,
               inactiveThumbColor: WoltDesignTokens.gray100,
               inactiveTrackColor: WoltDesignTokens.gray300,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,

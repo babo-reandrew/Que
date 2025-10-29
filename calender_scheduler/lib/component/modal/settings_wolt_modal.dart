@@ -30,6 +30,7 @@
 /// - Title "色の管理": font-weight: 700, font-size: 18px
 /// - Color items: 26x26 circle + label "目標" (font-size: 13px)
 /// - "登録+" button: font-weight: 700, font-size: 13px, color: #999999
+library;
 
 import 'package:flutter/material.dart';
 import 'package:wolt_modal_sheet/wolt_modal_sheet.dart';
@@ -929,7 +930,7 @@ class _LanguageContentState extends State<_LanguageContent> {
           // Language options list (Frame 841)
           ClipRRect(
             borderRadius: BorderRadius.circular(24),
-            child: Container(
+            child: SizedBox(
               width: 321,
               height: 192, // 64px × 3 = 192px
               child: Column(

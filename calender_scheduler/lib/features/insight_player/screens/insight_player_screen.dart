@@ -4,7 +4,6 @@ import 'package:flutter/physics.dart'; // ✅ SpringSimulation 사용
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 import 'package:amlv/amlv.dart';
-import 'package:audioplayers/audioplayers.dart';
 import '../../../Database/schedule_database.dart';
 import '../../../const/motion_config.dart'; // ✅ Safari 스프링 파라미터
 

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // 햅틱 피드백용
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:flutter_svg/flutter_svg.dart'; // SVG 아이콘용
 import '../component/modal/delete_confirmation_modal.dart'; // 🗑️ 삭제 확인 모달 추가
 import '../component/modal/delete_repeat_confirmation_modal.dart'; // 🔄 반복 삭제 확인 모달 추가
 
 /// 애플 네이티브 스타일의 재사용 가능한 Slidable 습관 카드 컴포넌트
 ///
 /// 이거를 설정하고 → iOS Reminders 앱처럼 자연스러운 스와이프 제스처를 구현한다
-/// 이거를 해서 → 오른쪽 스와이프로 완료, 왼쪽 스와이프로 삭제 기능을 제공한다
+/// 이거를 해서 → 왼쪽 스와이프로 삭제, 오른쪽 스와이프로 완료 기능을 제공한다
 /// 이거는 이래서 → 사용자에게 직관적인 UX를 제공하고 햅틱 피드백으로 피드백을 준다
 /// 이거라면 → date_detail_view.dart에서 HabitCard를 Slidable로 감싸서 사용한다
 ///
@@ -37,7 +38,7 @@ class SlidableHabitCard extends StatelessWidget {
   final String? groupTag; // 그룹 태그 (한 번에 하나만 열기)
 
   const SlidableHabitCard({
-    Key? key,
+    super.key,
     required this.child,
     required this.habitId,
     this.repeatRule, // 🔄 반복 규칙 추가
@@ -50,7 +51,7 @@ class SlidableHabitCard extends StatelessWidget {
     this.deleteLabel,
     this.showConfirmDialog = true, // 기본값: 확인 다이얼로그 표시 (습관 삭제는 신중하게)
     this.groupTag,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -72,73 +73,14 @@ class SlidableHabitCard extends StatelessWidget {
       closeOnScroll: true,
 
       // ========================================
-      // startActionPane: 오른쪽에서 왼쪽 스와이프 → 완료 (쉽게 접근)
+      // startActionPane: 왼쪽에서 오른쪽 스와이프 → 삭제
       // ========================================
       startActionPane: ActionPane(
-        // ✅ BehindMotion: iOS Reminders 스타일 (가장 네이티브스러움)
-        // 이유: 액션이 Slidable 뒤에 고정되어 나타남 (iOS 표준)
-        motion: const BehindMotion(),
-
-        // ✅ extentRatio: 액션 패널이 차지하는 비율
-        // 이유: iOS 네이티브는 보통 0.25~0.3 사용 (화면의 25~30%)
-        extentRatio: 0.25,
-
-        // ✅ DismissiblePane: 끝까지 스와이프 시 즉시 완료 처리
-        // 이유: 사용자가 빠르게 완료할 수 있도록
+        motion: const BehindMotion(), // BehindMotion으로 변경 (iOS 표준)
+        extentRatio: 0.144, // 초기 56px (0.144), 스와이프 시 확장
+        // 🎯 iOS Mail 완벽 재현: 일정 거리 이상 스와이프 시 자동 삭제
         dismissible: DismissiblePane(
-          dismissThreshold: 0.5,
-          closeOnCancel: true,
-          dismissalDuration: const Duration(milliseconds: 300),
-          resizeDuration: const Duration(milliseconds: 300),
-
-          onDismissed: () async {
-            // 1. 햅틱 피드백 (iOS 네이티브 스타일)
-            await HapticFeedback.mediumImpact();
-            print(
-              '✅ [SlidableHabit] 습관 ID=$habitId 완료 스와이프 감지 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-            );
-
-            // 2. 완료 액션 실행
-            await onComplete();
-            print(
-              '✅ [SlidableHabit] 습관 ID=$habitId 완료 처리 완료 - DB 업데이트 및 이벤트 로그 기록됨',
-            );
-          },
-        ),
-
-        // ✅ 액션 버튼 정의
-        children: [
-          SlidableAction(
-            onPressed: (context) async {
-              await HapticFeedback.lightImpact();
-              print(
-                '✅ [SlidableHabit] 습관 ID=$habitId 완료 버튼 클릭 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-              );
-              await onComplete();
-            },
-
-            // ✅ 색상 설정 (iOS 네이티브 완료 색상)
-            backgroundColor:
-                completeColor ?? const Color(0xFF34C759), // iOS Green
-            foregroundColor: Colors.white,
-
-            icon: Icons.check_circle_outline,
-            label: completeLabel ?? '完了',
-            autoClose: true,
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ],
-      ),
-
-      // ========================================
-      // endActionPane: 왼쪽에서 오른쪽 스와이프 → 삭제
-      // ========================================
-      endActionPane: ActionPane(
-        motion: const BehindMotion(),
-        extentRatio: 0.25,
-
-        dismissible: DismissiblePane(
-          dismissThreshold: 0.5,
+          dismissThreshold: 0.6, // 60% 이상 스와이프하면 삭제
           closeOnCancel: true,
           dismissalDuration: const Duration(milliseconds: 300),
           resizeDuration: const Duration(milliseconds: 300),
@@ -147,21 +89,24 @@ class SlidableHabitCard extends StatelessWidget {
           // 이유: 습관은 중요한 데이터이므로 기본적으로 확인 다이얼로그 표시
           confirmDismiss: showConfirmDialog
               ? () async {
+                  // 햅틱 피드백
+                  await HapticFeedback.mediumImpact();
+
                   bool confirmed = false;
-                  
+
                   // 🔄 반복 규칙이 있으면 반복 삭제 모달, 없으면 일반 삭제 모달
                   // 습관은 대부분 반복이 있지만 명시적으로 체크
-                  bool hasRepeat = repeatRule != null && 
-                                   repeatRule!.isNotEmpty && 
-                                   repeatRule != '{}' && 
-                                   repeatRule != '[]';
-                  
+                  bool hasRepeat =
+                      repeatRule != null &&
+                      repeatRule!.isNotEmpty &&
+                      repeatRule != '{}' &&
+                      repeatRule != '[]';
+
                   if (hasRepeat) {
                     await showDeleteRepeatConfirmationModal(
                       context,
                       onDeleteThis: () async {
                         confirmed = true;
-                        await HapticFeedback.heavyImpact();
                         print(
                           '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 이 습관만 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
                         );
@@ -169,7 +114,6 @@ class SlidableHabitCard extends StatelessWidget {
                       },
                       onDeleteFuture: () async {
                         confirmed = true;
-                        await HapticFeedback.heavyImpact();
                         print(
                           '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 이후 습관 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
                         );
@@ -178,7 +122,6 @@ class SlidableHabitCard extends StatelessWidget {
                       },
                       onDeleteAll: () async {
                         confirmed = true;
-                        await HapticFeedback.heavyImpact();
                         print(
                           '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 전체 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
                         );
@@ -190,7 +133,6 @@ class SlidableHabitCard extends StatelessWidget {
                       context,
                       onDelete: () async {
                         confirmed = true;
-                        await HapticFeedback.heavyImpact();
                         print(
                           '🗑️ [SlidableHabit] 습관 ID=$habitId 삭제 스와이프 확인됨 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
                         );
@@ -200,7 +142,12 @@ class SlidableHabitCard extends StatelessWidget {
                   }
                   return confirmed;
                 }
-              : null,
+              : () async {
+                  // showConfirmDialog가 false인 경우 햅틱 피드백 후 바로 삭제
+                  await HapticFeedback.mediumImpact();
+                  await onDelete();
+                  return true;
+                },
 
           onDismissed: () {
             // confirmDismiss에서 이미 삭제 처리됨
@@ -211,16 +158,17 @@ class SlidableHabitCard extends StatelessWidget {
         ),
 
         children: [
-          SlidableAction(
+          CustomSlidableAction(
             onPressed: (context) async {
               // 삭제 버튼 클릭 시 Figma 모달 표시
               if (showConfirmDialog) {
                 // 🔄 반복 규칙이 있으면 반복 삭제 모달, 없으면 일반 삭제 모달
-                bool hasRepeat = repeatRule != null && 
-                                 repeatRule!.isNotEmpty && 
-                                 repeatRule != '{}' && 
-                                 repeatRule != '[]';
-                
+                bool hasRepeat =
+                    repeatRule != null &&
+                    repeatRule!.isNotEmpty &&
+                    repeatRule != '{}' &&
+                    repeatRule != '[]';
+
                 if (hasRepeat) {
                   await showDeleteRepeatConfirmationModal(
                     context,
@@ -268,14 +216,119 @@ class SlidableHabitCard extends StatelessWidget {
               }
             },
 
-            // ✅ iOS 네이티브 삭제 색상
-            backgroundColor: deleteColor ?? const Color(0xFFFF3B30), // iOS Red
+            backgroundColor: Colors.transparent, // 배경을 투명하게
             foregroundColor: Colors.white,
-
-            icon: Icons.delete_outline,
-            label: deleteLabel ?? '削除',
             autoClose: true,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(100), // 완전히 둥글게
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Container(
+                    width: constraints.maxWidth, // 부모 크기에 맞춤
+                    height: 56, // 높이만 56px 고정!!!
+                    constraints: const BoxConstraints(
+                      minWidth: 56,
+                      minHeight: 56,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF0000),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Center(
+                      child: SvgPicture.asset(
+                        'asset/icon/trash_icon.svg',
+                        width: 24,
+                        height: 24,
+                        colorFilter: const ColorFilter.mode(
+                          Color(0xFFFFFFFF),
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+
+      // ========================================
+      // endActionPane: 오른쪽에서 왼쪽 스와이프 → 완료 (쉽게 접근)
+      // ========================================
+      endActionPane: ActionPane(
+        motion: const BehindMotion(), // BehindMotion으로 변경 (iOS 표준)
+        extentRatio: 0.144, // 초기 56px (0.144), 스와이프 시 확장
+        // ✅ DismissiblePane: 끝까지 스와이프 시 즉시 완료 처리
+        // 이유: 사용자가 빠르게 완료할 수 있도록
+        dismissible: DismissiblePane(
+          dismissThreshold: 0.5,
+          closeOnCancel: true,
+          dismissalDuration: const Duration(milliseconds: 300),
+          resizeDuration: const Duration(milliseconds: 300),
+
+          onDismissed: () async {
+            // 1. 햅틱 피드백 (iOS 네이티브 스타일)
+            await HapticFeedback.mediumImpact();
+            print(
+              '✅ [SlidableHabit] 습관 ID=$habitId 완료 스와이프 감지 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+            );
+
+            // 2. 완료 액션 실행
+            await onComplete();
+            print(
+              '✅ [SlidableHabit] 습관 ID=$habitId 완료 처리 완료 - DB 업데이트 및 이벤트 로그 기록됨',
+            );
+          },
+        ),
+
+        // ✅ 액션 버튼 정의
+        children: [
+          CustomSlidableAction(
+            onPressed: (context) async {
+              await HapticFeedback.lightImpact();
+              print(
+                '✅ [SlidableHabit] 습관 ID=$habitId 완료 버튼 클릭 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+              );
+              await onComplete();
+            },
+            autoClose: true,
+            backgroundColor: Colors.transparent, // 배경을 투명하게
+            foregroundColor: Colors.white,
+            borderRadius: BorderRadius.circular(100), // 완전히 둥글게
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Container(
+                    width: constraints.maxWidth, // 부모 크기에 맞춤
+                    height: 56, // 높이만 56px 고정!!!
+                    constraints: const BoxConstraints(
+                      minWidth: 56,
+                      minHeight: 56,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0CF20C),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Center(
+                      child: SvgPicture.asset(
+                        'asset/icon/Check_icon.svg',
+                        width: 24,
+                        height: 24,
+                        colorFilter: const ColorFilter.mode(
+                          Color(0xFFFFFFFF),
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         ],
       ),

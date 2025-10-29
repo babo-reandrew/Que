@@ -6,7 +6,6 @@
 /// 분석 출처: FIGMA_DESIGN_ANALYSIS.md
 library;
 
-import 'dart:ui';
 import 'package:flutter/material.dart';
 
 /// 디자인 토큰 클래스

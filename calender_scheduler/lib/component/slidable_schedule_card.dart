@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // 햅틱 피드백용
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:flutter_svg/flutter_svg.dart'; // SVG 아이콘용
 import 'modal/delete_confirmation_modal.dart'; // 🗑️ 삭제 확인 모달 추가
 import 'modal/delete_repeat_confirmation_modal.dart'; // 🔄 반복 삭제 확인 모달 추가
 
 /// 애플 네이티브 스타일의 재사용 가능한 Slidable 일정 카드 컴포넌트
 ///
 /// 이거를 설정하고 → iOS Mail/Reminders 앱처럼 자연스러운 스와이프 제스처를 구현한다
-/// 이거를 해서 → 오른쪽 스와이프로 삭제, 왼쪽 스와이프로 완료 기능을 제공한다
+/// 이거를 해서 → 왼쪽 스와이프로 삭제, 오른쪽 스와이프로 완료 기능을 제공한다
 /// 이거는 이래서 → 사용자에게 직관적인 UX를 제공하고 햅틱 피드백으로 피드백을 준다
 /// 이거라면 → date_detail_view.dart에서 일정 카드를 Slidable로 감싸서 사용한다
 ///
@@ -37,7 +38,7 @@ class SlidableScheduleCard extends StatelessWidget {
   final String? groupTag; // 그룹 태그 (한 번에 하나만 열기)
 
   const SlidableScheduleCard({
-    Key? key,
+    super.key,
     required this.child,
     required this.scheduleId,
     this.repeatRule, // 🔄 반복 규칙 추가
@@ -50,7 +51,7 @@ class SlidableScheduleCard extends StatelessWidget {
     this.deleteLabel,
     this.showConfirmDialog = true, // 기본값: 확인 다이얼로그 표시
     this.groupTag,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -72,194 +73,86 @@ class SlidableScheduleCard extends StatelessWidget {
       closeOnScroll: true,
 
       // ========================================
-      // ✅ 수정: startActionPane: 오른쪽에서 왼쪽 스와이프 → 완료 (쉽게 접근)
+      // startActionPane: 왼쪽에서 오른쪽 스와이프 → 삭제
       // ========================================
       startActionPane: ActionPane(
-        // ✅ BehindMotion: iOS Mail 스타일 (가장 네이티브스러움)
-        // 이유: 액션이 Slidable 뒤에 고정되어 나타남 (iOS 표준)
-        // 조건: BehindMotion을 사용해야 iOS 느낌이 남
-        // 대안: ScrollMotion (함께 움직임), DrawerMotion (서랍 스타일) - 비권장
-        motion: const BehindMotion(),
-
-        // ✅ extentRatio: 액션 패널이 차지하는 비율
-        // 이유: iOS 네이티브는 보통 0.25~0.3 사용 (화면의 25~30%)
-        // 조건: 0.0 ~ 1.0 사이 값
-        // 결과: 너무 크지 않게 적절한 크기로 표시
-        extentRatio: 0.25,
-
-        // ✅ DismissiblePane: 끝까지 스와이프 시 즉시 완료 처리
-        // 이유: 사용자가 빠르게 완료할 수 있도록
-        // 조건: dismissThreshold 이상 스와이프 시 발동
+        motion: const BehindMotion(), // BehindMotion으로 변경 (iOS 표준)
+        extentRatio: 0.144, // 초기 56px (0.144), 스와이프 시 확장
+        // 🎯 iOS Mail 완벽 재현: 일정 거리 이상 스와이프 시 자동 삭제
         dismissible: DismissiblePane(
-          // ✅ dismissThreshold: dismiss가 발동되는 임계값
-          // 이유: 0.5 = 50% 이상 스와이프 시 dismiss 실행
-          // 조건: 0.0 ~ 1.0 사이 값 (기본값: 0.4)
-          // 결과: 충분히 스와이프했을 때만 완료 처리
-          dismissThreshold: 0.5,
-
-          // ✅ closeOnCancel: 취소 시 닫힘 여부
-          // 이유: false로 설정하면 취소 시에도 열린 상태 유지
-          // 조건: true로 설정해서 취소 시 자동 닫힘
+          dismissThreshold: 0.6, // 60% 이상 스와이프하면 삭제
           closeOnCancel: true,
-
-          // ✅ 애니메이션 시간 (iOS 네이티브 스타일)
-          // 이유: iOS 표준 애니메이션 타이밍은 200~300ms
-          // 조건: 너무 빠르거나 느리지 않게 300ms로 설정
-          dismissalDuration: const Duration(milliseconds: 300),
-          resizeDuration: const Duration(milliseconds: 300),
-
-          // ✅ onDismissed: 완전히 스와이프했을 때 실행
-          // 이유: 사용자가 끝까지 스와이프했을 때의 완료 처리
-          // 다음: 햅틱 피드백 → 완료 처리 → DB 업데이트 → 이벤트 로그
-          onDismissed: () async {
-            // 1. 햅틱 피드백 (iOS 네이티브 스타일)
-            // 이유: 사용자에게 즉각적인 촉각 피드백 제공
-            // 조건: mediumImpact는 완료 같은 중간 중요도 액션에 적합
+          confirmDismiss: () async {
+            // 햅틱 피드백
             await HapticFeedback.mediumImpact();
-            print(
-              '✅ [Slidable] 일정 ID=$scheduleId 완료 스와이프 감지 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-            );
 
-            // 2. 완료 액션 실행
-            // 이유: DB에서 일정을 완료 처리하고 UI 갱신
-            // 조건: onComplete 콜백이 제공되어야 함
-            await onComplete();
-            print(
-              '✅ [Slidable] 일정 ID=$scheduleId 완료 처리 완료 - DB 업데이트 및 이벤트 로그 기록됨',
-            );
+            // 끝까지 스와이프 시 삭제 모달 표시
+            if (showConfirmDialog) {
+              bool confirmed = false;
+              bool hasRepeat =
+                  repeatRule != null &&
+                  repeatRule!.isNotEmpty &&
+                  repeatRule != '{}' &&
+                  repeatRule != '[]';
+
+              if (hasRepeat) {
+                await showDeleteRepeatConfirmationModal(
+                  context,
+                  onDeleteThis: () async {
+                    confirmed = true;
+                    print(
+                      '🗑️ [SlidableSchedule] 반복 일정 ID=$scheduleId 이 일정만 삭제',
+                    );
+                    await onDelete();
+                  },
+                  onDeleteFuture: () async {
+                    confirmed = true;
+                    print(
+                      '🗑️ [SlidableSchedule] 반복 일정 ID=$scheduleId 이후 일정 삭제',
+                    );
+                    await onDelete();
+                  },
+                  onDeleteAll: () async {
+                    confirmed = true;
+                    print('🗑️ [SlidableSchedule] 반복 일정 ID=$scheduleId 전체 삭제');
+                    await onDelete();
+                  },
+                );
+              } else {
+                await showDeleteConfirmationModal(
+                  context,
+                  onDelete: () async {
+                    confirmed = true;
+                    print('🗑️ [SlidableSchedule] 일정 ID=$scheduleId 삭제 확인됨');
+                    await onDelete();
+                  },
+                );
+              }
+              return confirmed;
+            } else {
+              await onDelete();
+              return true;
+            }
           },
-        ),
-
-        // ✅ 액션 버튼 정의
-        // 이유: 스와이프하지 않고 버튼을 직접 탭할 수도 있음
-        children: [
-          SlidableAction(
-            // ✅ onPressed: 버튼 클릭 시 콜백
-            // 이유: 스와이프하지 않고 버튼을 직접 탭할 때 실행
-            // 다음: 햅틱 피드백 → 완료 처리
-            onPressed: (context) async {
-              await HapticFeedback.lightImpact();
-              print(
-                '✅ [Slidable] 일정 ID=$scheduleId 완료 버튼 클릭 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-              );
-              await onComplete();
-            },
-
-            // ✅ 색상 설정 (iOS 네이티브 완료 색상)
-            // 이유: iOS Green은 완료를 나타내는 표준 색상
-            // 조건: completeColor가 제공되지 않으면 기본 iOS Green 사용
-            backgroundColor:
-                completeColor ?? const Color(0xFF34C759), // iOS Green
-            foregroundColor: Colors.white,
-
-            // ✅ 아이콘 및 레이블
-            // 이유: 체크 아이콘은 완료를 직관적으로 표현
-            icon: Icons.check_circle_outline,
-            label: completeLabel ?? '완료',
-
-            // ✅ autoClose: 탭 후 자동 닫힘
-            // 이유: iOS 네이티브 동작은 액션 후 자동으로 닫힘
-            autoClose: true,
-
-            // ✅ borderRadius: 모서리 둥글게 (선택사항)
-            // 이유: iOS 네이티브 스타일은 약간의 radius 사용
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ],
-      ),
-
-      // ========================================
-      // ✅ 수정: endActionPane: 왼쪽에서 오른쪽 스와이프 → 삭제
-      // ========================================
-      endActionPane: ActionPane(
-        motion: const BehindMotion(),
-        extentRatio: 0.25,
-
-        dismissible: DismissiblePane(
-          dismissThreshold: 0.5,
-          closeOnCancel: true,
-          dismissalDuration: const Duration(milliseconds: 300),
-          resizeDuration: const Duration(milliseconds: 300),
-
-          // ✅ confirmDismiss: Figma 삭제 확인 모달 (선택사항)
-          // 이유: 사용자 실수 방지
-          // 조건: showConfirmDialog가 true일 때만 표시
-          // 반환: true → 삭제 진행, false/null → 취소
-          confirmDismiss: showConfirmDialog
-              ? () async {
-                  bool confirmed = false;
-                  
-                  // 🔄 반복 규칙이 있으면 반복 삭제 모달, 없으면 일반 삭제 모달
-                  bool hasRepeat = repeatRule != null && 
-                                   repeatRule!.isNotEmpty && 
-                                   repeatRule != '{}' && 
-                                   repeatRule != '[]';
-                  
-                  if (hasRepeat) {
-                    await showDeleteRepeatConfirmationModal(
-                      context,
-                      onDeleteThis: () async {
-                        confirmed = true;
-                        await HapticFeedback.heavyImpact();
-                        print(
-                          '🗑️ [Slidable] 반복 일정 ID=$scheduleId 이 일정만 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                        );
-                        await onDelete();
-                      },
-                      onDeleteFuture: () async {
-                        confirmed = true;
-                        await HapticFeedback.heavyImpact();
-                        print(
-                          '🗑️ [Slidable] 반복 일정 ID=$scheduleId 이후 일정 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                        );
-                        // TODO: DB에 이후 삭제 함수 추가 필요
-                        await onDelete();
-                      },
-                      onDeleteAll: () async {
-                        confirmed = true;
-                        await HapticFeedback.heavyImpact();
-                        print(
-                          '🗑️ [Slidable] 반복 일정 ID=$scheduleId 전체 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                        );
-                        await onDelete();
-                      },
-                    );
-                  } else {
-                    await showDeleteConfirmationModal(
-                      context,
-                      onDelete: () async {
-                        confirmed = true;
-                        await HapticFeedback.heavyImpact();
-                        print(
-                          '🗑️ [Slidable] 일정 ID=$scheduleId 삭제 스와이프 확인됨 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                        );
-                        await onDelete();
-                      },
-                    );
-                  }
-                  return confirmed;
-                }
-              : null,
-
           onDismissed: () {
-            // confirmDismiss에서 이미 삭제 처리됨
-            print(
-              '🗑️ [Slidable] 일정 ID=$scheduleId 삭제 스와이프 완료 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-            );
+            print('🗑️ [SlidableSchedule] 일정 ID=$scheduleId 삭제 스와이프 완료');
           },
         ),
 
+        // 슬라이드 정도에 따라 버튼 선택 가능하도록
         children: [
-          SlidableAction(
+          CustomSlidableAction(
             onPressed: (context) async {
+              print('🔴 [DEBUG] 삭제 버튼 클릭됨!'); // 디버그 로그
               // 삭제 버튼 클릭 시 Figma 모달 표시
               if (showConfirmDialog) {
                 // 🔄 반복 규칙이 있으면 반복 삭제 모달, 없으면 일반 삭제 모달
-                bool hasRepeat = repeatRule != null && 
-                                 repeatRule!.isNotEmpty && 
-                                 repeatRule != '{}' && 
-                                 repeatRule != '[]';
-                
+                bool hasRepeat =
+                    repeatRule != null &&
+                    repeatRule!.isNotEmpty &&
+                    repeatRule != '{}' &&
+                    repeatRule != '[]';
+
                 if (hasRepeat) {
                   await showDeleteRepeatConfirmationModal(
                     context,
@@ -306,17 +199,140 @@ class SlidableScheduleCard extends StatelessWidget {
                 await onDelete();
               }
             },
-
-            // ✅ iOS 네이티브 삭제 색상
-            // 이유: iOS Red는 삭제를 나타내는 표준 색상
-            // 조건: deleteColor가 제공되지 않으면 기본 iOS Red 사용
-            backgroundColor: deleteColor ?? const Color(0xFFFF3B30), // iOS Red
+            backgroundColor: Colors.transparent, // 배경을 투명하게
             foregroundColor: Colors.white,
-
-            icon: Icons.delete_outline,
-            label: deleteLabel ?? '삭제',
             autoClose: true,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(100),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Container(
+                    width: constraints.maxWidth, // 부모 크기에 맞춤
+                    height: 56, // 높이만 56px 고정!!!
+                    constraints: const BoxConstraints(
+                      minWidth: 56,
+                      minHeight: 56,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF0000),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Center(
+                      child: SvgPicture.asset(
+                        'asset/icon/trash_icon.svg',
+                        width: 24,
+                        height: 24,
+                        colorFilter: const ColorFilter.mode(
+                          Color(0xFFFFFFFF),
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+
+      // ========================================
+      // endActionPane: 오른쪽에서 왼쪽 스와이프 → 완료 (쉽게 접근)
+      // ========================================
+      endActionPane: ActionPane(
+        motion: const BehindMotion(), // BehindMotion으로 변경 (iOS 표준)
+        extentRatio: 0.144, // 초기 56px (0.144), 스와이프 시 확장
+        // ✅ DismissiblePane: 끝까지 스와이프 시 즉시 완료 처리
+        // 이유: 사용자가 빠르게 완료할 수 있도록
+        // 조건: dismissThreshold 이상 스와이프 시 발동
+        dismissible: DismissiblePane(
+          // ✅ dismissThreshold: dismiss가 발동되는 임계값
+          // 이유: 0.5 = 50% 이상 스와이프 시 dismiss 실행
+          // 조건: 0.0 ~ 1.0 사이 값 (기본값: 0.4)
+          // 결과: 충분히 스와이프했을 때만 완료 처리
+          dismissThreshold: 0.5,
+
+          // ✅ closeOnCancel: 취소 시 닫힘 여부
+          // 이유: false로 설정하면 취소 시에도 열린 상태 유지
+          // 조건: true로 설정해서 취소 시 자동 닫힘
+          closeOnCancel: true,
+
+          // ✅ 애니메이션 시간 (iOS 네이티브 스타일)
+          // 이유: iOS 표준 애니메이션 타이밍은 200~300ms
+          // 조건: 너무 빠르거나 느리지 않게 300ms로 설정
+          dismissalDuration: const Duration(milliseconds: 300),
+          resizeDuration: const Duration(milliseconds: 300),
+
+          // ✅ onDismissed: 완전히 스와이프했을 때 실행
+          // 이유: 사용자가 끝까지 스와이프했을 때의 완료 처리
+          // 다음: 햅틱 피드백 → 완료 처리 → DB 업데이트 → 이벤트 로그
+          onDismissed: () async {
+            // 1. 햅틱 피드백 (iOS 네이티브 스타일)
+            // 이유: 사용자에게 즉각적인 촉각 피드백 제공
+            // 조건: mediumImpact는 완료 같은 중간 중요도 액션에 적합
+            await HapticFeedback.mediumImpact();
+            print(
+              '✅ [Slidable] 일정 ID=$scheduleId 완료 스와이프 감지 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+            );
+
+            // 2. 완료 액션 실행
+            // 이유: DB에서 일정을 완료 처리하고 UI 갱신
+            // 조건: onComplete 콜백이 제공되어야 함
+            await onComplete();
+            print(
+              '✅ [Slidable] 일정 ID=$scheduleId 완료 처리 완료 - DB 업데이트 및 이벤트 로그 기록됨',
+            );
+          },
+        ),
+
+        // ✅ 액션 버튼 정의
+        // 이유: 스와이프하지 않고 버튼을 직접 탭할 수도 있음
+        children: [
+          CustomSlidableAction(
+            onPressed: (context) async {
+              await HapticFeedback.lightImpact();
+              print(
+                '✅ [Slidable] 일정 ID=$scheduleId 완료 버튼 클릭 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
+              );
+              await onComplete();
+            },
+            backgroundColor: Colors.transparent, // 배경을 투명하게
+            foregroundColor: Colors.white,
+            autoClose: true,
+            borderRadius: BorderRadius.circular(100),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Container(
+                    width: constraints.maxWidth, // 부모 크기에 맞춤
+                    height: 56, // 높이만 56px 고정!!!
+                    constraints: const BoxConstraints(
+                      minWidth: 56,
+                      minHeight: 56,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0CF20C),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Center(
+                      child: SvgPicture.asset(
+                        'asset/icon/Check_icon.svg',
+                        width: 24,
+                        height: 24,
+                        colorFilter: const ColorFilter.mode(
+                          Color(0xFFFFFFFF),
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         ],
       ),

@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // 햅틱 피드백용
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:flutter_svg/flutter_svg.dart'; // SVG 아이콘용
 import '../component/modal/delete_confirmation_modal.dart'; // 🗑️ 삭제 확인 모달 추가
 import '../component/modal/delete_repeat_confirmation_modal.dart'; // 🔄 반복 삭제 확인 모달 추가
+import '../component/toast/save_toast.dart'; // 📥 인박스 토스트 추가
 
 /// 애플 네이티브 스타일의 재사용 가능한 Slidable 할일 카드 컴포넌트
 ///
 /// 이거를 설정하고 → iOS Reminders 앱처럼 자연스러운 스와이프 제스처를 구현한다
-/// 이거를 해서 → 오른쪽 스와이프로 완료, 왼쪽 스와이프로 삭제 기능을 제공한다
+/// 이거를 해서 → 왼쪽 스와이프로 삭제+인박스, 오른쪽 스와이프로 완료 기능을 제공한다
 /// 이거는 이래서 → 사용자에게 직관적인 UX를 제공하고 햅틱 피드백으로 피드백을 준다
 /// 이거라면 → date_detail_view.dart에서 TaskCard를 Slidable로 감싸서 사용한다
 ///
@@ -17,6 +19,7 @@ import '../component/modal/delete_repeat_confirmation_modal.dart'; // 🔄 반�
 ///   taskId: task.id,
 ///   onComplete: () async { /* 완료 로직 */ },
 ///   onDelete: () async { /* 삭제 로직 */ },
+///   onInbox: () async { /* 인박스 이동 로직 */ },
 ///   child: TaskCard(task: task),
 /// )
 /// ```
@@ -26,31 +29,37 @@ class SlidableTaskCard extends StatelessWidget {
   final String? repeatRule; // 🔄 반복 규칙 (JSON 문자열)
   final Future<void> Function() onComplete; // 완료 처리 콜백
   final Future<void> Function() onDelete; // 삭제 처리 콜백
+  final Future<void> Function()? onInbox; // 📥 인박스 이동 콜백 (실행일 제거)
   final VoidCallback? onTap; // 탭 이벤트 콜백 (선택사항)
 
   // 선택적 커스터마이징
   final Color? completeColor; // 완료 버튼 색상
   final Color? deleteColor; // 삭제 버튼 색상
+  final Color? inboxColor; // 인박스 버튼 색상
   final String? completeLabel; // 완료 버튼 라벨
   final String? deleteLabel; // 삭제 버튼 라벨
+  final String? inboxLabel; // 인박스 버튼 라벨
   final bool showConfirmDialog; // 삭제 확인 다이얼로그 표시 여부
   final String? groupTag; // 그룹 태그 (한 번에 하나만 열기)
 
   const SlidableTaskCard({
-    Key? key,
+    super.key,
     required this.child,
     required this.taskId,
     this.repeatRule, // 🔄 반복 규칙 추가
     required this.onComplete,
     required this.onDelete,
+    this.onInbox, // 📥 인박스 이동 콜백 추가
     this.onTap,
     this.completeColor,
     this.deleteColor,
+    this.inboxColor,
     this.completeLabel,
     this.deleteLabel,
+    this.inboxLabel,
     this.showConfirmDialog = false, // 기본값: 확인 다이얼로그 미표시 (빠른 삭제)
     this.groupTag,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -72,17 +81,222 @@ class SlidableTaskCard extends StatelessWidget {
       closeOnScroll: true,
 
       // ========================================
-      // startActionPane: 오른쪽에서 왼쪽 스와이프 → 완료 (쉽게 접근)
+      // startActionPane: 왼쪽에서 오른쪽 스와이프 → 인박스 → 삭제
+      // iOS Mail 정확한 동작: 0-30% 인박스만, 30-60% 삭제만
       // ========================================
       startActionPane: ActionPane(
-        // ✅ BehindMotion: iOS Reminders 스타일 (가장 네이티브스러움)
-        // 이유: 액션이 Slidable 뒤에 고정되어 나타남 (iOS 표준)
-        motion: const BehindMotion(),
+        motion: const DrawerMotion(), // DrawerMotion: 서랍처럼 순차적으로 나타남
+        extentRatio: onInbox != null
+            ? 0.6
+            : 0.144, // 초기 56px (0.144), 스와이프 시 확장
+        // 끝까지 스와이프 시 삭제 실행
+        dismissible: DismissiblePane(
+          dismissThreshold: 0.6, // 60% 이상 스와이프하면 삭제
+          closeOnCancel: true,
+          confirmDismiss: () async {
+            // 햅틱 피드백
+            await HapticFeedback.mediumImpact();
 
-        // ✅ extentRatio: 액션 패널이 차지하는 비율
-        // 이유: iOS 네이티브는 보통 0.25~0.3 사용 (화면의 25~30%)
-        extentRatio: 0.25,
+            // 끝까지 스와이프 시 삭제 모달 표시
+            if (showConfirmDialog) {
+              bool confirmed = false;
+              bool hasRepeat =
+                  repeatRule != null &&
+                  repeatRule!.isNotEmpty &&
+                  repeatRule != '{}' &&
+                  repeatRule != '[]';
 
+              if (hasRepeat) {
+                await showDeleteRepeatConfirmationModal(
+                  context,
+                  onDeleteThis: () async {
+                    confirmed = true;
+                    print('🗑️ [SlidableTask] 반복 할일 ID=$taskId 이 할일만 삭제');
+                    await onDelete();
+                  },
+                  onDeleteFuture: () async {
+                    confirmed = true;
+                    print('🗑️ [SlidableTask] 반복 할일 ID=$taskId 이후 할일 삭제');
+                    await onDelete();
+                  },
+                  onDeleteAll: () async {
+                    confirmed = true;
+                    print('🗑️ [SlidableTask] 반복 할일 ID=$taskId 전체 삭제');
+                    await onDelete();
+                  },
+                );
+              } else {
+                await showDeleteConfirmationModal(
+                  context,
+                  onDelete: () async {
+                    confirmed = true;
+                    print('🗑️ [SlidableTask] 할일 ID=$taskId 삭제 확인됨');
+                    await onDelete();
+                  },
+                );
+              }
+              return confirmed;
+            } else {
+              await onDelete();
+              return true;
+            }
+          },
+          onDismissed: () {
+            print('🗑️ [SlidableTask] 할일 ID=$taskId 삭제 스와이프 완료');
+          },
+        ),
+
+        children: [
+          // 삭제 버튼 (0-30% 구간에서 먼저 보임)
+          CustomSlidableAction(
+            onPressed: (context) async {
+              await HapticFeedback.mediumImpact();
+              print('🗑️ [SlidableTask] 삭제 버튼 클릭');
+
+              if (showConfirmDialog) {
+                bool hasRepeat =
+                    repeatRule != null &&
+                    repeatRule!.isNotEmpty &&
+                    repeatRule != '{}' &&
+                    repeatRule != '[]';
+
+                if (hasRepeat) {
+                  await showDeleteRepeatConfirmationModal(
+                    context,
+                    onDeleteThis: () async {
+                      print('🗑️ [SlidableTask] 반복 할일 ID=$taskId 이 할일만 삭제');
+                      await onDelete();
+                    },
+                    onDeleteFuture: () async {
+                      print('🗑️ [SlidableTask] 반복 할일 ID=$taskId 이후 할일 삭제');
+                      await onDelete();
+                    },
+                    onDeleteAll: () async {
+                      print('🗑️ [SlidableTask] 반복 할일 ID=$taskId 전체 삭제');
+                      await onDelete();
+                    },
+                  );
+                } else {
+                  await showDeleteConfirmationModal(
+                    context,
+                    onDelete: () async {
+                      print('🗑️ [SlidableTask] 할일 ID=$taskId 삭제 확인됨');
+                      await onDelete();
+                    },
+                  );
+                }
+              } else {
+                await onDelete();
+              }
+            },
+            backgroundColor: Colors.transparent,
+            borderRadius: BorderRadius.circular(100),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            autoClose: true,
+            child: Padding(
+              padding: onInbox != null
+                  ? const EdgeInsets.only(left: 8, right: 4)
+                  : const EdgeInsets.only(left: 8),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Container(
+                    width: constraints.maxWidth, // 부모 크기에 맞춤
+                    height: 56, // 높이만 56px 고정!!!
+                    constraints: const BoxConstraints(
+                      minWidth: 56, // 최소 56px
+                      minHeight: 56,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF0000),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Center(
+                      child: SvgPicture.asset(
+                        'asset/icon/trash_icon.svg',
+                        width: 24,
+                        height: 24,
+                        colorFilter: const ColorFilter.mode(
+                          Colors.white,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+
+          // 인박스 버튼 (30-60% 구간에서 보임)
+          ...onInbox != null
+              ? [
+                  CustomSlidableAction(
+                    onPressed: (context) async {
+                      await HapticFeedback.lightImpact();
+                      print('📥 [SlidableTask] 할일 ID=$taskId 인박스 이동 버튼 클릭');
+
+                      // 인박스로 이동 (executionDate만 제거)
+                      await onInbox!();
+
+                      // Slidable이 닫힌 후 토스트 표시 (300ms 대기)
+                      await Future.delayed(const Duration(milliseconds: 300));
+
+                      if (context.mounted) {
+                        showSaveToast(context, toInbox: true);
+                        print('📥 [DEBUG] 인박스 토스트 표시 완료');
+                      }
+                    },
+                    backgroundColor: Colors.transparent,
+                    foregroundColor: const Color(0xFF566099),
+                    borderRadius: BorderRadius.circular(100),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    autoClose: true,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 4, right: 8),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return Container(
+                            width: constraints.maxWidth, // 부모 크기에 맞춤
+                            height: 56, // 높이만 56px 고정!!!
+                            constraints: const BoxConstraints(
+                              minWidth: 56, // 최소 56px
+                              minHeight: 56,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFAFAFA),
+                              borderRadius: BorderRadius.circular(100),
+                              border: Border.all(
+                                color: const Color(0x33566099),
+                                width: 1,
+                              ),
+                            ),
+                            child: Center(
+                              child: SvgPicture.asset(
+                                'asset/icon/Inbox.svg',
+                                width: 24,
+                                height: 24,
+                                colorFilter: const ColorFilter.mode(
+                                  Color(0xFF566099),
+                                  BlendMode.srcIn,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ]
+              : [],
+        ],
+      ),
+
+      // ========================================
+      // endActionPane: 오른쪽에서 왼쪽 스와이프 → 완료 (쉽게 접근)
+      // ========================================
+      endActionPane: ActionPane(
+        motion: const BehindMotion(), // BehindMotion으로 변경 (iOS 표준)
+        extentRatio: 0.144, // 초기 56px (0.144), 스와이프 시 확장
         // ✅ DismissiblePane: 끝까지 스와이프 시 즉시 완료 처리
         // 이유: 사용자가 빠르게 완료할 수 있도록
         dismissible: DismissiblePane(
@@ -108,7 +322,7 @@ class SlidableTaskCard extends StatelessWidget {
 
         // ✅ 액션 버튼 정의
         children: [
-          SlidableAction(
+          CustomSlidableAction(
             onPressed: (context) async {
               await HapticFeedback.lightImpact();
               print(
@@ -116,165 +330,41 @@ class SlidableTaskCard extends StatelessWidget {
               );
               await onComplete();
             },
-
-            // ✅ 색상 설정 (iOS 네이티브 완료 색상)
-            backgroundColor:
-                completeColor ?? const Color(0xFF34C759), // iOS Green
-            foregroundColor: Colors.white,
-
-            icon: Icons.check_circle_outline,
-            label: completeLabel ?? '完了',
             autoClose: true,
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ],
-      ),
-
-      // ========================================
-      // endActionPane: 왼쪽에서 오른쪽 스와이프 → 삭제 (나중에 Inbox 추가 예정)
-      // ========================================
-      endActionPane: ActionPane(
-        motion: const BehindMotion(),
-        extentRatio: 0.25,
-
-        dismissible: DismissiblePane(
-          dismissThreshold: 0.5,
-          closeOnCancel: true,
-          dismissalDuration: const Duration(milliseconds: 300),
-          resizeDuration: const Duration(milliseconds: 300),
-
-          // ✅ confirmDismiss: Figma 삭제 확인 모달 (선택사항)
-          // 이유: 할일은 빠른 삭제를 위해 기본적으로 비활성화
-          confirmDismiss: showConfirmDialog
-              ? () async {
-                  bool confirmed = false;
-                  
-                  // 🔄 반복 규칙이 있으면 반복 삭제 모달, 없으면 일반 삭제 모달
-                  bool hasRepeat = repeatRule != null && 
-                                   repeatRule!.isNotEmpty && 
-                                   repeatRule != '{}' && 
-                                   repeatRule != '[]';
-                  
-                  if (hasRepeat) {
-                    await showDeleteRepeatConfirmationModal(
-                      context,
-                      onDeleteThis: () async {
-                        confirmed = true;
-                        await HapticFeedback.heavyImpact();
-                        print(
-                          '🗑️ [SlidableTask] 반복 할일 ID=$taskId 이 할일만 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                        );
-                        await onDelete();
-                      },
-                      onDeleteFuture: () async {
-                        confirmed = true;
-                        await HapticFeedback.heavyImpact();
-                        print(
-                          '🗑️ [SlidableTask] 반복 할일 ID=$taskId 이후 할일 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                        );
-                        // TODO: DB에 이후 삭제 함수 추가 필요
-                        await onDelete();
-                      },
-                      onDeleteAll: () async {
-                        confirmed = true;
-                        await HapticFeedback.heavyImpact();
-                        print(
-                          '🗑️ [SlidableTask] 반복 할일 ID=$taskId 전체 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                        );
-                        await onDelete();
-                      },
-                    );
-                  } else {
-                    await showDeleteConfirmationModal(
-                      context,
-                      onDelete: () async {
-                        confirmed = true;
-                        await HapticFeedback.heavyImpact();
-                        print(
-                          '🗑️ [SlidableTask] 할일 ID=$taskId 삭제 스와이프 확인됨 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                        );
-                        await onDelete();
-                      },
-                    );
-                  }
-                  return confirmed;
-                }
-              : null,
-
-          onDismissed: () {
-            // confirmDismiss에서 이미 삭제 처리됨
-            print(
-              '🗑️ [SlidableTask] 할일 ID=$taskId 삭제 스와이프 완료 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-            );
-          },
-        ),
-
-        children: [
-          SlidableAction(
-            onPressed: (context) async {
-              // 삭제 버튼 클릭 시 Figma 모달 표시
-              if (showConfirmDialog) {
-                // 🔄 반복 규칙이 있으면 반복 삭제 모달, 없으면 일반 삭제 모달
-                bool hasRepeat = repeatRule != null && 
-                                 repeatRule!.isNotEmpty && 
-                                 repeatRule != '{}' && 
-                                 repeatRule != '[]';
-                
-                if (hasRepeat) {
-                  await showDeleteRepeatConfirmationModal(
-                    context,
-                    onDeleteThis: () async {
-                      await HapticFeedback.mediumImpact();
-                      print(
-                        '🗑️ [SlidableTask] 반복 할일 ID=$taskId 이 할일만 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                      );
-                      await onDelete();
-                    },
-                    onDeleteFuture: () async {
-                      await HapticFeedback.mediumImpact();
-                      print(
-                        '🗑️ [SlidableTask] 반복 할일 ID=$taskId 이후 할일 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                      );
-                      // TODO: DB에 이후 삭제 함수 추가 필요
-                      await onDelete();
-                    },
-                    onDeleteAll: () async {
-                      await HapticFeedback.mediumImpact();
-                      print(
-                        '🗑️ [SlidableTask] 반복 할일 ID=$taskId 전체 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                      );
-                      await onDelete();
-                    },
-                  );
-                } else {
-                  await showDeleteConfirmationModal(
-                    context,
-                    onDelete: () async {
-                      await HapticFeedback.mediumImpact();
-                      print(
-                        '🗑️ [SlidableTask] 할일 ID=$taskId 삭제 확인됨 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                      );
-                      await onDelete();
-                    },
-                  );
-                }
-              } else {
-                await HapticFeedback.mediumImpact();
-                print(
-                  '🗑️ [SlidableTask] 할일 ID=$taskId 삭제 버튼 클릭 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                );
-                await onDelete();
-              }
-            },
-
-            // ✅ iOS 네이티브 삭제 색상
-            backgroundColor: deleteColor ?? const Color(0xFFFF3B30), // iOS Red
+            backgroundColor: Colors.transparent,
             foregroundColor: Colors.white,
-
-            icon: Icons.delete_outline,
-            label: deleteLabel ?? '削除',
-            autoClose: true,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(100),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Container(
+                    width: constraints.maxWidth, // 부모 크기에 맞춤
+                    height: 56, // 높이만 56px 고정!!!
+                    constraints: const BoxConstraints(
+                      minWidth: 56, // 최소 56px
+                      minHeight: 56,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0CF20C),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Center(
+                      child: SvgPicture.asset(
+                        'asset/icon/Check_icon.svg',
+                        width: 24,
+                        height: 24,
+                        colorFilter: const ColorFilter.mode(
+                          Color(0xFFFFFFFF),
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         ],
       ),

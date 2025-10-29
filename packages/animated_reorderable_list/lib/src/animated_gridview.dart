@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import '../../animated_reorderable_list.dart';
 import 'builder/reorderable_animated_list_base.dart';
-import 'builder/reorderable_animated_list_impl.dart';
 
 /// A Flutter AnimatedGridView that animates insertion and removal of the item.
 ///

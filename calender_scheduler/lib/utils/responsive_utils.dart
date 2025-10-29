@@ -152,12 +152,12 @@ class ResponsiveContainer extends StatelessWidget {
   final double verticalRatio;
 
   const ResponsiveContainer({
-    Key? key,
+    super.key,
     required this.child,
     this.padding,
     this.horizontalRatio = 0.04, // 기본 4%
     this.verticalRatio = 0.02, // 기본 2%
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -194,13 +194,13 @@ class ResponsiveText extends StatelessWidget {
 
   const ResponsiveText(
     this.text, {
-    Key? key,
+    super.key,
     this.baseFontSize = 14.0,
     this.style,
     this.textAlign,
     this.maxLines,
     this.overflow,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

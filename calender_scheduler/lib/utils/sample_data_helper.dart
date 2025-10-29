@@ -3,6 +3,7 @@
 /// Schedule, Task, Habit 샘플 데이터를 생성하는 유틸리티
 /// 이거를 설정하고 → 데이터베이스에 실제 데이터를 추가해서
 /// 이거를 해서 → UI 개발 시 실제 데이터처럼 테스트할 수 있다
+library;
 
 import '../Database/schedule_database.dart';
 import 'package:drift/drift.dart' as drift;

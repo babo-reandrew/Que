@@ -24,6 +24,7 @@
 ///    - border: 4px gradient (활성화 진행 중 상태)
 ///    - Text: "Google ログイン" / "Google 連携中"
 ///    - font-weight: 700, font-size: 18px, color: #FFFFFF
+library;
 
 import 'package:flutter/material.dart';
 import 'package:wolt_modal_sheet/wolt_modal_sheet.dart';
