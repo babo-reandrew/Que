@@ -56,6 +56,7 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
   late AnimationController _filterAnimationController;
   late Animation<double> _filterOpacity;
   final SheetController _sheetController = SheetController(); // 🎯 Sheet 컨트롤러
+  double? _previousSheetHeight; // 🎯 드래그 시작 전 바텀시트 높이 저장
 
   @override
   void initState() {
@@ -109,11 +110,40 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
       // 🎯 드래그 시작 시 바텀시트를 즉시 최소 높이(0.16)로 축소
       if (!oldWidget.isDraggingFromParent && widget.isDraggingFromParent) {
         print('🔥 [SHEET] 드래그 시작 감지 → 바텀시트를 최소 높이로 축소');
+        // 🎯 현재 높이를 저장 (픽셀 값 사용)
+        final currentExtent = _sheetController.value.maybePixels;
+        if (currentExtent != null && mounted) {
+          final screenHeight = MediaQuery.of(context).size.height;
+          if (screenHeight > 0) {
+            _previousSheetHeight = currentExtent / screenHeight;
+            print('💾 [SHEET] 현재 높이 저장: ${(_previousSheetHeight! * 100).toStringAsFixed(0)}%');
+          }
+        }
+
         _sheetController.animateTo(
           const Extent.proportional(0.16),
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
+      }
+      // 🎯 드래그 종료 시 이전 높이로 복원
+      else if (oldWidget.isDraggingFromParent && !widget.isDraggingFromParent) {
+        print('🔥 [SHEET] 드래그 종료 감지 → 이전 높이로 복원');
+        if (_previousSheetHeight != null) {
+          print('💾 [SHEET] 복원할 높이: ${(_previousSheetHeight! * 100).toStringAsFixed(0)}%');
+          _sheetController.animateTo(
+            Extent.proportional(_previousSheetHeight!),
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOutCubic,
+          );
+        } else {
+          print('⚠️ [SHEET] 저장된 높이 없음 - 기본값 0.45로 복원');
+          _sheetController.animateTo(
+            const Extent.proportional(0.45),
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOutCubic,
+          );
+        }
       }
       print('');
       // setState 없이도 AnimatedOpacity가 자동으로 감지
@@ -155,7 +185,7 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
         // 🎯 드래그 중에는 바텀시트의 터치를 무시하고 투명하게 만들어 뒤의 캘린더가 보이도록 함
         AnimatedOpacity(
           opacity: isDragging ? 0.0 : 1.0, // ✅ 드래그 중일 때 완전히 투명
-          duration: const Duration(milliseconds: 200), // ✅ 부드러운 페이드 아웃
+          duration: const Duration(milliseconds: 100), // ✅ 빠른 페이드 인/아웃 (즉시 재표시)
           child: ScrollableSheet(
             controller: _sheetController, // 🎯 컨트롤러 연결
             initialExtent: const Extent.proportional(

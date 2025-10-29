@@ -1380,16 +1380,16 @@ class AppDatabase extends _$AppDatabase {
         );
 
         if (pattern == null) {
-          // 일반 할일: executionDate 기준
+          // 일반 할일: executionDate 기준 (완료된 것은 제외)
           final taskDate = _normalizeDate(task.executionDate!);
-          if (taskDate.isAtSameMomentAs(target)) {
-            print(
-              '  ✅ [할일] "${task.title}" - 일반 할일 (날짜 일치) ${task.completed ? "[완료]" : ""}',
-            );
+          if (taskDate.isAtSameMomentAs(target) && !task.completed) {
+            print('  ✅ [할일] "${task.title}" - 일반 할일 (날짜 일치, 미완료)');
             result.add(task);
+          } else if (taskDate.isAtSameMomentAs(target) && task.completed) {
+            print('  ⏭️ [할일] "${task.title}" - 완료됨, 스킵');
           }
         } else {
-          // 반복 할일: RRULE로 인스턴스 생성
+          // 반복 할일: RRULE로 인스턴스 생성 (완료된 것은 제외)
           try {
             final instances = await _generateTaskInstancesForDate(
               task: task,
@@ -1397,11 +1397,11 @@ class AppDatabase extends _$AppDatabase {
               targetDate: target,
             );
 
-            if (instances.isNotEmpty) {
-              print(
-                '  ✅ [할일] "${task.title}" - 반복 할일 (RRULE 일치) ${task.completed ? "[완료]" : ""}',
-              );
+            if (instances.isNotEmpty && !task.completed) {
+              print('  ✅ [할일] "${task.title}" - 반복 할일 (RRULE 일치, 미완료)');
               result.add(task);
+            } else if (instances.isNotEmpty && task.completed) {
+              print('  ⏭️ [할일] "${task.title}" - 완료됨, 스킵');
             }
           } catch (e) {
             print('  ⚠️ [할일] "${task.title}" - RRULE 파싱 실패: $e');
@@ -1409,15 +1409,10 @@ class AppDatabase extends _$AppDatabase {
         }
       }
 
-      // 완료 안 된 것이 먼저, 완료된 것이 나중에
-      result.sort((a, b) {
-        if (a.completed == b.completed) return 0;
-        return a.completed ? 1 : -1;
-      });
+      // 🎯 완료된 Task는 이미 필터링되었으므로 정렬 불필요
+      // result는 모두 미완료 Task만 포함
 
-      print(
-        '✅ [DB] 필터링된 Task 개수: ${result.length} (완료: ${result.where((t) => t.completed).length})',
-      );
+      print('✅ [DB] 필터링된 Task 개수: ${result.length} (모두 미완료)');
       yield result;
     }
   }

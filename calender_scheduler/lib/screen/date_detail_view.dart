@@ -8,6 +8,7 @@ import 'package:smooth_sheets/smooth_sheets.dart'; // ✅ smooth_sheets 추가
 import 'package:animated_reorderable_list/animated_reorderable_list.dart'; // 🆕 드래그 재정렬
 import 'package:flutter_svg/flutter_svg.dart'; // ✅ SVG 아이콘 추가
 import 'package:flutter_slidable/flutter_slidable.dart'; // ✅ Slidable 추가
+import 'package:figma_squircle/figma_squircle.dart'; // ✅ Figma 스무싱 적용
 import '../component/toast/action_toast.dart'; // ✅ 토스트 추가
 import '../component/schedule_card.dart';
 import '../component/create_entry_bottom_sheet.dart';
@@ -251,6 +252,9 @@ class _DateDetailViewState extends State<DateDetailView>
     // 🎯 Pull-to-dismiss: 오버스크롤 감지
     if (!_scrollController.hasClients) return;
 
+    // 📋 인박스 모드에서는 pull-to-dismiss 차단
+    if (_isInboxMode) return;
+
     final pixels = _scrollController.position.pixels;
 
     // 🎯 최상단에서 오버스크롤 중 (pixels < 0)
@@ -382,18 +386,7 @@ class _DateDetailViewState extends State<DateDetailView>
                     children: [
                       TaskInboxDayTopBar(
                         date: _currentDate,
-                        onSwipeLeft: () {
-                          _pageController.nextPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        },
-                        onSwipeRight: () {
-                          _pageController.previousPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        },
+                        // 🎯 PageView의 네이티브 스와이프를 사용하므로 콜백 제거
                       ),
                       Positioned(
                         right: 24,
@@ -544,13 +537,13 @@ class _DateDetailViewState extends State<DateDetailView>
 
   /// 이거를 설정하고 → PageView를 구성해서 좌우 스와이프 날짜 변경 기능 제공
   /// 이거를 해서 → 기존 Hero 구조를 그대로 유지하면서 무한 스크롤 구현
-  /// 📋 인박스 모드에서는 PageView 스와이프 비활성화 (월뷰로 드래그 방지)
+  /// 📋 인박스 모드에서 카드 드래그 중일 때만 PageView 스와이프 차단
   Widget _buildPageView() {
     return PageView.builder(
       controller: _pageController,
-      physics: _isInboxMode
-          ? const NeverScrollableScrollPhysics() // 📋 인박스 모드: 스와이프 차단
-          : const ClampingScrollPhysics(), // 일반 모드: 스와이프 허용
+      physics: _isDraggingFromInbox
+          ? const NeverScrollableScrollPhysics() // 📋 카드 드래그 중: 스와이프 차단
+          : const ClampingScrollPhysics(), // 그 외: 스와이프 허용 (인박스 모드 포함)
       onPageChanged: (index) {
         setState(() {
           // 이거를 설정하고 → 인덱스를 날짜로 변환해서
@@ -574,7 +567,8 @@ class _DateDetailViewState extends State<DateDetailView>
           duration: const Duration(milliseconds: 900), // ✅ 홈스크린과 동일
           curve: const Cubic(0.4, 0.0, 0.2, 1.0), // ✅ Material Emphasized curve
           transform: _isInboxMode
-              ? (Matrix4.identity()..scale(0.92, 0.92)) // ✅ 가로 92%, 세로 92%
+              ? (Matrix4.identity()
+                  ..scale(0.84, 0.84)) // ✅ 가로 84%, 세로 84% (월뷰와 동일)
               : Matrix4.identity(),
           transformAlignment: Alignment.topCenter,
           child: Material(
@@ -760,34 +754,65 @@ class _DateDetailViewState extends State<DateDetailView>
             shadowColor: Colors.transparent, // ✅ 그림자 제거
             automaticallyImplyLeading: false,
 
-            // 좌측: 설정 버튼
+            // 좌측: 닫기 버튼 (down_icon.svg) - Figma 디자인
             leading: Container(
-              margin: const EdgeInsets.only(left: 12),
+              margin: const EdgeInsets.only(left: 28), // 좌측 여백 28px
               child: IconButton(
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
                 icon: Container(
-                  width: 36,
-                  height: 36,
+                  width: 36, // Figma: 36px
+                  height: 36, // Figma: 36px
+                  padding: const EdgeInsets.all(8), // Figma: padding 8px
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE4E4E4).withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(100),
+                    color: const Color(
+                      0xFFE4E4E4,
+                    ).withOpacity(0.9), // Figma: rgba(228, 228, 228, 0.9)
+                    borderRadius: BorderRadius.circular(
+                      100,
+                    ), // Figma: border-radius 100px
                     border: Border.all(
-                      color: const Color(0xFF111111).withOpacity(0.02),
+                      color: const Color(
+                        0xFF111111,
+                      ).withOpacity(0.02), // Figma: rgba(17, 17, 17, 0.02)
                       width: 1,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(
+                          0xFFBABABA,
+                        ).withOpacity(0.08), // Figma: rgba(186, 186, 186, 0.08)
+                        offset: const Offset(0, -2), // Figma: 0px -2px
+                        blurRadius: 8, // Figma: 8px
+                      ),
+                    ],
                   ),
-                  child: const Icon(
-                    Icons.more_horiz,
-                    color: Color(0xFF111111),
-                    size: 20,
+                  child: SvgPicture.asset(
+                    'asset/icon/down_icon.svg',
+                    width: 20, // Figma: icon 20px
+                    height: 20, // Figma: icon 20px
+                    colorFilter: const ColorFilter.mode(
+                      Color(0xFF111111), // Figma: #111111
+                      BlendMode.srcIn,
+                    ),
                   ),
                 ),
                 onPressed: () {
-                  debugPrint(
-                    '⋮ [UI] 앱바 좌측 메뉴 버튼 클릭 → OptionSetting Wolt Modal (Detached) 표시',
-                  );
-                  showOptionSettingWoltModal(context);
+                  print('❌ [UI] 닫기 버튼 클릭 → Pull-to-dismiss 애니메이션으로 복귀');
+                  print('   📅 현재 날짜: $_currentDate');
+                  print('   📅 초기 날짜: ${widget.selectedDate}');
+                  print('   🔄 날짜 변경됨: ${_currentDate != widget.selectedDate}');
+
+                  // onClose 콜백이 있으면 호출 (날짜 상태 업데이트)
+                  if (widget.onClose != null && !_onCloseCalled) {
+                    print('   ✅ onClose 콜백 호출 시작!');
+                    _onCloseCalled = true; // 🔔 플래그 설정 (중복 호출 방지)
+                    widget.onClose!(_currentDate); // ✅ 마지막 날짜 전달!
+                    print('   ✅ onClose 콜백 호출 완료!');
+                  }
+
+                  // DismissiblePage의 pull-to-dismiss 애니메이션으로 나가기
+                  Navigator.of(context).pop();
                 },
               ),
             ),
@@ -818,51 +843,18 @@ class _DateDetailViewState extends State<DateDetailView>
             ),
             centerTitle: true,
 
-            // 우측: 닫기 버튼
-            actions: [
-              Container(
-                margin: const EdgeInsets.only(right: 12),
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE4E4E4).withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(100),
-                      border: Border.all(
-                        color: const Color(0xFF111111).withOpacity(0.02),
-                        width: 1,
-                      ),
+            // 우측: 오늘로 이동 버튼 (오늘이 아닐 때만 표시)
+            actions: _isToday(_currentDate)
+                ? null
+                : [
+                    Container(
+                      width: 44, // 피그마: Frame 686 크기
+                      height: 44,
+                      padding: const EdgeInsets.all(4), // 피그마: 4px 패딩
+                      margin: const EdgeInsets.only(right: 12),
+                      child: _buildTodayButton(DateTime.now()),
                     ),
-                    child: const Icon(
-                      Icons.keyboard_arrow_down,
-                      color: Color(0xFF111111),
-                      size: 20,
-                    ),
-                  ),
-                  onPressed: () {
-                    print('⬇️ [UI] 닫기 버튼 클릭 → HomeScreen으로 복귀');
-                    print('   📅 현재 날짜: $_currentDate');
-                    print('   📅 초기 날짜: ${widget.selectedDate}');
-                    print(
-                      '   🔄 날짜 변경됨: ${_currentDate != widget.selectedDate}',
-                    );
-                    print('   🔍 onClose 콜백 존재: ${widget.onClose != null}');
-                    if (widget.onClose != null) {
-                      print('   ✅ onClose 콜백 호출 시작!');
-                      _onCloseCalled = true; // 🔔 플래그 설정 (중복 호출 방지)
-                      widget.onClose!(_currentDate); // ✅ 마지막 날짜 전달!
-                      print('   ✅ onClose 콜백 호출 완료!');
-                    } else {
-                      print('   ⚠️ onClose 콜백 없음 - Navigator.pop() 사용');
-                      Navigator.of(context).pop();
-                    }
-                  },
-                ),
-              ),
-            ],
+                  ],
           ),
         ],
       ),
@@ -961,6 +953,8 @@ class _DateDetailViewState extends State<DateDetailView>
                           totalHeight - safeAreaTop - safeAreaBottom;
 
                       return DragTarget<TaskData>(
+                        hitTestBehavior: HitTestBehavior
+                            .translucent, // 🎯 더 민감한 터치 감지 (Empty Area)
                         onWillAcceptWithDetails: (details) => true,
                         onMove: (details) {
                           if (mounted && !_isDraggingFromInbox) {
@@ -1018,9 +1012,9 @@ class _DateDetailViewState extends State<DateDetailView>
                             width: double.infinity,
                             decoration: isHovered
                                 ? BoxDecoration(
-                                    color: Colors.blue.withOpacity(0.1),
+                                    color: Colors.transparent, // 🎯 투명하게 변경
                                     border: Border.all(
-                                      color: Colors.blue.withOpacity(0.3),
+                                      color: Colors.transparent, // 🎯 투명하게 변경
                                       width: 2,
                                     ),
                                   )
@@ -1035,7 +1029,8 @@ class _DateDetailViewState extends State<DateDetailView>
                                       children: [
                                         Icon(
                                           Icons.add_circle_outline,
-                                          color: Colors.blue,
+                                          color:
+                                              Colors.transparent, // 🎯 투명하게 변경
                                           size: 48,
                                         ),
                                         SizedBox(height: 16),
@@ -1045,7 +1040,8 @@ class _DateDetailViewState extends State<DateDetailView>
                                             fontFamily: 'LINE Seed JP App_TTF',
                                             fontSize: 17,
                                             fontWeight: FontWeight.w600,
-                                            color: Colors.blue,
+                                            color: Colors
+                                                .transparent, // 🎯 투명하게 변경
                                           ),
                                         ),
                                       ],
@@ -1974,6 +1970,8 @@ class _DateDetailViewState extends State<DateDetailView>
 
             // 🔥 실제 카드 (DragTarget으로 감싸기)
             DragTarget<TaskData>(
+              hitTestBehavior:
+                  HitTestBehavior.translucent, // 🎯 더 민감한 터치 감지 (Schedule)
               onWillAcceptWithDetails: (details) => true,
               onMove: (details) {
                 if (mounted && _hoveredCardIndex != index) {
@@ -2105,6 +2103,8 @@ class _DateDetailViewState extends State<DateDetailView>
 
             // 🔥 실제 카드 (DragTarget으로 감싸기)
             DragTarget<TaskData>(
+              hitTestBehavior:
+                  HitTestBehavior.translucent, // 🎯 더 민감한 터치 감지 (Task)
               onWillAcceptWithDetails: (details) => true,
               onMove: (details) {
                 if (mounted && _hoveredCardIndex != index) {
@@ -2235,6 +2235,8 @@ class _DateDetailViewState extends State<DateDetailView>
 
             // 🔥 실제 카드 (DragTarget으로 감싸기)
             DragTarget<TaskData>(
+              hitTestBehavior:
+                  HitTestBehavior.translucent, // 🎯 더 민감한 터치 감지 (Habit)
               onWillAcceptWithDetails: (details) => true,
               onMove: (details) {
                 if (mounted && _hoveredCardIndex != index) {
@@ -2521,6 +2523,14 @@ class _DateDetailViewState extends State<DateDetailView>
   String _formatDayOfWeek(DateTime date) {
     final formatter = DateFormat('EEEE', 'ja_JP'); // 일본어 요일
     return formatter.format(date);
+  }
+
+  /// 날짜가 오늘인지 확인
+  bool _isToday(DateTime date) {
+    final now = DateTime.now();
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 
   /// 통합 아이템 리스트 생성 (DailyCardOrder 우선, 없으면 기본 순서)
@@ -3814,18 +3824,16 @@ class _DateDetailViewState extends State<DateDetailView>
           height: isHovered ? 80 : 0,
           width: double.infinity,
           decoration: BoxDecoration(
-            color: isHovered
-                ? Colors.blue.withOpacity(0.1)
-                : Colors.transparent,
+            color: Colors.transparent, // 🎯 투명하게 변경
             border: isHovered
-                ? Border.all(color: Colors.blue.withOpacity(0.3), width: 2)
+                ? Border.all(color: Colors.transparent, width: 2) // 🎯 투명하게 변경
                 : null,
           ),
           child: isHovered
               ? Center(
                   child: Icon(
                     Icons.add_circle_outline,
-                    color: Colors.blue,
+                    color: Colors.transparent, // 🎯 투명하게 변경
                     size: 32,
                   ),
                 )
@@ -3841,6 +3849,7 @@ class _DateDetailViewState extends State<DateDetailView>
     final betweenId = -(index + 1000);
 
     return DragTarget<TaskData>(
+      hitTestBehavior: HitTestBehavior.translucent, // 🎯 더 민감한 터치 감지
       onWillAcceptWithDetails: (details) => true,
       onMove: (details) {
         if (mounted && _hoveredCardIndex != betweenId) {
@@ -3881,14 +3890,14 @@ class _DateDetailViewState extends State<DateDetailView>
         return AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
-          height: isHovered ? 72 : 0, // 호버 시 공간 벌어짐
+          height: isHovered ? 80 : 0, // 🎯 기본 16px로 더 넓은 감지 영역
           margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
           decoration: isHovered
               ? BoxDecoration(
-                  color: const Color(0xFF566099).withOpacity(0.08),
+                  color: Colors.transparent, // 🎯 투명하게 변경
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: const Color(0xFF566099),
+                    color: Colors.transparent, // 🎯 투명하게 변경
                     width: 2,
                     style: BorderStyle.solid,
                   ),
@@ -3900,7 +3909,7 @@ class _DateDetailViewState extends State<DateDetailView>
                   children: [
                     const Icon(
                       Icons.add_circle_outline,
-                      color: Color(0xFF566099),
+                      color: Colors.transparent, // 🎯 투명하게 변경
                       size: 24,
                     ),
                     const SizedBox(width: 8),
@@ -3910,7 +3919,7 @@ class _DateDetailViewState extends State<DateDetailView>
                         fontFamily: 'LINE Seed JP App_TTF',
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFF566099),
+                        color: Colors.transparent, // 🎯 투명하게 변경
                       ),
                     ),
                   ],
@@ -3924,6 +3933,7 @@ class _DateDetailViewState extends State<DateDetailView>
   /// 🎯 최하단 드롭존 (리스트 맨 아래에 드롭)
   Widget _buildBottomDropZone(DateTime date) {
     return DragTarget<TaskData>(
+      hitTestBehavior: HitTestBehavior.translucent, // 🎯 더 민감한 터치 감지
       onWillAcceptWithDetails: (details) => true,
       onMove: (details) {
         if (mounted && _hoveredCardIndex != 999999) {
@@ -3996,21 +4006,19 @@ class _DateDetailViewState extends State<DateDetailView>
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          height: isHovered ? 80 : 40, // 🎯 기본 40px 높이로 감지 영역 확보
+          height: isHovered ? 100 : 60, // 🎯 기본 60px로 더 넓은 감지 영역 확보
           width: double.infinity,
           decoration: BoxDecoration(
-            color: isHovered
-                ? Colors.blue.withOpacity(0.1)
-                : Colors.transparent,
+            color: Colors.transparent, // 🎯 투명하게 변경
             border: isHovered
-                ? Border.all(color: Colors.blue.withOpacity(0.3), width: 2)
+                ? Border.all(color: Colors.transparent, width: 2) // 🎯 투명하게 변경
                 : null,
           ),
           child: isHovered
               ? Center(
                   child: Icon(
                     Icons.add_circle_outline,
-                    color: Colors.blue,
+                    color: Colors.transparent, // 🎯 투명하게 변경
                     size: 32,
                   ),
                 )
@@ -4019,4 +4027,108 @@ class _DateDetailViewState extends State<DateDetailView>
       },
     );
   }
+
+  /// ✅ 피그마 디자인: Frame 686 (오늘 날짜 배지)
+  /// 36×36px, 검은 배경 (#111111), radius 12px (smoothing 60%), 날짜 텍스트 (ExtraBold 12px, 흰색)
+  /// 월뷰의 오늘 버튼과 동일한 디자인
+  Widget _buildTodayButton(DateTime today) {
+    return Hero(
+      tag: 'today-button-${today.toString()}',
+      createRectTween: (begin, end) {
+        return _AppleStyleRectTween(begin: begin, end: end);
+      },
+      flightShuttleBuilder: _appleStyleHeroFlightShuttleBuilder,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            print('📅 [UI] 오늘로 이동 버튼 클릭');
+            // 오늘 날짜를 정규화 (시간 제거)
+            final todayDate = DateTime(today.year, today.month, today.day);
+            // widget.selectedDate(초기 날짜)를 기준으로 오늘까지의 날짜 차이 계산
+            final daysDiff = todayDate.difference(widget.selectedDate).inDays;
+            final targetIndex = _centerIndex + daysDiff;
+
+            print('   📅 초기 날짜: ${widget.selectedDate}');
+            print('   📅 오늘 날짜: $todayDate');
+            print('   📊 날짜 차이: $daysDiff일');
+            print('   🎯 목표 인덱스: $targetIndex');
+
+            _pageController.animateToPage(
+              targetIndex,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+          },
+          customBorder: SmoothRectangleBorder(
+            borderRadius: SmoothBorderRadius(
+              cornerRadius: 12,
+              cornerSmoothing: 0.6, // 60% smoothing
+            ),
+          ),
+          child: Container(
+            width: 36, // 피그마: Frame 123 크기 36×36px
+            height: 36,
+            decoration: ShapeDecoration(
+              color: const Color(0xFF111111), // 피그마: 배경색 #111111
+              shape: SmoothRectangleBorder(
+                side: BorderSide(
+                  color: const Color(0xFF000000).withOpacity(0.04),
+                  width: 1,
+                ),
+                borderRadius: SmoothBorderRadius(
+                  cornerRadius: 12, // 피그마: radius 12px
+                  cornerSmoothing: 0.6, // 60% smoothing
+                ),
+              ),
+              shadows: [
+                // 피그마: 0px 4px 20px rgba(0,0,0,0.12)
+                BoxShadow(
+                  color: const Color(0xFF000000).withOpacity(0.12),
+                  offset: const Offset(0, 4),
+                  blurRadius: 20,
+                ),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '${today.day}', // 오늘 날짜 숫자
+              style: const TextStyle(
+                fontFamily: 'LINE Seed JP App_TTF',
+                fontSize: 12, // 피그마: ExtraBold 12px
+                fontWeight: FontWeight.w800,
+                color: Color(0xFFFFFFFF), // 피그마: 흰색
+                letterSpacing: -0.06,
+                height: 1.4, // lineHeight 16.8 / fontSize 12
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 } // _DateDetailViewState 끝
+
+/// Apple 스타일 Hero 애니메이션을 위한 커스텀 RectTween
+class _AppleStyleRectTween extends RectTween {
+  _AppleStyleRectTween({required super.begin, required super.end});
+
+  @override
+  Rect lerp(double t) {
+    // 애플 스타일 커브를 적용 (cubic-bezier 0.25, 0.1, 0.25, 1.0)
+    final curvedT = Curves.easeInOut.transform(t);
+    return Rect.lerp(begin, end, curvedT)!;
+  }
+}
+
+/// Hero 애니메이션 중 비행하는 위젯을 커스터마이징하는 빌더 함수
+Widget _appleStyleHeroFlightShuttleBuilder(
+  BuildContext flightContext,
+  Animation<double> animation,
+  HeroFlightDirection flightDirection,
+  BuildContext fromHeroContext,
+  BuildContext toHeroContext,
+) {
+  final Hero toHero = toHeroContext.widget as Hero;
+  return toHero.child;
+}

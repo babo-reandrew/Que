@@ -973,7 +973,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (day.weekday == DateTime.sunday) {
           textColor = const Color(0xFFFF0000); // 일요일: 빨강
         } else if (day.weekday == DateTime.saturday) {
-          textColor = const Color(0xFF0000FF); // 토요일: 파랑
+          textColor = const Color(0xFF1D00FB); // 토요일: 파랑 #1D00FB
         } else {
           textColor = const Color(0xFF454545); // 평일: 회색
         }
@@ -998,10 +998,17 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       // 평일(기본) 셀
       defaultBuilder: (context, day, focusedDay) {
-        // ✅ Figma: 평일 #111111, 일요일 #FF0000
+        // ✅ Figma: 평일 #111111, 일요일 #FF0000, 토요일 #1D00FB
         final textColor = day.weekday == 7
             ? const Color(0xFFFF0000) // 일요일: 빨강
+            : day.weekday == 6
+            ? const Color(0xFF1D00FB) // 토요일: 파랑
             : const Color(0xFF111111); // 평일: 검정
+
+        // 🔍 디버깅: 토요일 색상 확인
+        if (day.weekday == 6) {
+          print('🔵 토요일 날짜: ${day.day}일 - 색상: #1D00FB');
+        }
 
         return _buildCalendarCell(
           day: day,
@@ -1301,22 +1308,27 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Material(
                   color: Colors.transparent,
                   child: Container(
-                    width: size,
-                    height: size,
-                    decoration: BoxDecoration(
-                      color: backgroundColor,
-                      borderRadius: BorderRadius.circular(9),
+                    width: size, // 🎯 22px
+                    height: size, // 🎯 22px
+                    decoration: ShapeDecoration(
+                      color: const Color(0xFF111111), // 🎯 #111111 배경
+                      shape: SmoothRectangleBorder(
+                        borderRadius: SmoothBorderRadius(
+                          cornerRadius: 8, // 🎯 8px radius
+                          cornerSmoothing: 0.6, // 🎯 Figma smoothing 60%
+                        ),
+                      ),
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       '${day.day}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: 'LINE Seed JP App_TTF',
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: textColor,
-                        letterSpacing: -0.05,
-                        height: 0.9,
+                        fontSize: 9, // 🎯 9px
+                        fontWeight: FontWeight.w700, // 🎯 700
+                        color: Color(0xFFFFFFFF), // 🎯 흰색
+                        letterSpacing: -0.055, // 🎯 -0.005em
+                        height: 0.9, // 🎯 90%
                       ),
                     ),
                   ),
@@ -1357,49 +1369,70 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context, candidateData, rejectedData) {
           final isHovering = candidateData.isNotEmpty; // ✅ 드래그 중인지 확인
 
-          return Container(
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
             width: double.infinity,
             height: double.infinity,
             padding: const EdgeInsets.only(top: 4),
+            transform: isHovering
+                ? (Matrix4.identity()..scale(1.1)) // 🎯 10% 확대
+                : Matrix4.identity(),
+            transformAlignment: Alignment.center,
             decoration: isHovering
                 ? BoxDecoration(
-                    color: const Color(0xFF566099).withOpacity(0.1), // ✅ 하이라이트
-                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.transparent, // 🎯 배경은 완전 투명
+                    borderRadius: BorderRadius.circular(12), // 🎯 라운드 12
                     border: Border.all(
-                      color: const Color(0xFF566099),
-                      width: 2,
+                      color: const Color(
+                        0xFF111111,
+                      ).withOpacity(0.1), // 🎯 아웃라인 #111111 10% 투명도
+                      width: 2, // 🎯 아웃라인 2px
                     ),
                   )
                 : null,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 날짜 숫자
+                // 날짜 숫자 (오늘은 Figma Frame 745 디자인)
                 Center(
-                  child: Container(
-                    width: size,
-                    height: size,
-                    decoration: BoxDecoration(
-                      color: isHovering
-                          ? const Color(0xFF566099)
-                          : backgroundColor, // ✅ 호버 시 색상 변경
-                      borderRadius: BorderRadius.circular(isToday ? 9 : 8),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '${day.day}',
-                      style: TextStyle(
-                        fontFamily: 'LINE Seed JP App_TTF',
-                        fontSize: 10,
-                        fontWeight: isToday ? FontWeight.w800 : FontWeight.w700,
-                        color: isHovering
-                            ? Colors.white
-                            : textColor, // ✅ 호버 시 흰색
-                        letterSpacing: -0.05,
-                        height: 0.9,
-                      ),
-                    ),
-                  ),
+                  child: isToday
+                      ? Container(
+                          width: size, // 🎯 22px
+                          height: size, // 🎯 22px
+                          decoration: ShapeDecoration(
+                            color: const Color(0xFF111111), // 🎯 #111111 배경
+                            shape: SmoothRectangleBorder(
+                              borderRadius: SmoothBorderRadius(
+                                cornerRadius: 8, // 🎯 8px radius
+                                cornerSmoothing: 0.6, // 🎯 Figma smoothing 60%
+                              ),
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '${day.day}',
+                            style: const TextStyle(
+                              fontFamily: 'LINE Seed JP App_TTF',
+                              fontSize: 9, // 🎯 9px
+                              fontWeight: FontWeight.w700, // 🎯 700
+                              color: Color(0xFFFFFFFF), // 🎯 흰색
+                              letterSpacing: -0.055, // 🎯 -0.005em
+                              height: 0.9, // 🎯 90%
+                            ),
+                          ),
+                        )
+                      : Text(
+                          '${day.day}',
+                          style: TextStyle(
+                            fontFamily: 'LINE Seed JP App_TTF',
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: textColor, // 🎯 원래 텍스트 색상 유지
+                            letterSpacing: -0.05,
+                            height: 0.9,
+                          ),
+                        ),
                 ),
                 _buildSchedulePreview(
                   schedulesForDay,
@@ -1472,10 +1505,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 print(
                   '🎯 [DismissiblePage] 생성 - 현재 인박스 모드: $_isDateDetailInboxMode',
                 );
-                
+
                 // 🔄 인박스 모드 변경을 감지하기 위한 ValueNotifier
-                final inboxModeNotifier = ValueNotifier<bool>(_isDateDetailInboxMode);
-                
+                final inboxModeNotifier = ValueNotifier<bool>(
+                  _isDateDetailInboxMode,
+                );
+
                 context.pushTransparentRoute(
                   ValueListenableBuilder<bool>(
                     valueListenable: inboxModeNotifier,
@@ -1513,7 +1548,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             setState(() {
                               _isDateDetailInboxMode = newInboxMode;
                             });
-                            inboxModeNotifier.value = newInboxMode; // 🔄 ValueNotifier 업데이트
+                            inboxModeNotifier.value =
+                                newInboxMode; // 🔄 ValueNotifier 업데이트
                             print(
                               '🎯 [HomeScreen] DateDetailView 인박스 모드 변경: $newInboxMode',
                             );
@@ -1544,29 +1580,45 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ✅ 날짜 숫자
+                    // ✅ 날짜 숫자 (오늘은 Figma 디자인 Frame 745)
                     Center(
                       child: Container(
-                        width: size,
-                        height: size,
-                        decoration: BoxDecoration(
-                          color: isHovering
-                              ? const Color(0xFF566099)
-                              : backgroundColor,
-                          borderRadius: BorderRadius.circular(isToday ? 9 : 8),
-                        ),
+                        width: size, // 🎯 22px
+                        height: size, // 🎯 22px
+                        decoration: isToday
+                            ? ShapeDecoration(
+                                color: const Color(0xFF111111), // 🎯 #111111 배경
+                                shape: SmoothRectangleBorder(
+                                  borderRadius: SmoothBorderRadius(
+                                    cornerRadius: 8, // 🎯 8px radius
+                                    cornerSmoothing:
+                                        0.6, // 🎯 Figma smoothing 60%
+                                  ),
+                                ),
+                              )
+                            : BoxDecoration(
+                                color: isHovering
+                                    ? const Color(0xFF566099)
+                                    : backgroundColor,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                         alignment: Alignment.center,
                         child: Text(
                           '${day.day}',
                           style: TextStyle(
                             fontFamily: 'LINE Seed JP App_TTF',
-                            fontSize: 10,
+                            fontSize: isToday ? 9 : 10, // 🎯 오늘은 9px
                             fontWeight: isToday
-                                ? FontWeight.w800
+                                ? FontWeight
+                                      .w700 // 🎯 오늘은 700
                                 : FontWeight.w700,
-                            color: isHovering ? Colors.white : textColor,
-                            letterSpacing: -0.05,
-                            height: 0.9,
+                            color: isToday
+                                ? const Color(0xFFFFFFFF) // 🎯 오늘은 흰색
+                                : (isHovering ? Colors.white : textColor),
+                            letterSpacing: isToday
+                                ? -0.055
+                                : -0.05, // 🎯 -0.005em ≈ -0.055px
+                            height: 0.9, // 🎯 90% line-height
                           ),
                         ),
                       ),
