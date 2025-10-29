@@ -368,28 +368,7 @@ class _DateDetailViewState extends State<DateDetailView>
                     },
                   ),
           ), // Scaffold
-          // 🔥🔥🔥 인박스 모드일 때 전체 화면을 덮는 투명 레이어로 DismissiblePage 제스처 차단
-          // ⚠️ 드래그 중일 때는 이 레이어를 비활성화해야 DragTarget이 이벤트를 받을 수 있음!
-          if (_isInboxMode && !_isDraggingFromInbox)
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque, // 🔥 불투명하게 모든 제스처 캡처
-                onVerticalDragStart: (_) {
-                  print('🔒🔒🔒 [인박스 모드] 수직 드래그 완전 차단! (위/아래 모두)');
-                },
-                onVerticalDragUpdate: (_) {
-                  // 제스처 소비 (위로 밀기, 아래로 끌기 모두 차단)
-                },
-                onVerticalDragEnd: (_) {
-                  // 제스처 소비
-                },
-                onVerticalDragCancel: () {
-                  // 제스처 취소도 소비
-                },
-                child: Container(color: Colors.transparent),
-              ),
-            ),
-          // 📋 인박스 모드 상단 TopBar
+          // �📋 인박스 모드 상단 TopBar
           if (_isInboxMode)
             Positioned(
               top: 0,
@@ -1118,7 +1097,6 @@ class _DateDetailViewState extends State<DateDetailView>
                       onNotification: (ScrollNotification notification) {
                         if (notification is ScrollUpdateNotification) {
                           final pixels = notification.metrics.pixels;
-                          final maxScroll = notification.metrics.maxScrollExtent;
 
                           // 🎯 Elevation Overlay: 스크롤 오프셋 업데이트 (일반 모드만)
                           if (!_isInboxMode && pixels >= 0) {
@@ -1127,25 +1105,7 @@ class _DateDetailViewState extends State<DateDetailView>
                             });
                           }
 
-                          // 🚫 하단 오버스크롤 체크: 리스트 맨 아래에서 위로 당길 때 무시!
-                          final isBottomOverscroll = pixels > maxScroll;
-                          
-                          debugPrint('📊 [Scroll] pixels=$pixels, maxScroll=$maxScroll, isBottom=$isBottomOverscroll');
-
-                          // 🚫🚫🚫 하단 오버스크롤이면 모든 dismiss 로직 무시!
-                          if (isBottomOverscroll) {
-                            // 플래그 즉시 리셋
-                            if (_shouldDismissOnScrollEnd || _dragOffset > 0 || _maxOverscrollOffset > 0) {
-                              setState(() {
-                                _shouldDismissOnScrollEnd = false;
-                                _dragOffset = 0;
-                                _maxOverscrollOffset = 0;
-                              });
-                            }
-                            return false; // 이벤트 무시
-                          }
-
-                          // 🎯 핵심! pixels가 음수면 = 상단 오버스크롤 중! ✅
+                          // 🎯 핵심! pixels가 음수면 = 오버스크롤 중!
                           if (pixels < 0) {
                             // 🚀 민감도 증폭: pixels의 절댓값 × 3.0배!
                             const sensitivity = 3.0;

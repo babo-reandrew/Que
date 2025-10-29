@@ -1469,39 +1469,58 @@ class _HomeScreenState extends State<HomeScreen> {
                 });
 
                 // 🎯 DismissiblePage로 Pull-to-dismiss + Hero 구현
+                print(
+                  '🎯 [DismissiblePage] 생성 - 현재 인박스 모드: $_isDateDetailInboxMode',
+                );
+                
+                // 🔄 인박스 모드 변경을 감지하기 위한 ValueNotifier
+                final inboxModeNotifier = ValueNotifier<bool>(_isDateDetailInboxMode);
+                
                 context.pushTransparentRoute(
-                  DismissiblePage(
-                    onDismissed: () {
-                      Navigator.of(context).pop();
+                  ValueListenableBuilder<bool>(
+                    valueListenable: inboxModeNotifier,
+                    builder: (context, isInboxMode, _) {
+                      return DismissiblePage(
+                        key: ValueKey(isInboxMode), // 🔑 인박스 모드 변경 시 재생성
+                        onDismissed: () {
+                          print('🚪 [DismissiblePage] onDismissed 호출됨!');
+                          setState(() {
+                            _isDateDetailInboxMode = false; // 🔥 닫힐 때만 리셋
+                          });
+                          Navigator.of(context).pop();
+                        },
+                        // 🎯 일반 모드: down (위→아래로만) / 인박스 모드: none (완전 차단)
+                        direction: isInboxMode
+                            ? DismissiblePageDismissDirection.none
+                            : DismissiblePageDismissDirection.down,
+                        backgroundColor: Colors.black,
+                        startingOpacity: 0.5, // 시작 배경 투명도
+                        minRadius: 36, // Border radius (작아질 때)
+                        minScale: 0.85, // 최소 스케일 (1.0 → 0.85)
+                        maxTransformValue: 0.3, // 30% 드래그 시 dismiss (일반 모드만)
+                        reverseDuration: const Duration(milliseconds: 300),
+                        child: DateDetailView(
+                          selectedDate: dateKey,
+                          onClose: (lastDate) {
+                            // 🎯 날짜 변경 반영
+                            setState(() {
+                              selectedDay = lastDate;
+                              focusedDay = lastDate;
+                            });
+                          },
+                          onInboxModeChanged: (newInboxMode) {
+                            // 📋 DateDetailView의 인박스 모드 상태 변경 추적
+                            setState(() {
+                              _isDateDetailInboxMode = newInboxMode;
+                            });
+                            inboxModeNotifier.value = newInboxMode; // 🔄 ValueNotifier 업데이트
+                            print(
+                              '🎯 [HomeScreen] DateDetailView 인박스 모드 변경: $newInboxMode',
+                            );
+                          },
+                        ),
+                      );
                     },
-                    disabled:
-                        _isDateDetailInboxMode, // 📋 인박스 모드 시 Pull-to-dismiss 비활성화
-                    direction: DismissiblePageDismissDirection.vertical,
-                    backgroundColor: Colors.black,
-                    startingOpacity: 0.5, // 시작 배경 투명도
-                    minRadius: 36, // Border radius (작아질 때)
-                    minScale: 0.85, // 최소 스케일 (1.0 → 0.85)
-                    maxTransformValue: 0.3, // Threshold: 30% 이상 작아지면 닫힘
-                    reverseDuration: const Duration(milliseconds: 300),
-                    child: DateDetailView(
-                      selectedDate: dateKey,
-                      onClose: (lastDate) {
-                        // 🎯 날짜 변경 반영
-                        setState(() {
-                          selectedDay = lastDate;
-                          focusedDay = lastDate;
-                        });
-                      },
-                      onInboxModeChanged: (isInboxMode) {
-                        // 📋 DateDetailView의 인박스 모드 상태 변경 추적
-                        setState(() {
-                          _isDateDetailInboxMode = isInboxMode;
-                        });
-                        print(
-                          '🎯 [HomeScreen] DateDetailView 인박스 모드 변경: $isInboxMode',
-                        );
-                      },
-                    ),
                   ),
                 );
 

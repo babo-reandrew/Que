@@ -105,6 +105,16 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
       );
       print('📊 이전: ${oldWidget.isDraggingFromParent}');
       print('📊 현재: ${widget.isDraggingFromParent}');
+
+      // 🎯 드래그 시작 시 바텀시트를 즉시 최소 높이(0.16)로 축소
+      if (!oldWidget.isDraggingFromParent && widget.isDraggingFromParent) {
+        print('🔥 [SHEET] 드래그 시작 감지 → 바텀시트를 최소 높이로 축소');
+        _sheetController.animateTo(
+          const Extent.proportional(0.16),
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
       print('');
       // setState 없이도 AnimatedOpacity가 자동으로 감지
     }
@@ -138,42 +148,53 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
     // 🎯 부모로부터 받은 드래그 상태 사용
     final isDragging = widget.isDraggingFromParent;
 
-    // 🎯 드래그 중일 때는 전체 위젯이 터치를 통과시킴
-    return IgnorePointer(
-      ignoring: isDragging, // ✅ 드래그 중일 때 전체가 터치 무시
-      child: Stack(
-        children: [
-          // ✅ 1. 바텀시트 (드래그 가능)
-          // 🎯 드래그 중에는 바텀시트의 터치를 무시하고 투명하게 만들어 뒤의 캘린더가 보이도록 함
-          AnimatedOpacity(
-            opacity: isDragging ? 0.0 : 1.0, // ✅ 드래그 중일 때 완전히 투명
-            duration: const Duration(milliseconds: 200), // ✅ 부드러운 페이드 아웃
-            child: IgnorePointer(
-              ignoring: isDragging, // ✅ 드래그 중일 때 터치 무시
-              child: ScrollableSheet(
-                controller: _sheetController, // 🎯 컨트롤러 연결
-                initialExtent: const Extent.proportional(
-                  0.16,
-                ), // ✅ 초기 높이 16% (가장 낮은 높이)
-                physics: BouncingSheetPhysics(
-                  parent: SnappingSheetPhysics(
-                    snappingBehavior: SnapToNearest(
-                      snapTo: [
-                        Extent.proportional(0.16), // ✅ 최소 16%
-                        Extent.proportional(0.45), // ✅ 중간 45%
-                        Extent.proportional(0.88),
-                      ],
+    // 🎯 외부 IgnorePointer 제거 - 리스트 스크롤 허용
+    return Stack(
+      children: [
+        // ✅ 1. 바텀시트 (드래그 가능)
+        // 🎯 드래그 중에는 바텀시트의 터치를 무시하고 투명하게 만들어 뒤의 캘린더가 보이도록 함
+        AnimatedOpacity(
+          opacity: isDragging ? 0.0 : 1.0, // ✅ 드래그 중일 때 완전히 투명
+          duration: const Duration(milliseconds: 200), // ✅ 부드러운 페이드 아웃
+          child: ScrollableSheet(
+            controller: _sheetController, // 🎯 컨트롤러 연결
+            initialExtent: const Extent.proportional(
+              0.16,
+            ), // ✅ 초기 높이 16% (가장 낮은 높이)
+            physics: BouncingSheetPhysics(
+              parent: SnappingSheetPhysics(
+                snappingBehavior: SnapToNearest(
+                  snapTo: [
+                    Extent.proportional(0.16), // ✅ 최소 16%
+                    Extent.proportional(0.45), // ✅ 중간 45%
+                    Extent.proportional(0.88),
+                  ],
+                ),
+              ),
+            ),
+            minExtent: Extent.proportional(0.16), // ✅ 최소 16%
+            maxExtent: Extent.proportional(maxHeight),
+            child: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4), // ✅ 배경 블러 4
+                child: Material(
+                  color: Colors.transparent,
+                  clipBehavior: Clip.antiAlias,
+                  shape: SmoothRectangleBorder(
+                    side: const BorderSide(
+                      color: Color(0x0A111111), // ✅ #111111 4%로 변경
+                      width: 1,
+                    ),
+                    borderRadius: SmoothBorderRadius.vertical(
+                      top: SmoothRadius(
+                        cornerRadius: 36, // ✅ 상단 라운드 36
+                        cornerSmoothing: 0.6, // ✅ 피그마 스무싱 60%
+                      ),
                     ),
                   ),
-                ),
-                minExtent: Extent.proportional(0.16), // ✅ 최소 16%
-                maxExtent: Extent.proportional(maxHeight),
-                child: ClipRect(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4), // ✅ 배경 블러 4
-                    child: Material(
-                      color: Colors.transparent,
-                      clipBehavior: Clip.antiAlias,
+                  child: Container(
+                    decoration: ShapeDecoration(
+                      color: const Color(0xF2FFFFFF), // ✅ #FFFFFF 95% (5% 투명)
                       shape: SmoothRectangleBorder(
                         side: const BorderSide(
                           color: Color(0x0A111111), // ✅ #111111 4%로 변경
@@ -181,130 +202,106 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
                         ),
                         borderRadius: SmoothBorderRadius.vertical(
                           top: SmoothRadius(
-                            cornerRadius: 36, // ✅ 상단 라운드 36
-                            cornerSmoothing: 0.6, // ✅ 피그마 스무싱 60%
+                            cornerRadius: 36,
+                            cornerSmoothing: 0.6,
                           ),
                         ),
                       ),
-                      child: Container(
-                        decoration: ShapeDecoration(
-                          color: const Color(
-                            0xF2FFFFFF,
-                          ), // ✅ #FFFFFF 95% (5% 투명)
-                          shape: SmoothRectangleBorder(
-                            side: const BorderSide(
-                              color: Color(0x0A111111), // ✅ #111111 4%로 변경
-                              width: 1,
-                            ),
-                            borderRadius: SmoothBorderRadius.vertical(
-                              top: SmoothRadius(
-                                cornerRadius: 36,
-                                cornerSmoothing: 0.6,
-                              ),
-                            ),
-                          ),
-                          shadows: const [
-                            BoxShadow(
-                              color: Color(0x14BABABA), // ✅ #BABABA 8%
-                              offset: Offset(0, 2), // ✅ y: 2
-                              blurRadius: 8, // ✅ blur 8
-                            ),
-                          ],
+                      shadows: const [
+                        BoxShadow(
+                          color: Color(0x14BABABA), // ✅ #BABABA 8%
+                          offset: Offset(0, 2), // ✅ y: 2
+                          blurRadius: 8, // ✅ blur 8
                         ),
-                        // ✅ Column with drag handle area
-                        child: Column(
-                          children: [
-                            // 🎯 드래그 핸들 영역 - SheetDraggable로 감싸서 smooth_sheets와 연동
-                            SheetDraggable(
+                      ],
+                    ),
+                    // ✅ Column with drag handle area
+                    child: Column(
+                      children: [
+                        // 🎯 드래그 핸들 영역 - SheetDraggable로 감싸서 smooth_sheets와 연동
+                        SheetDraggable(
+                          child: Container(
+                            color: Colors.transparent, // 터치 영역 확보
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 2,
+                            ), // 상하 2px 패딩
+                            height: 36, // 32 + 4 (패딩)
+                            child: Center(
                               child: Container(
-                                color: Colors.transparent, // 터치 영역 확보
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 2,
-                                ), // 상하 2px 패딩
-                                height: 36, // 32 + 4 (패딩)
-                                child: Center(
-                                  child: Container(
-                                    width: 36,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0x1A111111),
-                                      borderRadius: BorderRadius.circular(100),
-                                    ),
-                                  ),
+                                width: 36,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: const Color(0x1A111111),
+                                  borderRadius: BorderRadius.circular(100),
                                 ),
                               ),
                             ),
-                            // 🎯 TopNavi - 전체를 Stack으로 구성하여 드래그 가능한 영역과 AI 토글 분리
-                            SizedBox(
-                              height: 40,
-                              child: Stack(
-                                children: [
-                                  // 배경 전체를 드래그 가능하게
-                                  Positioned.fill(
-                                    child: SheetDraggable(
-                                      child: Container(
-                                        color: Colors.transparent,
-                                      ),
-                                    ),
-                                  ),
-                                  // 실제 TopNavi 컨텐츠 (AI 토글은 터치 받음)
-                                  Positioned.fill(child: _buildTopNavi()),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            // ✅ 스크롤 가능한 드래그 앤 드롭 리스트
-                            Expanded(child: _buildTaskList()),
-                          ],
+                          ),
                         ),
-                      ),
+                        // 🎯 TopNavi - 전체를 Stack으로 구성하여 드래그 가능한 영역과 AI 토글 분리
+                        SizedBox(
+                          height: 40,
+                          child: Stack(
+                            children: [
+                              // 배경 전체를 드래그 가능하게
+                              Positioned.fill(
+                                child: SheetDraggable(
+                                  child: Container(color: Colors.transparent),
+                                ),
+                              ),
+                              // 실제 TopNavi 컨텐츠 (AI 토글은 터치 받음)
+                              Positioned.fill(child: _buildTopNavi()),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // ✅ 스크롤 가능한 드래그 앤 드롭 리스트
+                        Expanded(child: _buildTaskList()),
+                      ],
                     ),
                   ),
                 ),
-              ), // ✅ ScrollableSheet 닫기
-            ), // ✅ IgnorePointer 닫기
-          ), // ✅ AnimatedOpacity 닫기
-          // ✅ 3. 필터바 아래 터치 차단 영역 (그라데이션 블러)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 104, // ✅ 필터바 64px + 하단 40px
-            child: Opacity(
-              opacity: 0.96, // ✅ 96% 투명도
-              child: ClipRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(
-                    sigmaX: 16,
-                    sigmaY: 16,
-                  ), // ✅ 레이어 블러 16
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          const Color(0x00FAFAFA), // ✅ #FAFAFA 0%
-                          const Color(0x1FFAFAFA), // ✅ #FAFAFA 12%
-                        ],
-                      ),
+              ),
+            ),
+          ), // ✅ ScrollableSheet 닫기
+        ), // ✅ AnimatedOpacity 닫기
+        // ✅ 3. 필터바 아래 터치 차단 영역 (그라데이션 블러)
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 104, // ✅ 필터바 64px + 하단 40px
+          child: Opacity(
+            opacity: 0.96, // ✅ 96% 투명도
+            child: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16), // ✅ 레이어 블러 16
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0x00FAFAFA), // ✅ #FAFAFA 0%
+                        const Color(0x1FFAFAFA), // ✅ #FAFAFA 12%
+                      ],
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          // ✅ 2. 필터바 (화면 최하단 고정 - 독립적)
-          Positioned(
-            bottom: 40, // ✅ 화면 하단에서 40px 떨어짐
-            left: 0,
-            right: 0,
-            child: _buildFilterBar(),
-          ),
-        ],
-      ), // ✅ Stack 닫기
-    ); // ✅ IgnorePointer 닫기
+        ),
+        // ✅ 2. 필터바 (화면 최하단 고정 - 독립적)
+        Positioned(
+          bottom: 40, // ✅ 화면 하단에서 40px 떨어짐
+          left: 0,
+          right: 0,
+          child: _buildFilterBar(),
+        ),
+      ], // ✅ Stack children 닫기
+    ); // ✅ Stack 닫기
   }
 
   /// TopNavi (40px): タスク + AI Toggle
