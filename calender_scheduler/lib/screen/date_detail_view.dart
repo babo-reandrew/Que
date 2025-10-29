@@ -1091,6 +1091,9 @@ class _DateDetailViewState extends State<DateDetailView>
                     // 🎯 NotificationListener로 감싸서 오버스크롤 시 pull-to-dismiss 활성화
                     return NotificationListener<ScrollNotification>(
                       onNotification: (ScrollNotification notification) {
+                        // 📋 인박스 모드에서는 pull-to-dismiss 완전 차단
+                        if (_isInboxMode) return false;
+
                         if (notification is ScrollUpdateNotification) {
                           final pixels = notification.metrics.pixels;
 
@@ -3055,65 +3058,41 @@ class _DateDetailViewState extends State<DateDetailView>
     print('   • 받은 dropIndex (currentItems 기준): $dropIndex');
 
     // 🔥 [핵심] dropIndex를 actualDataItems 기준으로 변환
-    // dropIndex는 currentItems의 인덱스이므로, actualDataItems에서 몇 번째인지 찾아야 함
+    // 개선된 방법: dropIndex 이전의 실제 데이터 아이템 개수를 센다
+    // 이 방법이 uniqueId 검색보다 더 정확하고 간단함 (특히 3개 이하일 때)
     int actualDropIndex = 0;
 
     if (dropIndex < currentItems.length) {
-      // dropIndex가 가리키는 currentItems의 아이템
       final targetItem = currentItems[dropIndex];
       print(
         '   • dropIndex가 가리키는 아이템: ${targetItem.type} / ${targetItem.uniqueId}',
       );
 
-      // 🔥 핵심 수정: divider인 경우 특별 처리
-      if (targetItem.type == UnifiedItemType.divider) {
-        // Divider는 schedules와 tasks 사이에 있음
-        // Divider 위에 드롭 = schedules 끝에 삽입해야 함
-        // 하지만 actualDataItems에는 divider가 없으므로, schedules 개수를 세서 그 위치를 사용
-        print('   🔥 Divider에 드롭 → schedules 끝 위치 계산');
-
-        // dropIndex 이전의 schedule 개수를 센다
-        int scheduleCount = 0;
-        for (int i = 0; i < dropIndex; i++) {
-          if (currentItems[i].type == UnifiedItemType.schedule) {
-            scheduleCount++;
-          }
-        }
-
-        actualDropIndex = scheduleCount;
-        print(
-          '   🎯 Schedule 개수: $scheduleCount → actualDropIndex = $actualDropIndex',
-        );
-      } else {
-        // 일반 데이터 아이템인 경우, actualDataItems에서 위치 찾기
-        actualDropIndex = actualDataItems.indexWhere(
-          (item) => item.uniqueId == targetItem.uniqueId,
-        );
-
-        if (actualDropIndex == -1) {
-          // 헤더를 가리키는 경우, 그 다음 실제 데이터 아이템을 찾음
-          print('   ⚠️ 헤더를 가리킴 → 다음 실제 아이템 찾기');
-
-          // dropIndex 이후의 첫 번째 실제 데이터 아이템을 찾음
-          for (int i = dropIndex; i < currentItems.length; i++) {
-            final item = currentItems[i];
-            actualDropIndex = actualDataItems.indexWhere(
-              (dataItem) => dataItem.uniqueId == item.uniqueId,
-            );
-            if (actualDropIndex != -1) {
-              print('   ✅ 찾은 실제 아이템 인덱스: $actualDropIndex');
-              break;
-            }
-          }
-        } else {
-          print('   ✅ actualDataItems 인덱스: $actualDropIndex');
+      // 🎯 개선된 로직: dropIndex 이전의 실제 데이터 아이템 개수를 센다
+      int dataItemCountBefore = 0;
+      for (int i = 0; i < dropIndex; i++) {
+        final item = currentItems[i];
+        // 헤더, 구분선, 완료 섹션, 인박스헤더를 제외한 실제 데이터만 카운트
+        if (item.type != UnifiedItemType.dateHeader &&
+            item.type != UnifiedItemType.divider &&
+            item.type != UnifiedItemType.completed &&
+            item.type != UnifiedItemType.inboxHeader) {
+          dataItemCountBefore++;
         }
       }
 
-      // 못 찾았으면 맨 끝
-      if (actualDropIndex == -1) {
+      actualDropIndex = dataItemCountBefore;
+      print(
+        '   🎯 dropIndex($dropIndex) 이전의 실제 데이터: $dataItemCountBefore개',
+      );
+      print('   🎯 계산된 actualDropIndex: $actualDropIndex');
+
+      // 🔥 추가 검증: 범위 체크 (안전장치)
+      if (actualDropIndex > actualDataItems.length) {
+        print(
+          '   ⚠️ actualDropIndex($actualDropIndex) > 실제 데이터 개수(${actualDataItems.length}) → 맨 끝으로 조정',
+        );
         actualDropIndex = actualDataItems.length;
-        print('   ⚠️ 실제 아이템 없음 → 맨 끝으로 설정');
       }
     } else {
       // 범위 밖이면 맨 끝
@@ -3121,17 +3100,12 @@ class _DateDetailViewState extends State<DateDetailView>
       print('   ⚠️ 범위 밖 → 맨 끝으로 설정');
     }
 
-    // 🔥 핵심 수정: 사용자가 "카드 위에" 드롭하면 그 카드 위치에 삽입해야 함
-    // 하지만 우리가 계산한 actualDropIndex는 "그 카드가 가리키는 위치"이므로
-    // 실제로는 그 위치에 삽입하면 그 카드 뒤에 들어감
-    // 따라서 -1을 해서 그 카드 앞(= 그 카드가 있던 자리)에 삽입
-    if (actualDropIndex > 0) {
-      final oldIndex = actualDropIndex;
-      actualDropIndex = actualDropIndex - 1;
-      print(
-        '   🔥 드롭 위치 조정: $oldIndex → $actualDropIndex (카드가 드롭된 위치에 정확히 삽입)',
-      );
-    }
+    // 🔥 수정: actualDropIndex는 이미 올바른 삽입 위치를 가리킴
+    // _buildBetweenCardDropZone은 "카드 위쪽"에 드롭하는 것이고,
+    // List.insert(index, element)는 해당 index에 삽입하여 기존 요소를 뒤로 미룸
+    // 예: [A, B, C].insert(1, X) → [A, X, B, C] (B 앞에 삽입)
+    // 따라서 actualDropIndex를 그대로 사용하면 정확한 위치에 삽입됨
+    // 이전의 -1 로직은 3개 이하일 때 잘못된 위치에 삽입되는 원인이었음
 
     print('   🎯 최종 삽입 위치 (actualDataItems 기준): $actualDropIndex');
     print('');
@@ -3780,39 +3754,11 @@ class _DateDetailViewState extends State<DateDetailView>
 
         print('✅ [TopDropZone] DB 업데이트 완료 (sortOrder=0, 최상단)');
 
-        // 🔥 인박스 바텀시트 다시 열기
+        // 🔥 드래그 종료 - 기존 바텀시트로 복귀 (중복 방지)
         if (mounted) {
           setState(() {
             _isDraggingFromInbox = false;
             _hoveredCardIndex = null;
-          });
-
-          // 약간의 딜레이 후 바텀시트 다시 열기
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted) {
-              Navigator.push(
-                context,
-                ModalSheetRoute(
-                  builder: (context) => TaskInboxBottomSheet(
-                    onClose: () {
-                      print('✅ [TaskInbox] 닫힘');
-                      setState(() {
-                        _isInboxMode = false;
-                      });
-                      widget.onInboxModeChanged?.call(false);
-                    },
-                    onDragStart: () {
-                      setState(() {
-                        _isDraggingFromInbox = true;
-                      });
-                      print('🎯 [DateDetailView] 드래그 시작');
-                    },
-                  ),
-                  barrierColor: Colors.transparent,
-                  barrierDismissible: true,
-                ),
-              );
-            }
           });
         }
       },
@@ -3965,39 +3911,11 @@ class _DateDetailViewState extends State<DateDetailView>
 
         print('✅ [BottomDropZone] DB 업데이트 완료 (sortOrder=999999000, 최하단)');
 
-        // 🔥 인박스 바텀시트 다시 열기
+        // 🔥 드래그 종료 - 기존 바텀시트로 복귀 (중복 방지)
         if (mounted) {
           setState(() {
             _isDraggingFromInbox = false;
             _hoveredCardIndex = null;
-          });
-
-          // 약간의 딜레이 후 바텀시트 다시 열기
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted) {
-              Navigator.push(
-                context,
-                ModalSheetRoute(
-                  builder: (context) => TaskInboxBottomSheet(
-                    onClose: () {
-                      print('✅ [TaskInbox] 닫힘');
-                      setState(() {
-                        _isInboxMode = false;
-                      });
-                      widget.onInboxModeChanged?.call(false);
-                    },
-                    onDragStart: () {
-                      setState(() {
-                        _isDraggingFromInbox = true;
-                      });
-                      print('🎯 [DateDetailView] 드래그 시작');
-                    },
-                  ),
-                  barrierColor: Colors.transparent,
-                  barrierDismissible: true,
-                ),
-              );
-            }
           });
         }
       },

@@ -115,8 +115,16 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
         if (currentExtent != null && mounted) {
           final screenHeight = MediaQuery.of(context).size.height;
           if (screenHeight > 0) {
-            _previousSheetHeight = currentExtent / screenHeight;
-            print('💾 [SHEET] 현재 높이 저장: ${(_previousSheetHeight! * 100).toStringAsFixed(0)}%');
+            final currentHeightRatio = currentExtent / screenHeight;
+            // 🔥 수정: 현재 높이가 최소 높이(0.16)보다 크면 저장, 아니면 기본값(0.45) 사용
+            // 이렇게 하면 바텀시트가 최소 높이로 유지되는 문제를 방지
+            if (currentHeightRatio > 0.16) {
+              _previousSheetHeight = currentHeightRatio;
+              print('💾 [SHEET] 현재 높이 저장: ${(_previousSheetHeight! * 100).toStringAsFixed(0)}%');
+            } else {
+              _previousSheetHeight = 0.45;
+              print('💾 [SHEET] 현재 높이가 최소값이므로 기본값(45%)로 설정');
+            }
           }
         }
 

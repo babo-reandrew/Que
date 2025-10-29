@@ -1515,8 +1515,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ValueListenableBuilder<bool>(
                     valueListenable: inboxModeNotifier,
                     builder: (context, isInboxMode, _) {
+                      // 🔥 수정: key를 제거하여 DismissiblePage가 재생성되지 않도록 함
+                      // 이렇게 하면 인박스 모드가 변경되어도 DateDetailView의 상태(현재 날짜)가 유지됨
                       return DismissiblePage(
-                        key: ValueKey(isInboxMode), // 🔑 인박스 모드 변경 시 재생성
                         onDismissed: () {
                           print('🚪 [DismissiblePage] onDismissed 호출됨!');
                           setState(() {
