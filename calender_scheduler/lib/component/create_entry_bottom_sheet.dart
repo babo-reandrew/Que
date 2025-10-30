@@ -615,12 +615,25 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
                   ),
                 ),
 
-                // 2️⃣ Blur + Gradient - Input Accessory 상단부터 화면 하단까지만 (Positioned로 정확히 제한)
+                // 2️⃣ 배경색 F0F0F0 - Input Accessory 상단부터 화면 하단까지
                 Positioned(
                   left: 0,
                   right: 0,
                   top: inputAccessoryTop, // 🔥 Input Accessory 상단부터 시작
                   bottom: 0,              // 🔥 화면 하단까지
+                  child: IgnorePointer(
+                    child: Container(
+                      color: const Color(0xFFF0F0F0), // Blur 대신 단색 배경
+                    ),
+                  ),
+                ),
+
+                // 3️⃣ Blur + Gradient Overlay (배경색 위에 덧입힘)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: inputAccessoryTop,
+                  bottom: 0,
                   child: IgnorePointer(
                     child: BackdropFilter(
                       filter: ImageFilter.blur(
@@ -634,7 +647,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
                             end: Alignment.bottomCenter,
                             colors: [
                               Color(0x00FFFFFF), // 상단: 완전 투명
-                              Color(0xF2F0F0F0), // 하단: 95% 불투명 (Figma 스펙)
+                              Color(0x80F0F0F0), // 하단: 50% 불투명 F0F0F0
                             ],
                             stops: [0.0, 0.5], // Figma: 0%, 50%
                           ),
@@ -644,7 +657,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
                   ),
                 ),
 
-                // 3️⃣ Input Accessory 컨텐츠
+                // 4️⃣ Input Accessory 컨텐츠
                 QuickAddKeyboardTracker(
                   isLocked: _isKeyboardLocked,
                   child: Padding(
