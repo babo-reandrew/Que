@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/spring_curve.dart';
 
 // ========================================
 // ✅ Quick Add 타입 정의 (클래스 외부로 이동)
@@ -69,16 +70,14 @@ class QuickAddConfig {
   // 크기 (피그마 기반)
   // ========================================
 
-  /// Quick_Add_ControlBox 기본 높이 (TextField 위32 하20, 追加버튼 하단 18px)
-  static const double controlBoxInitialHeight = 134.0; // 32+20+20+44+18 = 134px
+  /// Quick_Add_ControlBox 기본 높이 (상단 24px + TextField + 버튼 영역)
+  static const double controlBoxInitialHeight = 140.0;
 
-  /// Quick_Add_ControlBox 확장 높이 - 일정 모드 (TextField 위32 하20, 버튼 하단 20px)
-  static const double controlBoxScheduleHeight =
-      148.0; // 32(상단) + 20(텍스트) + 20(하단) + 56(버튼+터치) + 20(여백) = 148px
+  /// Quick_Add_ControlBox 확장 높이 - 일정 모드 (상단 24px + TextField + 옵션 버튼)
+  static const double controlBoxScheduleHeight = 140.0;
 
-  /// Quick_Add_ControlBox 확장 높이 - 할일 모드 (TextField 위32 하20, 버튼 하단 20px)
-  static const double controlBoxTaskHeight =
-      148.0; // 32(상단) + 20(텍스트) + 20(하단) + 56(버튼+터치) + 20(여백) = 148px
+  /// Quick_Add_ControlBox 확장 높이 - 할일 모드 (상단 24px + TextField + 옵션 버튼)
+  static const double controlBoxTaskHeight = 140.0;
 
   /// 색상 선택 모달 높이 (피그마: 414px)
   static const double colorPickerModalHeight = 414.0;
@@ -161,17 +160,17 @@ class QuickAddConfig {
   /// 키보드와 동기화된 슬라이드 업 시간
   static const Duration slideUpDuration = Duration(milliseconds: 300);
 
-  /// 높이 확장 애니메이션 시간
-  static const Duration heightExpandDuration = Duration(milliseconds: 350);
+  /// 높이 확장 애니메이션 시간 (Apple 스프링 애니메이션)
+  static const Duration heightExpandDuration = Duration(milliseconds: 600);
 
   /// Morphing 애니메이션 Curve (Spring-Based)
-  static const Curve morphingCurve = Curves.easeInOutCubic;
+  static const Curve morphingCurve = AppleSpringCurves.smooth;
 
   /// 슬라이드 업 Curve
   static const Curve slideUpCurve = Curves.easeOutCubic;
 
-  /// 높이 확장 Curve
-  static const Curve heightExpandCurve = Curves.easeInOutCubic;
+  /// 높이 확장 Curve (Apple 스프링 애니메이션)
+  static const Curve heightExpandCurve = AppleSpringCurves.smooth;
 
   // ========================================
   // 패딩 및 마진 (피그마 기반)

@@ -594,18 +594,25 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
                 ),
               ),
             ),
-            // 🎨 배경 블러 박스 (하단부터 인풋악세사리 상단까지 전체 채움)
+            // 🌈 배경 그라데이션 블러 박스 (캘린더에서 인풋으로 자연스러운 전환)
+            // 이거를 설정하고 → 상단은 투명, 하단으로 갈수록 블러가 강해지는 그라데이션을 만들어서
+            // 이거를 해서 → 캘린더에서 인풋 액세서리로 자연스럽게 전환되는 시각 효과를 제공한다
+            // 이거는 이래서 → 사용자가 캘린더와 입력 영역의 경계를 명확하게 인식할 수 있다
             QuickAddKeyboardTracker(
               isLocked: _isKeyboardLocked,
               child: IgnorePointer(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: const Color.fromRGBO(
-                      250,
-                      250,
-                      250,
-                      0.95,
-                    ), // FAFAFA 95%
+                    gradient: const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0x00FFFFFF), // 상단: 완전 투명 (캘린더 선명하게 보임)
+                        Color(0x4DFAFAFA), // 중간: 30% 불투명 (FAFAFA)
+                        Color(0xF2FAFAFA), // 하단: 95% 불투명 (FAFAFA)
+                      ],
+                      stops: [0.0, 0.4, 1.0], // 상단 40%까지 투명 유지, 하단 60%에서 블러 강화
+                    ),
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(24), // 상단만 둥글게
                     ),
@@ -615,7 +622,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
                       top: Radius.circular(24),
                     ),
                     child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+                      filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
                       child: Container(color: Colors.transparent),
                     ),
                   ),

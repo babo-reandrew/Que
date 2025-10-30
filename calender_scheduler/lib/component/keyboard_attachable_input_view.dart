@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'quick_add/quick_add_control_box.dart';
 
@@ -87,6 +88,7 @@ class _InputAccessoryWithBlurState extends State<InputAccessoryWithBlur>
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
 
     // ✅ 키보드가 올라와 있으면 높이 저장
@@ -100,57 +102,72 @@ class _InputAccessoryWithBlurState extends State<InputAccessoryWithBlur>
         : 0.0;
 
     // 🍎 Apple Spring Animation 적용
-    return AnimatedBuilder(
-      animation: _springController,
-      builder: (context, child) {
-        return Transform.translate(
-          offset: Offset(0, _slideAnimation.value), // Y축 슬라이드
-          child: Opacity(
-            opacity: _fadeAnimation.value, // 페이드 인
-            child: child,
-          ),
-        );
-      },
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: Padding(
-          padding: EdgeInsets.only(bottom: keyboardHeight), // 키보드 높이만큼 올림
-          child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Container(
-              width: screenWidth,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFFFFFFFF).withOpacity(0.0),
-                    const Color(0xFFF0F0F0).withOpacity(0.95),
-                  ],
-                  stops: const [0.0, 0.5],
-                ),
-              ),
-              // ✅ 그라데이션 박스의 하단 패딩만 늘림
-              padding: EdgeInsets.only(
-                left: 14,
-                right: 14,
-                bottom: 6 + extraBottomPadding, // 키보드 내려가면 패딩 증가!
-              ),
-              child: SafeArea(
-                top: false,
-                child: QuickAddControlBox(
-                  selectedDate: widget.selectedDate,
-                  onSave: (data) {
-                    _animateOut(() {
-                      widget.onSaveComplete?.call();
-                      Navigator.pop(context);
-                    });
-                  },
+    return SizedBox(
+      width: screenWidth,
+      height: screenHeight,
+      child: Stack(
+        children: [
+          // ✅ Figma 그라디언트 배경 + Blur
+          Positioned.fill(
+            child: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0x00FFFFFF), // rgba(255, 255, 255, 0) - 투명
+                        Color(0xF2F0F0F0), // rgba(240, 240, 240, 0.95) - 50% 지점
+                      ],
+                      stops: [0.0, 0.5],
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+          
+          // ✅ 컨텐츠 - 애니메이션 적용
+          AnimatedBuilder(
+            animation: _springController,
+            builder: (context, child) {
+              return Transform.translate(
+                offset: Offset(0, _slideAnimation.value), // Y축 슬라이드
+                child: Opacity(
+                  opacity: _fadeAnimation.value, // 페이드 인
+                  child: child,
+                ),
+              );
+            },
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: EdgeInsets.only(bottom: keyboardHeight), // 키보드 높이만큼 올림
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: 14,
+                    right: 14,
+                    bottom: 0 + extraBottomPadding, // 하단 여백 제거 (버튼 자체에서 18px 적용)
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: QuickAddControlBox(
+                      selectedDate: widget.selectedDate,
+                      onSave: (data) {
+                        _animateOut(() {
+                          widget.onSaveComplete?.call();
+                          Navigator.pop(context);
+                        });
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

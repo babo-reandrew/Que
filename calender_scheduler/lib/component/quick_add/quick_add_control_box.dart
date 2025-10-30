@@ -85,19 +85,19 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
     // 이거를 해서 → 높이 확장 애니메이션을 제어한다
     _heightAnimationController = AnimationController(
       vsync: this,
-      duration: QuickAddConfig.heightExpandDuration, // 350ms
+      duration: QuickAddConfig.heightExpandDuration, // 600ms (Spring)
     );
 
     // 이거를 설정하고 → 초기 높이를 설정해서
-    // 이거를 해서 → 기본 상태는 132px로 시작한다
+    // 이거를 해서 → 기본 상태는 140px로 시작한다
     _heightAnimation =
         Tween<double>(
-          begin: QuickAddConfig.controlBoxInitialHeight, // 132px
+          begin: QuickAddConfig.controlBoxInitialHeight, // 140px
           end: QuickAddConfig.controlBoxInitialHeight,
         ).animate(
           CurvedAnimation(
             parent: _heightAnimationController,
-            curve: QuickAddConfig.heightExpandCurve, // easeInOutCubic
+            curve: QuickAddConfig.heightExpandCurve, // Spring curve
           ),
         );
 
@@ -147,7 +147,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
       _heightAnimation =
           Tween<double>(
             begin: _heightAnimation.value,
-            end: QuickAddConfig.controlBoxInitialHeight, // 132px
+            end: QuickAddConfig.controlBoxInitialHeight, // 140px
           ).animate(
             CurvedAnimation(
               parent: _heightAnimationController,
@@ -156,7 +156,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
           );
       _heightAnimationController.forward(from: 0.0);
 
-      print('🔄 [Quick Add] 타입 해제 → 기본 상태 복귀 (132px)');
+      print('🔄 [Quick Add] 타입 해제 → 기본 상태 복귀 (140px)');
       return;
     }
 
@@ -179,12 +179,12 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
         // 유저가 날짜 선택 바텀시트에서 "완료"를 눌러야만 시간이 설정됨
         // 이거를 해서 → 기본 상태에서는 "開始-終了" 버튼만 표시된다
 
-        baseHeight = QuickAddConfig.controlBoxScheduleHeight; // 148px
+        baseHeight = QuickAddConfig.controlBoxScheduleHeight; // 140px
         print('📅 [Quick Add] 일정 모드로 확장: ${baseHeight}px (시간 미설정)');
         break;
 
       case QuickAddType.task:
-        baseHeight = QuickAddConfig.controlBoxTaskHeight; // 148px
+        baseHeight = QuickAddConfig.controlBoxTaskHeight; // 140px
         print('✅ [Quick Add] 할일 모드로 확장: ${baseHeight}px');
         break;
 
@@ -224,11 +224,11 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
     double baseHeight;
 
     if (_selectedType == null) {
-      baseHeight = QuickAddConfig.controlBoxInitialHeight; // 134px
+      baseHeight = QuickAddConfig.controlBoxInitialHeight; // 140px
     } else if (_selectedType == QuickAddType.schedule) {
-      baseHeight = QuickAddConfig.controlBoxScheduleHeight; // 148px
+      baseHeight = QuickAddConfig.controlBoxScheduleHeight; // 140px
     } else {
-      baseHeight = QuickAddConfig.controlBoxTaskHeight; // 148px
+      baseHeight = QuickAddConfig.controlBoxTaskHeight; // 140px
     }
 
     // ✅ TextField 높이 증가분 추가 (기본 20px 제외)
@@ -557,8 +557,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
                   alignment: Alignment.center,
                   child: SizedBox(
                     width: QuickAddDimensions.frameWidth, // 365px
-                    height: _heightAnimation
-                        .value, // ✅ 동적 높이 (기본 132px, 일정 196px, 할일 192px)
+                    height: _heightAnimation.value, // ✅ 동적 높이 (기본 132px, 일정 196px, 할일 192px)
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
@@ -568,19 +567,38 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
                           decoration: QuickAddWidgets.frame701Decoration,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisAlignment: MainAxisAlignment.start,
                             children: [
+                              // ✅ 상단 24px 고정 여백
+                              const SizedBox(height: 24),
+                              
                               // ✅ 상단: 텍스트 입력 영역 (Frame 700)
                               _buildTextInputArea(),
 
-                              // ✅ 중단: QuickDetail 옵션 (일정/할일 선택 시만 표시)
-                              if (_selectedType != null)
-                                _buildQuickDetailOptions(),
+                              // ✅ 남은 공간을 채워서 하단 버튼을 아래로 밀어냄
+                              const Spacer(),
 
-                              // ✅✅✅ 남은 공간 채우기 → 追加 버튼을 하단으로 밀어냄
-                              if (_selectedType == null) const Spacer(),
-
-                              // ✅ 하단: 追加 버튼 (타입 미선택 시만 표시)
-                              if (_selectedType == null) _buildAddButtonArea(),
+                              // ✅ 중단: QuickDetail 옵션 (일정/할일 선택 시만 표시) - 부드러운 기본 애니메이션
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 300),
+                                switchInCurve: Curves.easeOut,
+                                switchOutCurve: Curves.easeIn,
+                                transitionBuilder: (child, animation) {
+                                  return FadeTransition(
+                                    opacity: animation,
+                                    child: child,
+                                  );
+                                },
+                                child: _selectedType != null
+                                    ? KeyedSubtree(
+                                        key: const ValueKey('quickDetailOptions'),
+                                        child: _buildQuickDetailOptions(),
+                                      )
+                                    : KeyedSubtree(
+                                        key: const ValueKey('addButtonArea'),
+                                        child: _buildAddButtonArea(),
+                                      ),
+                              ),
                             ],
                           ),
                         ),
@@ -591,12 +609,12 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
 
                 const SizedBox(height: 8), // Figma: gap 8px
                 // ✅ 2. 타입 선택기 또는 타입 선택 팝업 (Frame 704 ↔ Frame 705)
-                // 追加 버튼 클릭 시 같은 위치에서 Frame 704 → Frame 705로 자연스럽게 전환
+                // 追加 버튼 클릭 시 같은 위치에서 Frame 704 → Frame 705로 Hero 스타일 전환
                 Align(
                   alignment: Alignment.centerRight, // 📍 둘 다 우측 정렬
                   child: _showDetailPopup && _selectedType == null
-                      ? _buildTypePopup() // Frame 705: 타입 선택 팝업
-                      : _buildTypeSelector(), // Frame 704: 타입 선택기
+                      ? _buildTypePopup()
+                      : _buildTypeSelector(),
                 ),
               ],
             ),
@@ -623,15 +641,21 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   Widget _buildTypeSelector() {
     // Figma: Frame 704 (220×52px)
     // Column 내부에서 중앙 정렬
-    return Container(
-      width: 220, // Figma: Frame 704 width
-      height: 52, // Figma: Frame 704 height
-      padding: const EdgeInsets.symmetric(
-        horizontal: 4,
-      ), // Figma: padding 0px 4px
-      child: QuickAddTypeSelector(
-        selectedType: _selectedType,
-        onTypeSelected: _onTypeSelected,
+    return Hero(
+      tag: 'typeSelectorHero',
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: 220, // Figma: Frame 704 width
+          height: 52, // Figma: Frame 704 height
+          padding: const EdgeInsets.symmetric(
+            horizontal: 4,
+          ), // Figma: padding 0px 4px
+          child: QuickAddTypeSelector(
+            selectedType: _selectedType,
+            onTypeSelected: _onTypeSelected,
+          ),
+        ),
       ),
     );
   }
@@ -642,19 +666,25 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   Widget _buildTypePopup() {
     // Figma: Frame 705 (220×172px)
     // Frame 704와 같은 위치, 높이만 확장
-    return QuickDetailPopup(
-      onScheduleSelected: () {
-        print('📋 [QuickDetailPopup] 일정 선택 - 직접 저장');
-        _saveDirectSchedule();
-      },
-      onTaskSelected: () {
-        print('📋 [QuickDetailPopup] 할일 선택 - 직접 저장');
-        _saveDirectTask();
-      },
-      onHabitSelected: () {
-        print('📋 [QuickDetailPopup] 습관 선택 - 직접 저장');
-        _saveDirectHabit();
-      },
+    return Hero(
+      tag: 'typeSelectorHero',
+      child: Material(
+        color: Colors.transparent,
+        child: QuickDetailPopup(
+          onScheduleSelected: () {
+            print('📋 [QuickDetailPopup] 일정 선택 - 직접 저장');
+            _saveDirectSchedule();
+          },
+          onTaskSelected: () {
+            print('📋 [QuickDetailPopup] 할일 선택 - 직접 저장');
+            _saveDirectTask();
+          },
+          onHabitSelected: () {
+            print('📋 [QuickDetailPopup] 습관 선택 - 직접 저장');
+            _saveDirectHabit();
+          },
+        ),
+      ),
     );
   }
 
@@ -663,88 +693,85 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   /// 이거를 해서 → 추가 버튼은 별도로 Positioned로 배치한다
   Widget _buildTextInputArea() {
     return Padding(
-      padding: const EdgeInsets.only(top: 32), // ✅ 위 32px만, 하단 패딩은 외부에서 관리
-      child: Padding(
-        padding: QuickAddSpacing.textAreaPadding, // 좌우 26px
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return TextField(
-              controller: _textController,
-              focusNode: _focusNode, // 🔥 FocusNode 연결
-              autofocus: true, // 🔥 자동 포커스 복원!
-              keyboardType: TextInputType.multiline, // ✅ 개행 가능한 기본 키보드
-              textInputAction: TextInputAction.newline, // ✅ 엔터 키 → 개행
-              maxLines: 2, // ✅✅✅ 최대 2행까지만 입력 가능
-              minLines: 1, // ✅ 최소 1행
-              onTap: () {
-                print('👆 [TextField] onTap 호출!');
-                print('   → _showDetailPopup: $_showDetailPopup');
+      padding: QuickAddSpacing.textAreaPadding, // 좌우 26px
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return TextField(
+            controller: _textController,
+            focusNode: _focusNode, // 🔥 FocusNode 연결
+            autofocus: true, // 🔥 자동 포커스 복원!
+            keyboardType: TextInputType.multiline, // ✅ 개행 가능한 기본 키보드
+            textInputAction: TextInputAction.newline, // ✅ 엔터 키 → 개행
+            maxLines: 2, // ✅✅✅ 최대 2행까지만 입력 가능
+            minLines: 1, // ✅ 최소 1행
+            onTap: () {
+              print('👆 [TextField] onTap 호출!');
+              print('   → _showDetailPopup: $_showDetailPopup');
 
-                // 🔥 팝업이 떠있으면 닫고, 키보드 고정 해제!
-                if (_showDetailPopup) {
-                  setState(() {
-                    _showDetailPopup = false;
-                  });
-                  // 부모에게 "키보드 락 해제" 신호!
-                  widget.onInputFocused?.call();
-                  print('🔓 [TextField] 팝업 닫음 + 키보드 락 해제!');
-                }
-              },
-              onChanged: (text) {
-                print('⌨️ [TextField] onChanged 호출! text: "$text"');
-                print('   → _focusNode.hasFocus: ${_focusNode.hasFocus}');
-
-                // ✅✅✅ 2행 초과 입력 방지
-                final textPainter = TextPainter(
-                  text: TextSpan(
-                    text: text,
-                    style: QuickAddTextStyles.inputText,
-                  ),
-                  maxLines: null,
-                  textDirection: TextDirection.ltr,
-                )..layout(maxWidth: constraints.maxWidth);
-
-                final lineCount = textPainter.computeLineMetrics().length;
-
-                // 2행 초과 시 → 마지막 입력 취소
-                if (lineCount > 2) {
-                  final previousText = _textController.text;
-                  _textController.text = previousText.substring(
-                    0,
-                    previousText.length - 1,
-                  );
-                  _textController.selection = TextSelection.fromPosition(
-                    TextPosition(offset: _textController.text.length),
-                  );
-                  print('⚠️ [Quick Add] 2행 초과 입력 차단!');
-                  return;
-                }
-
+              // 🔥 팝업이 떠있으면 닫고, 키보드 고정 해제!
+              if (_showDetailPopup) {
                 setState(() {
-                  _isAddButtonActive = text.isNotEmpty;
-
-                  // ✅ TextField 높이 계산 (개행 감지)
-                  final newHeight = textPainter.height;
-                  if (newHeight != _textFieldHeight) {
-                    _textFieldHeight = newHeight;
-                    _updateHeightForTextField(); // ✅ 높이 업데이트
-                  }
+                  _showDetailPopup = false;
                 });
-                print(
-                  '📝 [Quick Add] 텍스트 입력: "$text" ($lineCount행) → 追加버튼: $_isAddButtonActive',
+                // 부모에게 "키보드 락 해제" 신호!
+                widget.onInputFocused?.call();
+                print('🔓 [TextField] 팝업 닫음 + 키보드 락 해제!');
+              }
+            },
+            onChanged: (text) {
+              print('⌨️ [TextField] onChanged 호출! text: "$text"');
+              print('   → _focusNode.hasFocus: ${_focusNode.hasFocus}');
+
+              // ✅✅✅ 2행 초과 입력 방지
+              final textPainter = TextPainter(
+                text: TextSpan(
+                  text: text,
+                  style: QuickAddTextStyles.inputText,
+                ),
+                maxLines: null,
+                textDirection: TextDirection.ltr,
+              )..layout(maxWidth: constraints.maxWidth);
+
+              final lineCount = textPainter.computeLineMetrics().length;
+
+              // 2행 초과 시 → 마지막 입력 취소
+              if (lineCount > 2) {
+                final previousText = _textController.text;
+                _textController.text = previousText.substring(
+                  0,
+                  previousText.length - 1,
                 );
-              },
-              style: QuickAddTextStyles.inputText,
-              decoration: InputDecoration(
-                hintText: _getPlaceholder(),
-                hintStyle: QuickAddTextStyles.placeholder,
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-            );
-          },
-        ),
+                _textController.selection = TextSelection.fromPosition(
+                  TextPosition(offset: _textController.text.length),
+                );
+                print('⚠️ [Quick Add] 2행 초과 입력 차단!');
+                return;
+              }
+
+              setState(() {
+                _isAddButtonActive = text.isNotEmpty;
+
+                // ✅ TextField 높이 계산 (개행 감지)
+                final newHeight = textPainter.height;
+                if (newHeight != _textFieldHeight) {
+                  _textFieldHeight = newHeight;
+                  _updateHeightForTextField(); // ✅ 높이 업데이트
+                }
+              });
+              print(
+                '📝 [Quick Add] 텍스트 입력: "$text" ($lineCount행) → 追加버튼: $_isAddButtonActive',
+              );
+            },
+            style: QuickAddTextStyles.inputText,
+            decoration: InputDecoration(
+              hintText: _getPlaceholder(),
+              hintStyle: QuickAddTextStyles.placeholder,
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+          );
+        },
       ),
     );
   }
@@ -755,10 +782,10 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         18,
-        12,
-        18,
         0,
-      ), // ✅ 좌우 18px, 위 12px, 아래 0px
+        18,
+        20,
+      ), // ✅ 좌우 18px, 위 0px, 아래 20px
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween, // 좌우 배치
         crossAxisAlignment: CrossAxisAlignment.center, // ✅ Y축 중앙 정렬
@@ -782,7 +809,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   /// ✅ Figma: 항상 표시, 텍스트 입력 시 활성화
   Widget _buildAddButtonArea() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 0, 18, 12), // ✅ 우측 18px, 하단 12px
+      padding: const EdgeInsets.fromLTRB(0, 0, 18, 18), // ✅ 우측 18px, 하단 18px
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [_buildAddButton()],
@@ -968,14 +995,16 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
                 horizontal: 12,
                 vertical: 10,
               ), // ✅ Figma 스펙
-        decoration: BoxDecoration(
-          color: hasText
-              ? QuickAddColors
-                    .addButtonActiveBackground // ✅ Figma: #111111
-              : QuickAddColors.addButtonInactiveBackground, // ✅ Figma: #DDDDDD
-          borderRadius: BorderRadius.circular(
-            QuickAddBorderRadius.addButtonRadius,
-          ), // 16px
+        decoration: ShapeDecoration(
+          color: hasText 
+              ? const Color(0xFF111111) // 텍스트 있으면 #111111
+              : const Color(0xFFDDDDDD), // 텍스트 없으면 #DDDDDD
+          shape: SmoothRectangleBorder(
+            borderRadius: SmoothBorderRadius(
+              cornerRadius: 16, // Figma: radius 16px
+              cornerSmoothing: 0.6, // 60% smoothing
+            ),
+          ),
         ),
         child: isTypeSelected
             ? _buildDirectAddButtonContent() // 타입 선택 시: 화살표만
@@ -986,31 +1015,34 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
 
   /// 기본 추가 버튼 내용 (追加 + ↑)
   Widget _buildAddButtonContent(bool hasText) {
+    final textColor = hasText 
+        ? const Color(0xFFFAFAFA) // 텍스트 있으면 #FAFAFA
+        : const Color(0xFFAAAAAA); // 텍스트 없으면 #AAAAAA
+    
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         // Figma: Frame 659 - 텍스트 "追加"
         Padding(
-          padding: QuickAddSpacing.addButtonTextPadding, // 좌측 8px
+          padding: const EdgeInsets.only(left: 8), // 좌측 8px
           child: Text(
             QuickAddStrings.addButton, // ✅ Figma: "追加"
-            style: QuickAddTextStyles.addButton.copyWith(
-              color: hasText
-                  ? QuickAddColors
-                        .addButtonText // #FAFAFA
-                  : const Color(0xFFAAAAAA), // 비활성: 회색
+            style: TextStyle(
+              fontFamily: 'LINE Seed JP App_TTF',
+              fontSize: 13, // Figma: 13px
+              fontWeight: FontWeight.w700,
+              height: 1.4,
+              letterSpacing: -0.005 * 13,
+              color: textColor,
             ),
           ),
         ),
-        SizedBox(width: QuickAddSpacing.addButtonGap), // Figma: gap 4px
+        const SizedBox(width: 4), // Figma: gap 4px
         // Figma: icon 24×24px (위 화살표)
         Icon(
           Icons.arrow_upward, // 위 화살표 아이콘
-          size: QuickAddDimensions.iconSize, // 24px
-          color: hasText
-              ? QuickAddColors
-                    .iconAddButton // #FAFAFA
-              : const Color(0xFFAAAAAA), // 비활성: 회색
+          size: 24, // Figma: 24px
+          color: textColor,
         ),
       ],
     );
