@@ -3033,12 +3033,24 @@ class _DateDetailViewState extends State<DateDetailView>
 
     // [2단계] 현재 순서대로 UnifiedListItem 생성 (sortOrder 기반)
     print('💾 [2단계] sortOrder 기반으로 현재 리스트 구성');
-    final currentItems = await _buildUnifiedItemList(
+    var currentItems = await _buildUnifiedItemList(
       date,
       schedules,
       tasks,
       habits,
     );
+
+    // 🔥 [중요] 인박스 모드일 때 inboxHeader 추가 (UI와 동일하게 맞추기)
+    // UI에서는 line 1073-1078에서 inboxHeader가 prepend되므로, 여기서도 동일하게 처리
+    if (_isInboxMode &&
+        (currentItems.isEmpty ||
+            currentItems.first.type != UnifiedItemType.inboxHeader)) {
+      print('   🎯 [인박스 모드] inboxHeader 추가 (UI와 일치시키기)');
+      currentItems = [
+        UnifiedListItem.inboxHeader(sortOrder: -1000),
+        ...currentItems,
+      ];
+    }
 
     print('   • 전체 currentItems 길이: ${currentItems.length}');
 
@@ -3058,8 +3070,7 @@ class _DateDetailViewState extends State<DateDetailView>
     print('   • 받은 dropIndex (currentItems 기준): $dropIndex');
 
     // 🔥 [핵심] dropIndex를 actualDataItems 기준으로 변환
-    // 개선된 방법: dropIndex 이전의 실제 데이터 아이템 개수를 센다
-    // 이 방법이 uniqueId 검색보다 더 정확하고 간단함 (특히 3개 이하일 때)
+    // 🎯 명확한 계산: dropIndex 이전의 실제 데이터 아이템 개수를 센다
     int actualDropIndex = 0;
 
     if (dropIndex < currentItems.length) {
@@ -3068,24 +3079,30 @@ class _DateDetailViewState extends State<DateDetailView>
         '   • dropIndex가 가리키는 아이템: ${targetItem.type} / ${targetItem.uniqueId}',
       );
 
-      // 🎯 개선된 로직: dropIndex 이전의 실제 데이터 아이템 개수를 센다
+      // 🎯 상세 계산 로그: dropIndex 이전의 모든 아이템 출력
+      print('   🔍 [계산 과정] dropIndex($dropIndex) 이전의 아이템들:');
       int dataItemCountBefore = 0;
       for (int i = 0; i < dropIndex; i++) {
         final item = currentItems[i];
-        // 헤더, 구분선, 완료 섹션, 인박스헤더를 제외한 실제 데이터만 카운트
-        if (item.type != UnifiedItemType.dateHeader &&
+        final isDataItem = item.type != UnifiedItemType.dateHeader &&
             item.type != UnifiedItemType.divider &&
             item.type != UnifiedItemType.completed &&
-            item.type != UnifiedItemType.inboxHeader) {
+            item.type != UnifiedItemType.inboxHeader;
+
+        if (isDataItem) {
+          print('      [$i] ${item.type} ✅ → count=${dataItemCountBefore + 1}');
           dataItemCountBefore++;
+        } else {
+          print('      [$i] ${item.type} ⏭️ (제외)');
         }
       }
 
       actualDropIndex = dataItemCountBefore;
-      print(
-        '   🎯 dropIndex($dropIndex) 이전의 실제 데이터: $dataItemCountBefore개',
-      );
-      print('   🎯 계산된 actualDropIndex: $actualDropIndex');
+      print('');
+      print('   🎯 최종 계산 결과:');
+      print('      • dropIndex (UI 리스트): $dropIndex');
+      print('      • actualDropIndex (데이터 리스트): $actualDropIndex');
+      print('      • 의미: actualDataItems[$actualDropIndex] 위치에 삽입');
 
       // 🔥 추가 검증: 범위 체크 (안전장치)
       if (actualDropIndex > actualDataItems.length) {
@@ -3093,6 +3110,24 @@ class _DateDetailViewState extends State<DateDetailView>
           '   ⚠️ actualDropIndex($actualDropIndex) > 실제 데이터 개수(${actualDataItems.length}) → 맨 끝으로 조정',
         );
         actualDropIndex = actualDataItems.length;
+      }
+
+      // 🎯 삽입 예상 위치 미리보기
+      print('');
+      print('   📋 [삽입 위치 미리보기]:');
+      for (int i = 0; i < actualDataItems.length; i++) {
+        if (i == actualDropIndex) {
+          print('      [$i] ➡️ [여기에 새 Task 삽입!] ⬅️');
+        }
+        final typeEmoji = actualDataItems[i].type == UnifiedItemType.schedule
+            ? '📅'
+            : actualDataItems[i].type == UnifiedItemType.task
+            ? '✅'
+            : '🔁';
+        print('      [$i] $typeEmoji ${actualDataItems[i].uniqueId}');
+      }
+      if (actualDropIndex >= actualDataItems.length) {
+        print('      [$actualDropIndex] ➡️ [여기에 새 Task 삽입!] (맨 끝) ⬅️');
       }
     } else {
       // 범위 밖이면 맨 끝
@@ -3823,11 +3858,21 @@ class _DateDetailViewState extends State<DateDetailView>
         // 🔥 Task 날짜 변경 및 순서 재계산
         await _handleInboxDropToPosition(index, task, date);
 
+        // 🔥 드래그 종료 및 UI 갱신
         if (mounted) {
           setState(() {
             _isDraggingFromInbox = false;
             _hoveredCardIndex = null;
           });
+
+          // 🎯 추가: 명시적 상태 새로고침으로 카드 사라짐 방지
+          print('🔄 [BetweenCardDropZone] 상태 새로고침 트리거');
+          await Future.delayed(const Duration(milliseconds: 50));
+          if (mounted) {
+            setState(() {
+              // 명시적 리빌드 트리거
+            });
+          }
         }
       },
       builder: (context, candidateData, rejectedData) {
