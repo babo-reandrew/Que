@@ -2051,15 +2051,28 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
           // 일정의 날짜 범위에 targetDate가 포함되는지 체크
           if (!scheduleEndDate.isBefore(targetDate) &&
               !scheduleStartDate.isAfter(targetDate)) {
-            final dateKey = DateTime(
-              targetDate.year,
-              targetDate.month,
-              targetDate.day,
+            // 🔥 완료 체크: ScheduleCompletion 테이블 확인
+            final completionRecord = await db.getScheduleCompletion(
+              schedule.id,
+              targetDate,
             );
-            schedules.putIfAbsent(dateKey, () => []).add(schedule);
-            print(
-              '  ✅ [일반] "${schedule.summary}" → ${dateKey.toString().split(' ')[0]}',
-            );
+
+            if (completionRecord == null) {
+              // 완료되지 않은 경우에만 추가
+              final dateKey = DateTime(
+                targetDate.year,
+                targetDate.month,
+                targetDate.day,
+              );
+              schedules.putIfAbsent(dateKey, () => []).add(schedule);
+              print(
+                '  ✅ [일반] "${schedule.summary}" → ${dateKey.toString().split(' ')[0]}',
+              );
+            } else {
+              print(
+                '  🚫 [일반 완료됨] "${schedule.summary}" → ${targetDate.toString().split(' ')[0]}',
+              );
+            }
           }
         } else {
           // 반복 일정: RRULE로 인스턴스 생성 (디테일뷰와 동일)
@@ -2072,15 +2085,28 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
             );
 
             if (instances.isNotEmpty) {
-              final dateKey = DateTime(
-                targetDate.year,
-                targetDate.month,
-                targetDate.day,
+              // 🔥 완료 체크: ScheduleCompletion 테이블 확인
+              final completionRecord = await db.getScheduleCompletion(
+                schedule.id,
+                targetDate,
               );
-              schedules.putIfAbsent(dateKey, () => []).add(schedule);
-              print(
-                '  ✅ [반복] "${schedule.summary}" → ${dateKey.toString().split(' ')[0]}',
-              );
+
+              if (completionRecord == null) {
+                // 완료되지 않은 경우에만 추가
+                final dateKey = DateTime(
+                  targetDate.year,
+                  targetDate.month,
+                  targetDate.day,
+                );
+                schedules.putIfAbsent(dateKey, () => []).add(schedule);
+                print(
+                  '  ✅ [반복] "${schedule.summary}" → ${dateKey.toString().split(' ')[0]}',
+                );
+              } else {
+                print(
+                  '  🚫 [반복 완료됨] "${schedule.summary}" → ${targetDate.toString().split(' ')[0]}',
+                );
+              }
             }
           } catch (e) {
             print('  ⚠️ [반복] "${schedule.summary}" - RRULE 파싱 실패: $e');
@@ -2245,12 +2271,21 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
           );
 
           if (taskDate.isAtSameMomentAs(targetDate)) {
-            final dateKey = DateTime(
-              targetDate.year,
-              targetDate.month,
-              targetDate.day,
+            // 🔥 완료 체크: TaskCompletion 테이블 확인
+            final completionRecord = await db.getTaskCompletion(
+              task.id,
+              targetDate,
             );
-            tasks.putIfAbsent(dateKey, () => []).add(task);
+
+            if (completionRecord == null) {
+              // 완료되지 않은 경우에만 추가
+              final dateKey = DateTime(
+                targetDate.year,
+                targetDate.month,
+                targetDate.day,
+              );
+              tasks.putIfAbsent(dateKey, () => []).add(task);
+            }
           }
         } else {
           // 반복 할 일: RRULE로 인스턴스 생성
@@ -2263,12 +2298,21 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
             );
 
             if (instances.isNotEmpty) {
-              final dateKey = DateTime(
-                targetDate.year,
-                targetDate.month,
-                targetDate.day,
+              // 🔥 완료 체크: TaskCompletion 테이블 확인
+              final completionRecord = await db.getTaskCompletion(
+                task.id,
+                targetDate,
               );
-              tasks.putIfAbsent(dateKey, () => []).add(task);
+
+              if (completionRecord == null) {
+                // 완료되지 않은 경우에만 추가
+                final dateKey = DateTime(
+                  targetDate.year,
+                  targetDate.month,
+                  targetDate.day,
+                );
+                tasks.putIfAbsent(dateKey, () => []).add(task);
+              }
             }
           } catch (e) {
             // 실패 시 원본 executionDate 기준으로 폴백

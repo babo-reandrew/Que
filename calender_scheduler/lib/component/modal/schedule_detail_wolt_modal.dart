@@ -21,6 +21,8 @@ import 'delete_repeat_confirmation_modal.dart'; // ✅ 반복 삭제 확인 모�
 import 'edit_repeat_confirmation_modal.dart'; // ✅ 반복 수정 확인 모달
 import '../toast/action_toast.dart'; // ✅ 변경 토스트
 import '../toast/save_toast.dart'; // ✅ 저장 토스트
+import '../../utils/recurring_event_helpers.dart'
+    as RecurringHelpers; // ✅ 반복 이벤트 헬퍼
 
 /// 일정 상세 Wolt Modal Sheet
 ///
@@ -452,7 +454,12 @@ Widget _buildScheduleDetailPage(
 
       const SizedBox(height: 48), // gap
       // ========== Delete Button (52px) ==========
-      if (schedule != null) _buildDeleteButton(context, schedule: schedule),
+      if (schedule != null)
+        _buildDeleteButton(
+          context,
+          schedule: schedule,
+          selectedDate: selectedDate,
+        ), // ✅ 수정
 
       const SizedBox(height: 20), // ✅ 하단 패딩 20px (최대 확장 시 바텀시트 끝에서 20px 여백)
     ],
@@ -1386,11 +1393,16 @@ Widget _buildColorOptionButton(BuildContext context) {
 Widget _buildDeleteButton(
   BuildContext context, {
   required ScheduleData schedule,
+  required DateTime selectedDate, // ✅ 추가
 }) {
   return Padding(
     padding: const EdgeInsets.symmetric(horizontal: 24), // Figma: 0px 24px
     child: GestureDetector(
-      onTap: () => _handleDelete(context, schedule: schedule),
+      onTap: () => _handleDelete(
+        context,
+        schedule: schedule,
+        selectedDate: selectedDate,
+      ), // ✅ 수정
       child: Container(
         width: 100,
         height: 52,
@@ -1574,117 +1586,215 @@ void _handleSave(
             context,
             onEditThis: () async {
               // ✅ この回のみ 수정: RecurringException 생성
-              await _editScheduleThisOnly(
-                db,
-                schedule,
-                scheduleController,
-                finalColor,
-                safeReminder,
-              );
-              debugPrint('✅ [ScheduleWolt] この回のみ 수정 완료');
-              if (context.mounted) {
-                // ✅ 1. 확인 모달 닫기
-                Navigator.pop(context);
-                // ✅ 2. Detail modal 닫기 (변경 신호 전달)
-                Navigator.pop(context, true);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('この回のみ変更しました'),
-                    duration: Duration(seconds: 2),
+              try {
+                debugPrint(
+                  '🔥 [ScheduleWolt] updateScheduleThisOnly 호출 - selectedDate: $selectedDate',
+                );
+                await RecurringHelpers.updateScheduleThisOnly(
+                  db: db,
+                  schedule: schedule,
+                  selectedDate: selectedDate, // ✅ 수정: 사용자가 선택한 날짜 사용
+                  updatedSchedule: ScheduleCompanion(
+                    id: Value(schedule.id),
+                    summary: Value(scheduleController.title.trim()),
+                    start: Value(scheduleController.startDateTime!),
+                    end: Value(scheduleController.endDateTime!),
+                    colorId: Value(finalColor),
+                    alertSetting: Value(safeReminder ?? ''),
+                    description: Value(schedule.description),
+                    location: Value(schedule.location),
                   ),
                 );
+                debugPrint('✅ [ScheduleWolt] この回のみ 수정 완료');
+                if (context.mounted) {
+                  // ✅ 1. 확인 모달 닫기
+                  Navigator.pop(context);
+                  // ✅ 2. Detail modal 닫기 (변경 신호 전달)
+                  Navigator.pop(context, true);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('この回のみ変更しました'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              } catch (e, stackTrace) {
+                debugPrint('❌ [ScheduleWolt] この回のみ 수정 실패: $e');
+                debugPrint('❌ 스택: $stackTrace');
+                if (context.mounted) {
+                  Navigator.pop(context); // 확인 모달 닫기
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('エラーが発生しました: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             onEditFuture: () async {
               // ✅ この予定以降 수정: RRULE 분할
-              await _editScheduleFuture(
-                db,
-                schedule,
-                scheduleController,
-                finalColor,
-                safeReminder,
-                safeRepeatRule,
-              );
-              debugPrint('✅ [ScheduleWolt] この予定以降 수정 완료');
-              if (context.mounted) {
-                // ✅ 1. 확인 모달 닫기
-                Navigator.pop(context);
-                // ✅ 2. Detail modal 닫기 (변경 신호 전달)
-                Navigator.pop(context, true);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('この予定以降を変更しました'),
-                    duration: Duration(seconds: 2),
-                  ),
+              try {
+                final newRRule =
+                    safeRepeatRule != null && safeRepeatRule.isNotEmpty
+                    ? _convertJsonRepeatRuleToRRule(
+                        safeRepeatRule,
+                        scheduleController.startDateTime!,
+                      )
+                    : null;
+
+                debugPrint(
+                  '🔥 [ScheduleWolt] updateScheduleFuture 호출 - selectedDate: $selectedDate',
                 );
+                await RecurringHelpers.updateScheduleFuture(
+                  db: db,
+                  schedule: schedule,
+                  selectedDate: selectedDate, // ✅ 수정: 사용자가 선택한 날짜 사용
+                  updatedSchedule: ScheduleCompanion.insert(
+                    summary: scheduleController.title.trim(),
+                    start: scheduleController.startDateTime!,
+                    end: scheduleController.endDateTime!,
+                    colorId: finalColor,
+                    alertSetting: Value(safeReminder ?? ''),
+                    repeatRule: Value(safeRepeatRule ?? ''),
+                    description: Value(schedule.description),
+                    location: Value(schedule.location),
+                    status: Value(schedule.status),
+                    visibility: Value(schedule.visibility),
+                  ),
+                  newRRule: newRRule,
+                );
+                debugPrint('✅ [ScheduleWolt] この予定以降 수정 완료');
+                if (context.mounted) {
+                  // ✅ 1. 확인 모달 닫기
+                  Navigator.pop(context);
+                  // ✅ 2. Detail modal 닫기 (변경 신호 전달)
+                  Navigator.pop(context, true);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('この予定以降を変更しました'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              } catch (e, stackTrace) {
+                debugPrint('❌ [ScheduleWolt] この予定以降 수정 실패: $e');
+                debugPrint('❌ 스택: $stackTrace');
+                if (context.mounted) {
+                  Navigator.pop(context); // 확인 모달 닫기
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('エラーが発生しました: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             onEditAll: () async {
               // ✅ すべての回 수정: Base Event + RRULE 업데이트
-              await db.updateSchedule(
-                ScheduleCompanion(
-                  id: Value(schedule.id),
-                  summary: Value(scheduleController.title.trim()),
-                  start: Value(scheduleController.startDateTime!),
-                  end: Value(scheduleController.endDateTime!),
-                  colorId: Value(finalColor),
-                  alertSetting: Value(safeReminder ?? ''),
-                  repeatRule: Value(safeRepeatRule ?? ''),
-                  // ✅ 기존 필드 유지
-                  createdAt: Value(schedule.createdAt),
-                  status: Value(schedule.status),
-                  visibility: Value(schedule.visibility),
-                  description: Value(schedule.description),
-                  location: Value(schedule.location),
-                ),
-              );
-              debugPrint('✅ [ScheduleWolt] すべての回 수정 완료');
+              try {
+                final newRRule =
+                    safeRepeatRule != null && safeRepeatRule.isNotEmpty
+                    ? _convertJsonRepeatRuleToRRule(
+                        safeRepeatRule,
+                        scheduleController.startDateTime!,
+                      )
+                    : null;
 
-              // ========== 🔄 RecurringPattern 테이블 업데이트 ==========
-              if (safeRepeatRule != null && safeRepeatRule.isNotEmpty) {
-                try {
-                  final rrule = _convertJsonRepeatRuleToRRule(
-                    safeRepeatRule,
-                    scheduleController.startDateTime!,
-                  );
+                await RecurringHelpers.updateScheduleAll(
+                  db: db,
+                  schedule: schedule,
+                  updatedSchedule: ScheduleCompanion(
+                    id: Value(schedule.id),
+                    summary: Value(scheduleController.title.trim()),
+                    start: Value(scheduleController.startDateTime!),
+                    end: Value(scheduleController.endDateTime!),
+                    colorId: Value(finalColor),
+                    alertSetting: Value(safeReminder ?? ''),
+                    repeatRule: Value(safeRepeatRule ?? ''),
+                    createdAt: Value(schedule.createdAt),
+                    status: Value(schedule.status),
+                    visibility: Value(schedule.visibility),
+                    description: Value(schedule.description),
+                    location: Value(schedule.location),
+                  ),
+                  newRRule: newRRule,
+                );
+                debugPrint('✅ [ScheduleWolt] すべての回 수정 완료');
 
-                  if (rrule != null) {
-                    // 기존 패턴 삭제 후 재생성
-                    await db.deleteRecurringPattern(
-                      entityType: 'schedule',
-                      entityId: schedule.id,
+                // ========== 🔄 RecurringPattern 테이블 업데이트 ==========
+                if (safeRepeatRule != null && safeRepeatRule.isNotEmpty) {
+                  try {
+                    final rrule = _convertJsonRepeatRuleToRRule(
+                      safeRepeatRule,
+                      scheduleController.startDateTime!,
                     );
 
-                    await db.createRecurringPattern(
-                      RecurringPatternCompanion.insert(
+                    if (rrule != null) {
+                      // 기존 패턴 삭제 후 재생성
+                      await db.deleteRecurringPattern(
                         entityType: 'schedule',
                         entityId: schedule.id,
-                        rrule: rrule,
-                        dtstart: DateTime(
-                          scheduleController.startDateTime!.year,
-                          scheduleController.startDateTime!.month,
-                          scheduleController.startDateTime!.day,
-                        ), // 🔥 날짜만 저장 (시간은 00:00:00으로 통일)
-                        until: const Value(null),
-                        count: const Value(null),
-                        exdate: const Value(''),
-                        timezone: const Value('Asia/Seoul'),
-                      ),
-                    );
+                      );
+
+                      await db.createRecurringPattern(
+                        RecurringPatternCompanion.insert(
+                          entityType: 'schedule',
+                          entityId: schedule.id,
+                          rrule: rrule,
+                          dtstart: DateTime(
+                            scheduleController.startDateTime!.year,
+                            scheduleController.startDateTime!.month,
+                            scheduleController.startDateTime!.day,
+                          ), // 🔥 날짜만 저장 (시간은 00:00:00으로 통일)
+                          until: const Value(null),
+                          count: const Value(null),
+                          exdate: const Value(''),
+                          timezone: const Value('Asia/Seoul'),
+                        ),
+                      );
+                      debugPrint(
+                        '🔄 [ScheduleWolt] RecurringPattern 업데이트 완료: $rrule',
+                      );
+                    }
+                  } catch (e) {
                     debugPrint(
-                      '🔄 [ScheduleWolt] RecurringPattern 업데이트 완료: $rrule',
+                      '⚠️ [ScheduleWolt] RecurringPattern 업데이트 실패: $e',
                     );
                   }
-                } catch (e) {
-                  debugPrint('⚠️ [ScheduleWolt] RecurringPattern 업데이트 실패: $e');
+                } else {
+                  // 반복 규칙 제거 시 RecurringPattern 삭제
+                  await db.deleteRecurringPattern(
+                    entityType: 'schedule',
+                    entityId: schedule.id,
+                  );
+                  debugPrint('🗑️ [ScheduleWolt] RecurringPattern 삭제 완료');
                 }
-              } else {
-                // 반복 규칙 제거 시 RecurringPattern 삭제
-                await db.deleteRecurringPattern(
-                  entityType: 'schedule',
-                  entityId: schedule.id,
-                );
-                debugPrint('🗑️ [ScheduleWolt] RecurringPattern 삭제 완료');
+
+                // ✅ 모달 닫기
+                if (context.mounted) {
+                  Navigator.pop(context); // 확인 모달 닫기
+                  Navigator.pop(context, true); // Detail modal 닫기
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('すべての回を変更しました'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              } catch (e, stackTrace) {
+                debugPrint('❌ [ScheduleWolt] すべての回 수정 실패: $e');
+                debugPrint('❌ 스택: $stackTrace');
+                if (context.mounted) {
+                  Navigator.pop(context); // 확인 모달 닫기
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('エラーが発生しました: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
           );
@@ -1864,6 +1974,7 @@ void _handleSave(
 void _handleDelete(
   BuildContext context, {
   required ScheduleData schedule,
+  required DateTime selectedDate, // ✅ 추가: 선택된 날짜 파라미터
 }) async {
   final db = GetIt.I<AppDatabase>();
 
@@ -1884,42 +1995,83 @@ void _handleDelete(
       context,
       onDeleteThis: () async {
         // ✅ この回のみ 삭제: RecurringException 생성
-        await _deleteScheduleThisOnly(db, schedule);
-        if (context.mounted) {
-          // ✅ 1. 확인 모달 닫기
-          Navigator.pop(context);
-          // ✅ 2. Detail modal 닫기 (변경 신호 전달)
-          Navigator.pop(context, true);
-          // Toast 표시
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('この回のみ削除しました'),
-              duration: Duration(seconds: 2),
-            ),
+        try {
+          debugPrint(
+            '🔥 [ScheduleWolt] deleteScheduleThisOnly 호출 - selectedDate: $selectedDate',
           );
+          await RecurringHelpers.deleteScheduleThisOnly(
+            db: db,
+            schedule: schedule,
+            selectedDate: selectedDate, // ✅ 수정: 사용자가 선택한 날짜 사용
+          );
+          if (context.mounted) {
+            // ✅ 1. 확인 모달 닫기
+            Navigator.pop(context);
+            // ✅ 2. Detail modal 닫기 (변경 신호 전달)
+            Navigator.pop(context, true);
+            // Toast 표시
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('この回のみ削除しました'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (e, stackTrace) {
+          debugPrint('❌ [ScheduleWolt] この回のみ 삭제 실패: $e');
+          debugPrint('❌ 스택: $stackTrace');
+          if (context.mounted) {
+            Navigator.pop(context); // 확인 모달 닫기
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('削除に失敗しました: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       },
       onDeleteFuture: () async {
         // ✅ この予定以降 삭제: UNTIL 설정
-        await _deleteScheduleFuture(db, schedule);
-        if (context.mounted) {
-          // ✅ 1. 확인 모달 닫기
-          Navigator.pop(context);
-          // ✅ 2. Detail modal 닫기 (변경 신호 전달)
-          Navigator.pop(context, true);
-          // Toast 표示
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('この予定以降を削除しました'),
-              duration: Duration(seconds: 2),
-            ),
+        try {
+          debugPrint(
+            '🔥 [ScheduleWolt] deleteScheduleFuture 호출 - selectedDate: $selectedDate',
           );
+          await RecurringHelpers.deleteScheduleFuture(
+            db: db,
+            schedule: schedule,
+            selectedDate: selectedDate, // ✅ 수정: 사용자가 선택한 날짜 사용
+          );
+          if (context.mounted) {
+            // ✅ 1. 확인 모달 닫기
+            Navigator.pop(context);
+            // ✅ 2. Detail modal 닫기 (변경 신호 전달)
+            Navigator.pop(context, true);
+            // Toast 표시
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('この予定以降を削除しました'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (e, stackTrace) {
+          debugPrint('❌ [ScheduleWolt] この予定以降 삭제 실패: $e');
+          debugPrint('❌ 스택: $stackTrace');
+          if (context.mounted) {
+            Navigator.pop(context); // 확인 모달 닫기
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('削除に失敗しました: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       },
       onDeleteAll: () async {
         // すべての回 삭제 (전체 삭제)
-        debugPrint('✅ [ScheduleWolt] すべての回 삭제');
-        await db.deleteSchedule(schedule.id);
+        await RecurringHelpers.deleteScheduleAll(db: db, schedule: schedule);
         if (context.mounted) {
           // ✅ 1. 확인 모달 닫기
           Navigator.pop(context);
@@ -2021,44 +2173,6 @@ void _handleColorPicker(BuildContext context) {
     context,
     initialColorId: bottomSheetController.selectedColor,
   );
-}
-
-// ==================== 삭제 헬퍼 함수 ====================
-
-/// ✅ この回のみ 삭제: 오늘만 제외하고 내일부터 다시 시작
-/// ✅ この回のみ 삭제: RFC 5545 EXDATE로 예외 처리
-Future<void> _deleteScheduleThisOnly(
-  AppDatabase db,
-  ScheduleData schedule,
-) async {
-  // 1. RecurringPattern 조회
-  final pattern = await db.getRecurringPattern(
-    entityType: 'schedule',
-    entityId: schedule.id,
-  );
-
-  if (pattern == null) {
-    debugPrint('⚠️ [ScheduleWolt] RecurringPattern 없음');
-    return;
-  }
-
-  // 2. 현재 날짜 (선택된 인스턴스의 originalDate)
-  final originalDate = schedule.start;
-
-  // 3. RecurringException 생성 (취소 표시)
-  await db.createRecurringException(
-    RecurringExceptionCompanion(
-      recurringPatternId: Value(pattern.id),
-      originalDate: Value(originalDate),
-      isCancelled: const Value(true), // 취소 (삭제)
-      isRescheduled: const Value(false),
-    ),
-  );
-
-  debugPrint('✅ [ScheduleWolt] この回のみ 삭제 완료 (RFC 5545 EXDATE)');
-  debugPrint('   - Schedule ID: ${schedule.id}');
-  debugPrint('   - Pattern ID: ${pattern.id}');
-  debugPrint('   - Original Date: $originalDate');
 }
 
 // ==================== RRULE 변환 헬퍼 함수 ====================
@@ -2185,183 +2299,4 @@ int? _jpDayToWeekday(String jpDay) {
       debugPrint('⚠️ [RRuleConvert] 알 수 없는 요일: $jpDay');
       return null;
   }
-}
-
-/// ✅ この予定以降 삭제: RFC 5545 UNTIL로 종료일 설정
-Future<void> _deleteScheduleFuture(
-  AppDatabase db,
-  ScheduleData schedule,
-) async {
-  // 1. RecurringPattern 조회
-  final pattern = await db.getRecurringPattern(
-    entityType: 'schedule',
-    entityId: schedule.id,
-  );
-
-  if (pattern == null) {
-    debugPrint('⚠️ [ScheduleWolt] RecurringPattern 없음');
-    return;
-  }
-
-  // 2. ✅ 선택된 날짜(오늘) 포함 이후 모두 삭제 → 어제가 마지막 발생
-  final selectedDate = DateTime(
-    schedule.start.year,
-    schedule.start.month,
-    schedule.start.day,
-  );
-  final yesterday = selectedDate.subtract(const Duration(days: 1));
-  final until = DateTime(
-    yesterday.year,
-    yesterday.month,
-    yesterday.day,
-    23,
-    59,
-    59,
-  );
-
-  // 3. RRULE에 UNTIL 파라미터 추가 (RecurringPattern 업데이트)
-  await db.updateRecurringPattern(
-    RecurringPatternCompanion(
-      id: Value(pattern.id),
-      until: Value(until), // UNTIL 설정
-    ),
-  );
-
-  debugPrint('✅ [ScheduleWolt] この予定以降 삭제 완료 (RFC 5545 UNTIL)');
-  debugPrint('   - Schedule ID: ${schedule.id}');
-  debugPrint('   - Pattern ID: ${pattern.id}');
-  debugPrint('   - Selected Date: $selectedDate');
-  debugPrint('   - UNTIL (종료일): $until');
-}
-
-/// ✅ この回のみ 수정: RFC 5545 RecurringException으로 예외 처리
-Future<void> _editScheduleThisOnly(
-  AppDatabase db,
-  ScheduleData schedule,
-  ScheduleFormController controller,
-  String color,
-  String? reminder,
-) async {
-  // 1. RecurringPattern 조회
-  final pattern = await db.getRecurringPattern(
-    entityType: 'schedule',
-    entityId: schedule.id,
-  );
-
-  if (pattern == null) {
-    debugPrint('⚠️ [ScheduleWolt] RecurringPattern 없음');
-    return;
-  }
-
-  // 2. 현재 날짜 (선택된 인스턴스의 originalDate)
-  final originalDate = schedule.start;
-
-  // 3. RecurringException 생성 (수정된 내용 저장)
-  await db.createRecurringException(
-    RecurringExceptionCompanion(
-      recurringPatternId: Value(pattern.id),
-      originalDate: Value(originalDate),
-      isCancelled: const Value(false),
-      isRescheduled: Value(
-        controller.startDateTime != schedule.start ||
-            controller.endDateTime != schedule.end,
-      ),
-      newStartDate: Value(controller.startDateTime),
-      newEndDate: Value(controller.endDateTime),
-      modifiedTitle: Value(controller.title.trim()),
-      modifiedDescription: Value(schedule.description), // 현재 description 유지
-      modifiedLocation: Value(schedule.location), // 현재 location 유지
-      modifiedColorId: Value(color),
-    ),
-  );
-
-  debugPrint('✅ [ScheduleWolt] この回のみ 수정 완료 (RFC 5545 Exception)');
-  debugPrint('   - Schedule ID: ${schedule.id}');
-  debugPrint('   - Pattern ID: ${pattern.id}');
-  debugPrint('   - Original Date: $originalDate');
-  debugPrint('   - Modified Title: ${controller.title.trim()}');
-}
-
-/// ✅ この予定以降 수정: RFC 5545 RRULE 분할
-Future<void> _editScheduleFuture(
-  AppDatabase db,
-  ScheduleData schedule,
-  ScheduleFormController controller,
-  String color,
-  String? reminder,
-  String? repeatRule,
-) async {
-  // 1. 기존 RecurringPattern 조회
-  final oldPattern = await db.getRecurringPattern(
-    entityType: 'schedule',
-    entityId: schedule.id,
-  );
-
-  if (oldPattern == null) {
-    debugPrint('⚠️ [ScheduleWolt] RecurringPattern 없음');
-    return;
-  }
-
-  // 2. ✅ 선택된 날짜(오늘) 포함 이후 모두 변경 → 어제가 기존 일정의 마지막
-  final selectedDate = DateTime(
-    schedule.start.year,
-    schedule.start.month,
-    schedule.start.day,
-  );
-  final yesterday = selectedDate.subtract(const Duration(days: 1));
-  final until = DateTime(
-    yesterday.year,
-    yesterday.month,
-    yesterday.day,
-    23,
-    59,
-    59,
-  );
-
-  // 3. 기존 패턴에 UNTIL 설정 (선택된 날짜 이전까지만)
-  await db.updateRecurringPattern(
-    RecurringPatternCompanion(id: Value(oldPattern.id), until: Value(until)),
-  );
-
-  // 4. 새로운 Schedule 생성 (선택된 날짜부터 시작)
-  final newScheduleId = await db.createSchedule(
-    ScheduleCompanion(
-      summary: Value(controller.title.trim()),
-      start: Value(controller.startDateTime!),
-      end: Value(controller.endDateTime!),
-      colorId: Value(color),
-      alertSetting: Value(reminder ?? ''),
-      repeatRule: Value(repeatRule ?? ''),
-      description: Value(schedule.description),
-      location: Value(schedule.location),
-      status: Value(schedule.status),
-      visibility: Value(schedule.visibility),
-    ),
-  );
-
-  // 5. 새로운 RecurringPattern 생성 (반복 규칙이 있으면)
-  if (repeatRule != null && repeatRule.isNotEmpty) {
-    final rruleString = _convertJsonRepeatRuleToRRule(
-      repeatRule,
-      controller.startDateTime!,
-    );
-
-    if (rruleString != null) {
-      await db.createRecurringPattern(
-        RecurringPatternCompanion(
-          entityType: const Value('schedule'),
-          entityId: Value(newScheduleId),
-          rrule: Value(rruleString),
-          dtstart: Value(controller.startDateTime!),
-          until: Value(oldPattern.until), // 기존 종료일 유지
-        ),
-      );
-    }
-  }
-
-  debugPrint('✅ [ScheduleWolt] この予定以降 수정 완료 (RFC 5545 Split)');
-  debugPrint('   - Old Schedule ID: ${schedule.id} (UNTIL: $yesterday)');
-  debugPrint(
-    '   - New Schedule ID: $newScheduleId (Start: ${controller.startDateTime})',
-  );
 }

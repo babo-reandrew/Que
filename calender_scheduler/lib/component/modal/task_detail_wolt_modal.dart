@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smooth_sheets/smooth_sheets.dart';
@@ -11,6 +13,8 @@ import '../../providers/bottom_sheet_controller.dart';
 import '../../providers/task_form_controller.dart';
 import '../../design_system/wolt_helpers.dart';
 import '../../utils/temp_input_cache.dart'; // ✅ 임시 캐시
+import '../../utils/recurring_event_helpers.dart'
+    as RecurringHelpers; // ✅ 반복 이벤트 헬퍼
 import 'package:flutter_svg/flutter_svg.dart'; // ✅ SVG 지원
 import '../../const/color.dart'; // ✅ 색상 맵핑
 import 'deadline_picker_modal.dart'; // ✅ 마감일 선택 바텀시트
@@ -440,7 +444,12 @@ Widget _buildTaskDetailPage(
 
       const SizedBox(height: 48), // gap
       // ========== Delete Button (52px) ==========
-      if (task != null) _buildDeleteButton(context, task: task),
+      if (task != null)
+        _buildDeleteButton(
+          context,
+          task: task,
+          selectedDate: selectedDate,
+        ), // ✅ 수정
 
       const SizedBox(height: 20), // ✅ 하단 패딩 20px (최대 확장 시 바텀시트 끝에서 20px 여백)
     ],
@@ -1527,11 +1536,20 @@ Widget _buildColorOptionButton(BuildContext context) {
 // Delete Button Component (52px)
 // ========================================
 
-Widget _buildDeleteButton(BuildContext context, {required TaskData task}) {
+Widget _buildDeleteButton(
+  BuildContext context, {
+  required TaskData task,
+  required DateTime selectedDate,
+}) {
+  // ✅ 추가
   return Padding(
     padding: const EdgeInsets.symmetric(horizontal: 24),
     child: GestureDetector(
-      onTap: () => _handleDelete(context, task: task),
+      onTap: () => _handleDelete(
+        context,
+        task: task,
+        selectedDate: selectedDate,
+      ), // ✅ 수정
       child: Container(
         width: 100,
         height: 52,
@@ -1689,14 +1707,21 @@ void _handleSave(
             context,
             onEditThis: () async {
               // ✅ この回のみ 수정: RecurringException 생성
-              await _editTaskThisOnly(
-                db,
-                task,
-                taskController,
-                finalDueDate,
-                finalExecutionDate,
-                finalColor,
-                safeReminder,
+              debugPrint(
+                '🔥 [TaskWolt] updateTaskThisOnly 호출 - selectedDate: $selectedDate',
+              ); // ✅ 추가
+              await RecurringHelpers.updateTaskThisOnly(
+                db: db,
+                task: task,
+                selectedDate: selectedDate, // ✅ 수정
+                updatedTask: TaskCompanion(
+                  id: Value(task.id),
+                  title: Value(taskController.title.trim()),
+                  dueDate: Value(finalDueDate),
+                  executionDate: Value(finalExecutionDate),
+                  colorId: Value(finalColor),
+                  reminder: Value(safeReminder ?? ''),
+                ),
               );
               debugPrint('✅ [TaskWolt] この回のみ 수정 완료');
               if (context.mounted) {
@@ -1714,15 +1739,33 @@ void _handleSave(
             },
             onEditFuture: () async {
               // ✅ この予定以降 수정: RRULE 분할
-              await _editTaskFuture(
-                db,
-                task,
-                taskController,
-                finalDueDate,
-                finalExecutionDate,
-                finalColor,
-                safeReminder,
-                safeRepeatRule,
+              debugPrint(
+                '🔥 [TaskWolt] updateTaskFuture 호출 - selectedDate: $selectedDate',
+              ); // ✅ 추가
+              final newRRule =
+                  safeRepeatRule != null && safeRepeatRule.isNotEmpty
+                  ? _convertJsonRepeatRuleToRRule(
+                      safeRepeatRule,
+                      selectedDate,
+                    ) // ✅ 수정
+                  : null;
+
+              await RecurringHelpers.updateTaskFuture(
+                db: db,
+                task: task,
+                selectedDate: selectedDate, // ✅ 수정
+                updatedTask: TaskCompanion.insert(
+                  title: taskController.title.trim(),
+                  createdAt: DateTime.now(),
+                  completed: const Value(false),
+                  listId: Value(task.listId),
+                  dueDate: Value(finalDueDate),
+                  executionDate: Value(finalExecutionDate),
+                  colorId: Value(finalColor),
+                  reminder: Value(safeReminder ?? ''),
+                  repeatRule: Value(safeRepeatRule ?? ''),
+                ),
+                newRRule: newRRule,
               );
               debugPrint('✅ [TaskWolt] この予定以降 수정 완료');
               if (context.mounted) {
@@ -1740,15 +1783,30 @@ void _handleSave(
             },
             onEditAll: () async {
               // ✅ すべての回 수정: Base Event + RecurringPattern 업데이트
-              await _updateTaskAll(
+              final newRRule =
+                  safeRepeatRule != null && safeRepeatRule.isNotEmpty
+                  ? _convertJsonRepeatRuleToRRule(
+                      safeRepeatRule,
+                      finalExecutionDate ?? DateTime.now(),
+                    )
+                  : null;
+
+              await RecurringHelpers.updateTaskAll(
                 db: db,
                 task: task,
-                title: taskController.title.trim(),
-                dueDate: finalDueDate,
-                executionDate: finalExecutionDate,
-                colorId: finalColor,
-                reminder: safeReminder,
-                repeatRule: safeRepeatRule,
+                updatedTask: TaskCompanion(
+                  id: Value(task.id),
+                  title: Value(taskController.title.trim()),
+                  createdAt: Value(task.createdAt),
+                  completed: Value(task.completed),
+                  listId: Value(task.listId),
+                  dueDate: Value(finalDueDate),
+                  executionDate: Value(finalExecutionDate),
+                  colorId: Value(finalColor),
+                  reminder: Value(safeReminder ?? ''),
+                  repeatRule: Value(safeRepeatRule ?? ''),
+                ),
+                newRRule: newRRule,
               );
             },
           );
@@ -1942,7 +2000,12 @@ void _handleSave(
   }
 }
 
-void _handleDelete(BuildContext context, {required TaskData task}) async {
+void _handleDelete(
+  BuildContext context, {
+  required TaskData task,
+  required DateTime selectedDate,
+}) async {
+  // ✅ 추가
   final db = GetIt.I<AppDatabase>();
 
   // ✅ RecurringPattern 테이블에서 실제 반복 여부 확인
@@ -1962,7 +2025,14 @@ void _handleDelete(BuildContext context, {required TaskData task}) async {
       context,
       onDeleteThis: () async {
         // ✅ この回のみ 삭제: RecurringException 생성
-        await _deleteTaskThisOnly(db, task);
+        debugPrint(
+          '🔥 [TaskWolt] deleteTaskThisOnly 호출 - selectedDate: $selectedDate',
+        ); // ✅ 추가
+        await RecurringHelpers.deleteTaskThisOnly(
+          db: db,
+          task: task,
+          selectedDate: selectedDate, // ✅ 수정
+        );
         if (context.mounted) {
           // ✅ 1. 확인 모달 닫기
           Navigator.pop(context);
@@ -1978,7 +2048,14 @@ void _handleDelete(BuildContext context, {required TaskData task}) async {
       },
       onDeleteFuture: () async {
         // ✅ この予定以降 삭제: UNTIL 설정
-        await _deleteTaskFuture(db, task);
+        debugPrint(
+          '🔥 [TaskWolt] deleteTaskFuture 호출 - selectedDate: $selectedDate',
+        ); // ✅ 추가
+        await RecurringHelpers.deleteTaskFuture(
+          db: db,
+          task: task,
+          selectedDate: selectedDate, // ✅ 수정
+        );
         if (context.mounted) {
           // ✅ 1. 확인 모달 닫기
           Navigator.pop(context);
@@ -1994,8 +2071,7 @@ void _handleDelete(BuildContext context, {required TaskData task}) async {
       },
       onDeleteAll: () async {
         // すべての回 삭제 (전체 삭제)
-        debugPrint('✅ [TaskWolt] すべての回 삭제');
-        await db.deleteTask(task.id);
+        await RecurringHelpers.deleteTaskAll(db: db, task: task);
         if (context.mounted) {
           // ✅ 1. 확인 모달 닫기
           Navigator.pop(context);
@@ -2205,6 +2281,125 @@ Future<void> _updateTaskAll({
   debugPrint('   - ID: ${task.id}');
   debugPrint('   - 새 제목: $title');
   debugPrint('   - 반복 규칙: $repeatRule');
+}
+
+// ==================== RRULE 변환 헬퍼 함수 ====================
+
+/// JSON repeatRule을 RRULE 문자열로 변환
+String? _convertJsonRepeatRuleToRRule(String jsonRepeatRule, DateTime dtstart) {
+  try {
+    final json = jsonDecode(jsonRepeatRule) as Map<String, dynamic>;
+    final value = json['value'] as String?;
+
+    if (value == null || value.isEmpty) {
+      debugPrint('⚠️ [RRuleConvert] value 필드 없음');
+      return null;
+    }
+
+    debugPrint('🔍 [RRuleConvert] 파싱 시작: $value');
+
+    final parts = value.split(':');
+    final freq = parts[0];
+    final daysStr = parts.length > 1 ? parts[1] : null;
+
+    switch (freq) {
+      case 'daily':
+        if (daysStr != null && daysStr.isNotEmpty) {
+          final days = daysStr.split(',');
+          final weekdays = days.map(_jpDayToWeekday).whereType<int>().toList();
+
+          if (weekdays.isEmpty) {
+            debugPrint('⚠️ [RRuleConvert] 요일 변환 실패: $daysStr');
+            return null;
+          }
+
+          final rrule = RecurrenceRule(
+            frequency: Frequency.weekly,
+            byWeekDays: weekdays.map((wd) => ByWeekDayEntry(wd)).toList(),
+          );
+
+          final rruleString = rrule.toString();
+          debugPrint('✅ [RRuleConvert] API 변환 완료: $rruleString');
+          return rruleString.replaceFirst('RRULE:', '');
+        } else {
+          debugPrint('✅ [RRuleConvert] 매일 반복');
+          return 'FREQ=DAILY';
+        }
+
+      case 'weekly':
+        if (daysStr != null && daysStr.isNotEmpty) {
+          final days = daysStr.split(',');
+          final weekdays = days.map(_jpDayToWeekday).whereType<int>().toList();
+
+          if (weekdays.isEmpty) {
+            debugPrint('⚠️ [RRuleConvert] 요일 변환 실패: $daysStr');
+            return null;
+          }
+
+          final rrule = RecurrenceRule(
+            frequency: Frequency.weekly,
+            byWeekDays: weekdays.map((wd) => ByWeekDayEntry(wd)).toList(),
+          );
+
+          final rruleString = rrule.toString();
+          debugPrint('✅ [RRuleConvert] API 변환 완료: $rruleString');
+          return rruleString.replaceFirst('RRULE:', '');
+        } else {
+          final weekday = dtstart.weekday;
+          final rrule = RecurrenceRule(
+            frequency: Frequency.weekly,
+            byWeekDays: [ByWeekDayEntry(weekday)],
+          );
+          debugPrint('✅ [RRuleConvert] 매주 반복');
+          return rrule.toString().replaceFirst('RRULE:', '');
+        }
+
+      case 'monthly':
+        debugPrint('✅ [RRuleConvert] 매월 ${dtstart.day}일');
+        return 'FREQ=MONTHLY;BYMONTHDAY=${dtstart.day}';
+
+      case 'yearly':
+        debugPrint('✅ [RRuleConvert] 매년 ${dtstart.month}월 ${dtstart.day}일');
+        return 'FREQ=YEARLY;BYMONTH=${dtstart.month};BYMONTHDAY=${dtstart.day}';
+
+      default:
+        debugPrint('⚠️ [RRuleConvert] 알 수 없는 빈도: $freq');
+        return null;
+    }
+  } catch (e) {
+    debugPrint('⚠️ [RRuleConvert] JSON 파싱 실패: $e');
+    return null;
+  }
+}
+
+/// 일본어/한국어 요일 → DateTime.weekday 변환
+int? _jpDayToWeekday(String jpDay) {
+  switch (jpDay) {
+    case '月':
+    case '월':
+      return DateTime.monday;
+    case '火':
+    case '화':
+      return DateTime.tuesday;
+    case '水':
+    case '수':
+      return DateTime.wednesday;
+    case '木':
+    case '목':
+      return DateTime.thursday;
+    case '金':
+    case '금':
+      return DateTime.friday;
+    case '土':
+    case '토':
+      return DateTime.saturday;
+    case '日':
+    case '일':
+      return DateTime.sunday;
+    default:
+      debugPrint('⚠️ [RRuleConvert] 알 수 없는 요일: $jpDay');
+      return null;
+  }
 }
 
 // ==================== 삭제 헬퍼 함수 ====================
@@ -2592,28 +2787,4 @@ Future<void> _editTaskFuture(
   debugPrint('✅ [TaskWolt] この予定以降 수정 완료 (RFC 5545 Split)');
   debugPrint('   - Old Task ID: ${task.id} (UNTIL: $yesterday)');
   debugPrint('   - New Task ID: $newTaskId (Start: $executionDate)');
-}
-
-/// 일본어 요일을 DateTime.weekday 상수로 변환
-/// ⚠️ 보정 없이 정확한 weekday 반환 (RRuleUtils에서 -1 보정 적용)
-int? _jpDayToWeekday(String jpDay) {
-  switch (jpDay) {
-    case '月':
-      return DateTime.monday; // 1
-    case '火':
-      return DateTime.tuesday; // 2
-    case '水':
-      return DateTime.wednesday; // 3
-    case '木':
-      return DateTime.thursday; // 4
-    case '金':
-      return DateTime.friday; // 5
-    case '土':
-      return DateTime.saturday; // 6
-    case '日':
-      return DateTime.sunday; // 7
-    default:
-      debugPrint('⚠️ [RepeatConvert] 알 수 없는 요일: $jpDay');
-      return null;
-  }
 }

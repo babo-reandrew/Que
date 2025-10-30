@@ -2047,10 +2047,15 @@ class _DateDetailViewState extends State<DateDetailView>
                           repeatRule: schedule.repeatRule, // 🔄 반복 규칙 전달
                           showConfirmDialog: true, // ✅ 삭제 확인 모달 표시
                           onComplete: () async {
-                            await GetIt.I<AppDatabase>().completeSchedule(
-                              schedule.id,
+                            // 🔥 반복 일정은 ScheduleCompletion 테이블로 날짜별 완료 처리
+                            await GetIt.I<AppDatabase>()
+                                .recordScheduleCompletion(
+                                  schedule.id,
+                                  date, // 현재 날짜
+                                );
+                            print(
+                              '✅ [ScheduleCard] 완료: ${schedule.summary} (날짜: $date)',
                             );
-                            print('✅ [ScheduleCard] 완료: ${schedule.summary}');
                             HapticFeedback.lightImpact();
                           },
                           onDelete: () async {
@@ -2166,8 +2171,12 @@ class _DateDetailViewState extends State<DateDetailView>
                       onComplete: () async {
                         // 🎯 햅틱 피드백 추가
                         HapticFeedback.lightImpact();
-                        await GetIt.I<AppDatabase>().completeTask(task.id);
-                        print('✅ [TaskCard] 완료 토글: ${task.title}');
+                        // 🔥 반복 할일은 TaskCompletion 테이블로 날짜별 완료 처리
+                        await GetIt.I<AppDatabase>().recordTaskCompletion(
+                          task.id,
+                          date,
+                        );
+                        print('✅ [TaskCard] 완료 토글: ${task.title} (날짜: $date)');
                       },
                       onDelete: () async {
                         await GetIt.I<AppDatabase>().deleteTask(task.id);
@@ -2200,14 +2209,52 @@ class _DateDetailViewState extends State<DateDetailView>
                         onToggle: () async {
                           // 🎯 햅틱 피드백 추가
                           HapticFeedback.lightImpact();
-                          if (task.completed) {
-                            await GetIt.I<AppDatabase>().uncompleteTask(
-                              task.id,
+
+                          // 🔥 반복 할일인지 확인
+                          final pattern = await GetIt.I<AppDatabase>()
+                              .getRecurringPattern(
+                                entityType: 'task',
+                                entityId: task.id,
+                              );
+
+                          if (pattern != null) {
+                            // 🔥 반복 할일: TaskCompletion 테이블로 날짜별 완료 처리
+                            final completions = await GetIt.I<AppDatabase>()
+                                .getTaskCompletionsByDate(date);
+                            final isCompleted = completions.any(
+                              (c) => c.taskId == task.id,
                             );
-                            print('🔄 [TaskCard] 체크박스 완료 해제: ${task.title}');
+
+                            if (isCompleted) {
+                              await GetIt.I<AppDatabase>().deleteTaskCompletion(
+                                task.id,
+                                date,
+                              );
+                              print(
+                                '🔄 [TaskCard] 체크박스 완료 해제: ${task.title} (날짜: $date)',
+                              );
+                            } else {
+                              await GetIt.I<AppDatabase>().recordTaskCompletion(
+                                task.id,
+                                date,
+                              );
+                              print(
+                                '✅ [TaskCard] 체크박스 완료 처리: ${task.title} (날짜: $date)',
+                              );
+                            }
                           } else {
-                            await GetIt.I<AppDatabase>().completeTask(task.id);
-                            print('✅ [TaskCard] 체크박스 완료 처리: ${task.title}');
+                            // 🔥 일반 할일: 기존 completed 필드 사용
+                            if (task.completed) {
+                              await GetIt.I<AppDatabase>().uncompleteTask(
+                                task.id,
+                              );
+                              print('🔄 [TaskCard] 체크박스 완료 해제: ${task.title}');
+                            } else {
+                              await GetIt.I<AppDatabase>().completeTask(
+                                task.id,
+                              );
+                              print('✅ [TaskCard] 체크박스 완료 처리: ${task.title}');
+                            }
                           }
                         },
                       ),
@@ -2432,7 +2479,7 @@ class _DateDetailViewState extends State<DateDetailView>
     showScheduleDetailWoltModal(
       context,
       schedule: schedule,
-      selectedDate: schedule.start,
+      selectedDate: _currentDate, // ✅ 수정: 사용자가 보고 있는 날짜 전달
     ).whenComplete(() {
       debugPrint('🔥 [MODAL CLOSE] whenComplete 콜백 시작');
       // 🎯 바텀시트 닫힘 표시
@@ -2464,7 +2511,7 @@ class _DateDetailViewState extends State<DateDetailView>
     showTaskDetailWoltModal(
       context,
       task: task,
-      selectedDate: _currentDate,
+      selectedDate: _currentDate, // ✅ 이미 올바름
     ).whenComplete(() {
       // 🎯 바텀시트 닫힘 표시
       // 🔥 약간의 지연 추가: 바텀시트 애니메이션 완료 후 드래그 활성화
@@ -3084,7 +3131,8 @@ class _DateDetailViewState extends State<DateDetailView>
       int dataItemCountBefore = 0;
       for (int i = 0; i < dropIndex; i++) {
         final item = currentItems[i];
-        final isDataItem = item.type != UnifiedItemType.dateHeader &&
+        final isDataItem =
+            item.type != UnifiedItemType.dateHeader &&
             item.type != UnifiedItemType.divider &&
             item.type != UnifiedItemType.completed &&
             item.type != UnifiedItemType.inboxHeader;
@@ -3728,9 +3776,21 @@ class _DateDetailViewState extends State<DateDetailView>
     return TaskCard(
       task: task,
       onToggle: () async {
-        // 완료 해제
-        await GetIt.I<AppDatabase>().uncompleteTask(task.id);
-        print('🔄 [CompletedTask] 완료 해제: ${task.title}');
+        // 🔥 반복 할일인지 확인
+        final pattern = await GetIt.I<AppDatabase>().getRecurringPattern(
+          entityType: 'task',
+          entityId: task.id,
+        );
+
+        if (pattern != null) {
+          // 🔥 반복 할일: TaskCompletion 삭제
+          await GetIt.I<AppDatabase>().deleteTaskCompletion(task.id, date);
+          print('🔄 [CompletedTask] 완료 해제: ${task.title} (날짜: $date)');
+        } else {
+          // 🔥 일반 할일: completed 필드 업데이트
+          await GetIt.I<AppDatabase>().uncompleteTask(task.id);
+          print('🔄 [CompletedTask] 완료 해제: ${task.title}');
+        }
         HapticFeedback.lightImpact();
         // setState() 제거 - StreamBuilder가 자동으로 반응
       },

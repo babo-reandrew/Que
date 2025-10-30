@@ -2196,6 +2196,634 @@ class HabitCompletionCompanion extends UpdateCompanion<HabitCompletionData> {
   }
 }
 
+class $ScheduleCompletionTable extends ScheduleCompletion
+    with TableInfo<$ScheduleCompletionTable, ScheduleCompletionData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ScheduleCompletionTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _scheduleIdMeta = const VerificationMeta(
+    'scheduleId',
+  );
+  @override
+  late final GeneratedColumn<int> scheduleId = GeneratedColumn<int>(
+    'schedule_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _completedDateMeta = const VerificationMeta(
+    'completedDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> completedDate =
+      GeneratedColumn<DateTime>(
+        'completed_date',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    scheduleId,
+    completedDate,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'schedule_completion';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ScheduleCompletionData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('schedule_id')) {
+      context.handle(
+        _scheduleIdMeta,
+        scheduleId.isAcceptableOrUnknown(data['schedule_id']!, _scheduleIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scheduleIdMeta);
+    }
+    if (data.containsKey('completed_date')) {
+      context.handle(
+        _completedDateMeta,
+        completedDate.isAcceptableOrUnknown(
+          data['completed_date']!,
+          _completedDateMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_completedDateMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {scheduleId, completedDate},
+  ];
+  @override
+  ScheduleCompletionData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ScheduleCompletionData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      scheduleId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}schedule_id'],
+      )!,
+      completedDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}completed_date'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ScheduleCompletionTable createAlias(String alias) {
+    return $ScheduleCompletionTable(attachedDatabase, alias);
+  }
+}
+
+class ScheduleCompletionData extends DataClass
+    implements Insertable<ScheduleCompletionData> {
+  final int id;
+  final int scheduleId;
+  final DateTime completedDate;
+  final DateTime createdAt;
+  const ScheduleCompletionData({
+    required this.id,
+    required this.scheduleId,
+    required this.completedDate,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['schedule_id'] = Variable<int>(scheduleId);
+    map['completed_date'] = Variable<DateTime>(completedDate);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  ScheduleCompletionCompanion toCompanion(bool nullToAbsent) {
+    return ScheduleCompletionCompanion(
+      id: Value(id),
+      scheduleId: Value(scheduleId),
+      completedDate: Value(completedDate),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory ScheduleCompletionData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ScheduleCompletionData(
+      id: serializer.fromJson<int>(json['id']),
+      scheduleId: serializer.fromJson<int>(json['scheduleId']),
+      completedDate: serializer.fromJson<DateTime>(json['completedDate']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'scheduleId': serializer.toJson<int>(scheduleId),
+      'completedDate': serializer.toJson<DateTime>(completedDate),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  ScheduleCompletionData copyWith({
+    int? id,
+    int? scheduleId,
+    DateTime? completedDate,
+    DateTime? createdAt,
+  }) => ScheduleCompletionData(
+    id: id ?? this.id,
+    scheduleId: scheduleId ?? this.scheduleId,
+    completedDate: completedDate ?? this.completedDate,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  ScheduleCompletionData copyWithCompanion(ScheduleCompletionCompanion data) {
+    return ScheduleCompletionData(
+      id: data.id.present ? data.id.value : this.id,
+      scheduleId: data.scheduleId.present
+          ? data.scheduleId.value
+          : this.scheduleId,
+      completedDate: data.completedDate.present
+          ? data.completedDate.value
+          : this.completedDate,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScheduleCompletionData(')
+          ..write('id: $id, ')
+          ..write('scheduleId: $scheduleId, ')
+          ..write('completedDate: $completedDate, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, scheduleId, completedDate, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ScheduleCompletionData &&
+          other.id == this.id &&
+          other.scheduleId == this.scheduleId &&
+          other.completedDate == this.completedDate &&
+          other.createdAt == this.createdAt);
+}
+
+class ScheduleCompletionCompanion
+    extends UpdateCompanion<ScheduleCompletionData> {
+  final Value<int> id;
+  final Value<int> scheduleId;
+  final Value<DateTime> completedDate;
+  final Value<DateTime> createdAt;
+  const ScheduleCompletionCompanion({
+    this.id = const Value.absent(),
+    this.scheduleId = const Value.absent(),
+    this.completedDate = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  ScheduleCompletionCompanion.insert({
+    this.id = const Value.absent(),
+    required int scheduleId,
+    required DateTime completedDate,
+    required DateTime createdAt,
+  }) : scheduleId = Value(scheduleId),
+       completedDate = Value(completedDate),
+       createdAt = Value(createdAt);
+  static Insertable<ScheduleCompletionData> custom({
+    Expression<int>? id,
+    Expression<int>? scheduleId,
+    Expression<DateTime>? completedDate,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (scheduleId != null) 'schedule_id': scheduleId,
+      if (completedDate != null) 'completed_date': completedDate,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  ScheduleCompletionCompanion copyWith({
+    Value<int>? id,
+    Value<int>? scheduleId,
+    Value<DateTime>? completedDate,
+    Value<DateTime>? createdAt,
+  }) {
+    return ScheduleCompletionCompanion(
+      id: id ?? this.id,
+      scheduleId: scheduleId ?? this.scheduleId,
+      completedDate: completedDate ?? this.completedDate,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (scheduleId.present) {
+      map['schedule_id'] = Variable<int>(scheduleId.value);
+    }
+    if (completedDate.present) {
+      map['completed_date'] = Variable<DateTime>(completedDate.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScheduleCompletionCompanion(')
+          ..write('id: $id, ')
+          ..write('scheduleId: $scheduleId, ')
+          ..write('completedDate: $completedDate, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TaskCompletionTable extends TaskCompletion
+    with TableInfo<$TaskCompletionTable, TaskCompletionData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TaskCompletionTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _taskIdMeta = const VerificationMeta('taskId');
+  @override
+  late final GeneratedColumn<int> taskId = GeneratedColumn<int>(
+    'task_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _completedDateMeta = const VerificationMeta(
+    'completedDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> completedDate =
+      GeneratedColumn<DateTime>(
+        'completed_date',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, taskId, completedDate, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'task_completion';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TaskCompletionData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('task_id')) {
+      context.handle(
+        _taskIdMeta,
+        taskId.isAcceptableOrUnknown(data['task_id']!, _taskIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_taskIdMeta);
+    }
+    if (data.containsKey('completed_date')) {
+      context.handle(
+        _completedDateMeta,
+        completedDate.isAcceptableOrUnknown(
+          data['completed_date']!,
+          _completedDateMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_completedDateMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {taskId, completedDate},
+  ];
+  @override
+  TaskCompletionData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TaskCompletionData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      taskId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}task_id'],
+      )!,
+      completedDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}completed_date'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $TaskCompletionTable createAlias(String alias) {
+    return $TaskCompletionTable(attachedDatabase, alias);
+  }
+}
+
+class TaskCompletionData extends DataClass
+    implements Insertable<TaskCompletionData> {
+  final int id;
+  final int taskId;
+  final DateTime completedDate;
+  final DateTime createdAt;
+  const TaskCompletionData({
+    required this.id,
+    required this.taskId,
+    required this.completedDate,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['task_id'] = Variable<int>(taskId);
+    map['completed_date'] = Variable<DateTime>(completedDate);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  TaskCompletionCompanion toCompanion(bool nullToAbsent) {
+    return TaskCompletionCompanion(
+      id: Value(id),
+      taskId: Value(taskId),
+      completedDate: Value(completedDate),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory TaskCompletionData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TaskCompletionData(
+      id: serializer.fromJson<int>(json['id']),
+      taskId: serializer.fromJson<int>(json['taskId']),
+      completedDate: serializer.fromJson<DateTime>(json['completedDate']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'taskId': serializer.toJson<int>(taskId),
+      'completedDate': serializer.toJson<DateTime>(completedDate),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  TaskCompletionData copyWith({
+    int? id,
+    int? taskId,
+    DateTime? completedDate,
+    DateTime? createdAt,
+  }) => TaskCompletionData(
+    id: id ?? this.id,
+    taskId: taskId ?? this.taskId,
+    completedDate: completedDate ?? this.completedDate,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  TaskCompletionData copyWithCompanion(TaskCompletionCompanion data) {
+    return TaskCompletionData(
+      id: data.id.present ? data.id.value : this.id,
+      taskId: data.taskId.present ? data.taskId.value : this.taskId,
+      completedDate: data.completedDate.present
+          ? data.completedDate.value
+          : this.completedDate,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskCompletionData(')
+          ..write('id: $id, ')
+          ..write('taskId: $taskId, ')
+          ..write('completedDate: $completedDate, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, taskId, completedDate, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TaskCompletionData &&
+          other.id == this.id &&
+          other.taskId == this.taskId &&
+          other.completedDate == this.completedDate &&
+          other.createdAt == this.createdAt);
+}
+
+class TaskCompletionCompanion extends UpdateCompanion<TaskCompletionData> {
+  final Value<int> id;
+  final Value<int> taskId;
+  final Value<DateTime> completedDate;
+  final Value<DateTime> createdAt;
+  const TaskCompletionCompanion({
+    this.id = const Value.absent(),
+    this.taskId = const Value.absent(),
+    this.completedDate = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  TaskCompletionCompanion.insert({
+    this.id = const Value.absent(),
+    required int taskId,
+    required DateTime completedDate,
+    required DateTime createdAt,
+  }) : taskId = Value(taskId),
+       completedDate = Value(completedDate),
+       createdAt = Value(createdAt);
+  static Insertable<TaskCompletionData> custom({
+    Expression<int>? id,
+    Expression<int>? taskId,
+    Expression<DateTime>? completedDate,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (taskId != null) 'task_id': taskId,
+      if (completedDate != null) 'completed_date': completedDate,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  TaskCompletionCompanion copyWith({
+    Value<int>? id,
+    Value<int>? taskId,
+    Value<DateTime>? completedDate,
+    Value<DateTime>? createdAt,
+  }) {
+    return TaskCompletionCompanion(
+      id: id ?? this.id,
+      taskId: taskId ?? this.taskId,
+      completedDate: completedDate ?? this.completedDate,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (taskId.present) {
+      map['task_id'] = Variable<int>(taskId.value);
+    }
+    if (completedDate.present) {
+      map['completed_date'] = Variable<DateTime>(completedDate.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskCompletionCompanion(')
+          ..write('id: $id, ')
+          ..write('taskId: $taskId, ')
+          ..write('completedDate: $completedDate, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $DailyCardOrderTable extends DailyCardOrder
     with TableInfo<$DailyCardOrderTable, DailyCardOrderData> {
   @override
@@ -6028,6 +6656,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $HabitCompletionTable habitCompletion = $HabitCompletionTable(
     this,
   );
+  late final $ScheduleCompletionTable scheduleCompletion =
+      $ScheduleCompletionTable(this);
+  late final $TaskCompletionTable taskCompletion = $TaskCompletionTable(this);
   late final $DailyCardOrderTable dailyCardOrder = $DailyCardOrderTable(this);
   late final $AudioContentsTable audioContents = $AudioContentsTable(this);
   late final $TranscriptLinesTable transcriptLines = $TranscriptLinesTable(
@@ -6049,6 +6680,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     task,
     habit,
     habitCompletion,
+    scheduleCompletion,
+    taskCompletion,
     dailyCardOrder,
     audioContents,
     transcriptLines,
@@ -7170,6 +7803,381 @@ typedef $$HabitCompletionTableProcessedTableManager =
         >,
       ),
       HabitCompletionData,
+      PrefetchHooks Function()
+    >;
+typedef $$ScheduleCompletionTableCreateCompanionBuilder =
+    ScheduleCompletionCompanion Function({
+      Value<int> id,
+      required int scheduleId,
+      required DateTime completedDate,
+      required DateTime createdAt,
+    });
+typedef $$ScheduleCompletionTableUpdateCompanionBuilder =
+    ScheduleCompletionCompanion Function({
+      Value<int> id,
+      Value<int> scheduleId,
+      Value<DateTime> completedDate,
+      Value<DateTime> createdAt,
+    });
+
+class $$ScheduleCompletionTableFilterComposer
+    extends Composer<_$AppDatabase, $ScheduleCompletionTable> {
+  $$ScheduleCompletionTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get scheduleId => $composableBuilder(
+    column: $table.scheduleId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get completedDate => $composableBuilder(
+    column: $table.completedDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ScheduleCompletionTableOrderingComposer
+    extends Composer<_$AppDatabase, $ScheduleCompletionTable> {
+  $$ScheduleCompletionTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get scheduleId => $composableBuilder(
+    column: $table.scheduleId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get completedDate => $composableBuilder(
+    column: $table.completedDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ScheduleCompletionTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ScheduleCompletionTable> {
+  $$ScheduleCompletionTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get scheduleId => $composableBuilder(
+    column: $table.scheduleId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get completedDate => $composableBuilder(
+    column: $table.completedDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$ScheduleCompletionTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ScheduleCompletionTable,
+          ScheduleCompletionData,
+          $$ScheduleCompletionTableFilterComposer,
+          $$ScheduleCompletionTableOrderingComposer,
+          $$ScheduleCompletionTableAnnotationComposer,
+          $$ScheduleCompletionTableCreateCompanionBuilder,
+          $$ScheduleCompletionTableUpdateCompanionBuilder,
+          (
+            ScheduleCompletionData,
+            BaseReferences<
+              _$AppDatabase,
+              $ScheduleCompletionTable,
+              ScheduleCompletionData
+            >,
+          ),
+          ScheduleCompletionData,
+          PrefetchHooks Function()
+        > {
+  $$ScheduleCompletionTableTableManager(
+    _$AppDatabase db,
+    $ScheduleCompletionTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ScheduleCompletionTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ScheduleCompletionTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ScheduleCompletionTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> scheduleId = const Value.absent(),
+                Value<DateTime> completedDate = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => ScheduleCompletionCompanion(
+                id: id,
+                scheduleId: scheduleId,
+                completedDate: completedDate,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int scheduleId,
+                required DateTime completedDate,
+                required DateTime createdAt,
+              }) => ScheduleCompletionCompanion.insert(
+                id: id,
+                scheduleId: scheduleId,
+                completedDate: completedDate,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ScheduleCompletionTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ScheduleCompletionTable,
+      ScheduleCompletionData,
+      $$ScheduleCompletionTableFilterComposer,
+      $$ScheduleCompletionTableOrderingComposer,
+      $$ScheduleCompletionTableAnnotationComposer,
+      $$ScheduleCompletionTableCreateCompanionBuilder,
+      $$ScheduleCompletionTableUpdateCompanionBuilder,
+      (
+        ScheduleCompletionData,
+        BaseReferences<
+          _$AppDatabase,
+          $ScheduleCompletionTable,
+          ScheduleCompletionData
+        >,
+      ),
+      ScheduleCompletionData,
+      PrefetchHooks Function()
+    >;
+typedef $$TaskCompletionTableCreateCompanionBuilder =
+    TaskCompletionCompanion Function({
+      Value<int> id,
+      required int taskId,
+      required DateTime completedDate,
+      required DateTime createdAt,
+    });
+typedef $$TaskCompletionTableUpdateCompanionBuilder =
+    TaskCompletionCompanion Function({
+      Value<int> id,
+      Value<int> taskId,
+      Value<DateTime> completedDate,
+      Value<DateTime> createdAt,
+    });
+
+class $$TaskCompletionTableFilterComposer
+    extends Composer<_$AppDatabase, $TaskCompletionTable> {
+  $$TaskCompletionTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get taskId => $composableBuilder(
+    column: $table.taskId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get completedDate => $composableBuilder(
+    column: $table.completedDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TaskCompletionTableOrderingComposer
+    extends Composer<_$AppDatabase, $TaskCompletionTable> {
+  $$TaskCompletionTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get taskId => $composableBuilder(
+    column: $table.taskId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get completedDate => $composableBuilder(
+    column: $table.completedDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TaskCompletionTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TaskCompletionTable> {
+  $$TaskCompletionTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get taskId =>
+      $composableBuilder(column: $table.taskId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get completedDate => $composableBuilder(
+    column: $table.completedDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$TaskCompletionTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TaskCompletionTable,
+          TaskCompletionData,
+          $$TaskCompletionTableFilterComposer,
+          $$TaskCompletionTableOrderingComposer,
+          $$TaskCompletionTableAnnotationComposer,
+          $$TaskCompletionTableCreateCompanionBuilder,
+          $$TaskCompletionTableUpdateCompanionBuilder,
+          (
+            TaskCompletionData,
+            BaseReferences<
+              _$AppDatabase,
+              $TaskCompletionTable,
+              TaskCompletionData
+            >,
+          ),
+          TaskCompletionData,
+          PrefetchHooks Function()
+        > {
+  $$TaskCompletionTableTableManager(
+    _$AppDatabase db,
+    $TaskCompletionTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TaskCompletionTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TaskCompletionTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TaskCompletionTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> taskId = const Value.absent(),
+                Value<DateTime> completedDate = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => TaskCompletionCompanion(
+                id: id,
+                taskId: taskId,
+                completedDate: completedDate,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int taskId,
+                required DateTime completedDate,
+                required DateTime createdAt,
+              }) => TaskCompletionCompanion.insert(
+                id: id,
+                taskId: taskId,
+                completedDate: completedDate,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TaskCompletionTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TaskCompletionTable,
+      TaskCompletionData,
+      $$TaskCompletionTableFilterComposer,
+      $$TaskCompletionTableOrderingComposer,
+      $$TaskCompletionTableAnnotationComposer,
+      $$TaskCompletionTableCreateCompanionBuilder,
+      $$TaskCompletionTableUpdateCompanionBuilder,
+      (
+        TaskCompletionData,
+        BaseReferences<_$AppDatabase, $TaskCompletionTable, TaskCompletionData>,
+      ),
+      TaskCompletionData,
       PrefetchHooks Function()
     >;
 typedef $$DailyCardOrderTableCreateCompanionBuilder =
@@ -9533,6 +10541,10 @@ class $AppDatabaseManager {
       $$HabitTableTableManager(_db, _db.habit);
   $$HabitCompletionTableTableManager get habitCompletion =>
       $$HabitCompletionTableTableManager(_db, _db.habitCompletion);
+  $$ScheduleCompletionTableTableManager get scheduleCompletion =>
+      $$ScheduleCompletionTableTableManager(_db, _db.scheduleCompletion);
+  $$TaskCompletionTableTableManager get taskCompletion =>
+      $$TaskCompletionTableTableManager(_db, _db.taskCompletion);
   $$DailyCardOrderTableTableManager get dailyCardOrder =>
       $$DailyCardOrderTableTableManager(_db, _db.dailyCardOrder);
   $$AudioContentsTableTableManager get audioContents =>

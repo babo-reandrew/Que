@@ -18,7 +18,7 @@ import 'package:sqlite3/sqlite3.dart';
 part 'schedule_database.g.dart'; //g.을 붙이는 건 생성된 파일이라는 의미를 전달한다.
 //g.를 붙여주면 즉, 자동으로 설치가 되거나 실행이 될 때 자동으로 설치도도록 한다.
 
-// ✅ 10개 테이블: Schedule, Task, Habit, HabitCompletion, DailyCardOrder, AudioContents, TranscriptLines, RecurringPattern, RecurringException, TempExtractedItems
+// ✅ 12개 테이블: Schedule, Task, Habit, HabitCompletion, ScheduleCompletion, TaskCompletion, DailyCardOrder, AudioContents, TranscriptLines, RecurringPattern, RecurringException, TempExtractedItems
 // ⚠️ AudioProgress 제거됨 → AudioContents에 재생 상태 통합
 @DriftDatabase(
   tables: [
@@ -26,6 +26,8 @@ part 'schedule_database.g.dart'; //g.을 붙이는 건 생성된 파일이라는
     Task,
     Habit,
     HabitCompletion,
+    ScheduleCompletion, // ✅ 새로 추가: 일정 완료 기록 (반복 일정 완료 처리용)
+    TaskCompletion, // ✅ 새로 추가: 할일 완료 기록 (반복 할일 완료 처리용)
     DailyCardOrder,
     AudioContents,
     TranscriptLines,
@@ -569,6 +571,158 @@ class AppDatabase extends _$AppDatabase {
     return count;
   }
 
+  // ==================== ScheduleCompletion (일정 완료 기록) 함수 ====================
+
+  /// 일정 완료 기록 추가
+  /// 이거를 설정하고 → 특정 날짜에 일정을 완료했다고 기록해서
+  /// 이거를 해서 → ScheduleCompletion 테이블에 저장한다
+  /// 이거는 이래서 → 반복 일정의 특정 인스턴스만 완료 처리한다
+  Future<int> recordScheduleCompletion(int scheduleId, DateTime date) async {
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    final companion = ScheduleCompletionCompanion.insert(
+      scheduleId: scheduleId,
+      completedDate: dateOnly,
+      createdAt: DateTime.now(),
+    );
+    final id = await into(scheduleCompletion).insert(companion);
+    print(
+      '✅ [DB] recordScheduleCompletion 실행 완료: scheduleId=$scheduleId, date=$dateOnly',
+    );
+    return id;
+  }
+
+  /// 일정 완료 기록 삭제 (완료 해제용)
+  /// 이거를 설정하고 → 특정 날짜의 특정 일정 완료 기록을 삭제해서
+  /// 이거를 해서 → 완료 상태를 해제한다
+  Future<int> deleteScheduleCompletion(int scheduleId, DateTime date) async {
+    final dateOnly = DateTime(date.year, date.month, date.day);
+
+    final count =
+        await (delete(scheduleCompletion)..where(
+              (tbl) =>
+                  tbl.scheduleId.equals(scheduleId) &
+                  tbl.completedDate.equals(dateOnly),
+            ))
+            .go();
+    print(
+      '🔄 [DB] deleteScheduleCompletion 실행 완료: scheduleId=$scheduleId, date=$dateOnly → $count개 삭제',
+    );
+    return count;
+  }
+
+  /// 특정 날짜의 일정 완료 기록 조회
+  /// 이거를 설정하고 → 특정 날짜의 완료 기록을 조회해서
+  /// 이거를 해서 → 오늘 완료한 일정 목록을 확인한다
+  Future<List<ScheduleCompletionData>> getScheduleCompletionsByDate(
+    DateTime date,
+  ) async {
+    final dateOnly = DateTime(date.year, date.month, date.day);
+
+    final result = await (select(
+      scheduleCompletion,
+    )..where((tbl) => tbl.completedDate.equals(dateOnly))).get();
+
+    print(
+      '📊 [DB] getScheduleCompletionsByDate 실행 완료: $dateOnly → ${result.length}개 기록',
+    );
+    return result;
+  }
+
+  /// 특정 일정의 특정 날짜 완료 기록 조회 (단일)
+  /// 이거를 설정하고 → 특정 일정이 특정 날짜에 완료되었는지 확인해서
+  /// 이거를 해서 → 월뷰에서 완료된 일정을 숨긴다
+  Future<ScheduleCompletionData?> getScheduleCompletion(
+    int scheduleId,
+    DateTime date,
+  ) async {
+    final dateOnly = DateTime(date.year, date.month, date.day);
+
+    final result =
+        await (select(scheduleCompletion)..where(
+              (tbl) =>
+                  tbl.scheduleId.equals(scheduleId) &
+                  tbl.completedDate.equals(dateOnly),
+            ))
+            .getSingleOrNull();
+
+    return result;
+  }
+
+  // ==================== TaskCompletion (할일 완료 기록) 함수 ====================
+
+  /// 할일 완료 기록 추가
+  /// 이거를 설정하고 → 특정 날짜에 할일을 완료했다고 기록해서
+  /// 이거를 해서 → TaskCompletion 테이블에 저장한다
+  /// 이거는 이래서 → 반복 할일의 특정 인스턴스만 완료 처리한다
+  Future<int> recordTaskCompletion(int taskId, DateTime date) async {
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    final companion = TaskCompletionCompanion.insert(
+      taskId: taskId,
+      completedDate: dateOnly,
+      createdAt: DateTime.now(),
+    );
+    final id = await into(taskCompletion).insert(companion);
+    print('✅ [DB] recordTaskCompletion 실행 완료: taskId=$taskId, date=$dateOnly');
+    return id;
+  }
+
+  /// 할일 완료 기록 삭제 (완료 해제용)
+  /// 이거를 설정하고 → 특정 날짜의 특정 할일 완료 기록을 삭제해서
+  /// 이거를 해서 → 완료 상태를 해제한다
+  Future<int> deleteTaskCompletion(int taskId, DateTime date) async {
+    final dateOnly = DateTime(date.year, date.month, date.day);
+
+    final count =
+        await (delete(taskCompletion)..where(
+              (tbl) =>
+                  tbl.taskId.equals(taskId) &
+                  tbl.completedDate.equals(dateOnly),
+            ))
+            .go();
+    print(
+      '🔄 [DB] deleteTaskCompletion 실행 완료: taskId=$taskId, date=$dateOnly → $count개 삭제',
+    );
+    return count;
+  }
+
+  /// 특정 날짜의 할일 완료 기록 조회
+  /// 이거를 설정하고 → 특정 날짜의 완료 기록을 조회해서
+  /// 이거를 해서 → 오늘 완료한 할일 목록을 확인한다
+  Future<List<TaskCompletionData>> getTaskCompletionsByDate(
+    DateTime date,
+  ) async {
+    final dateOnly = DateTime(date.year, date.month, date.day);
+
+    final result = await (select(
+      taskCompletion,
+    )..where((tbl) => tbl.completedDate.equals(dateOnly))).get();
+
+    print(
+      '📊 [DB] getTaskCompletionsByDate 실행 완료: $dateOnly → ${result.length}개 기록',
+    );
+    return result;
+  }
+
+  /// 특정 할일의 특정 날짜 완료 기록 조회 (단일)
+  /// 이거를 설정하고 → 특정 할일이 특정 날짜에 완료되었는지 확인해서
+  /// 이거를 해서 → 월뷰에서 완료된 할일을 숨긴다
+  Future<TaskCompletionData?> getTaskCompletion(
+    int taskId,
+    DateTime date,
+  ) async {
+    final dateOnly = DateTime(date.year, date.month, date.day);
+
+    final result =
+        await (select(taskCompletion)..where(
+              (tbl) =>
+                  tbl.taskId.equals(taskId) &
+                  tbl.completedDate.equals(dateOnly),
+            ))
+            .getSingleOrNull();
+
+    return result;
+  }
+
   // ==================== RecurringPattern (반복 규칙) 함수 ====================
 
   /// 반복 규칙 생성
@@ -1040,29 +1194,55 @@ class AppDatabase extends _$AppDatabase {
 
   // ==================== 완료된 항목 조회 함수들 ====================
 
-  /// ✅ 특정 날짜의 완료된 할일 조회 (completedAt 기준)
-  /// 이거를 설정하고 → completed가 true이고 executionDate가 해당 날짜인 할일을 가져와서
-  /// 이거를 해서 → 완료된 할일을 완료 시간 역순으로 정렬하고
-  /// 이거는 이래서 → 최근에 완료한 것이 먼저 표시된다
-  Stream<List<TaskData>> watchCompletedTasksByDay(DateTime date) {
-    final startOfDay = DateTime(date.year, date.month, date.day);
-    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+  /// ✅ 특정 날짜의 완료된 할일 조회 (TaskCompletion 기준)
+  /// 이거를 설정하고 → TaskCompletion 테이블에서 해당 날짜에 완료된 할일 ID를 조회하고
+  /// 이거를 해서 → 완료된 할일들의 상세 정보를 Task 테이블에서 가져와서
+  /// 이거는 이래서 → 반복 할일의 특정 날짜 완료도 정확하게 표시된다
+  Stream<List<TaskData>> watchCompletedTasksByDay(DateTime date) async* {
+    final dateOnly = DateTime(date.year, date.month, date.day);
 
     print('✅ [DB] watchCompletedTasksByDay: ${date.toString().split(' ')[0]}');
-    return (select(task)
-          ..where(
-            (tbl) =>
-                tbl.completed.equals(true) &
-                tbl.executionDate.isBiggerOrEqualValue(startOfDay) &
-                tbl.executionDate.isSmallerOrEqualValue(endOfDay),
-          )
-          ..orderBy([
-            (tbl) => OrderingTerm(
-              expression: tbl.completedAt,
-              mode: OrderingMode.desc,
-            ), // 완료 시간 역순
-          ]))
-        .watch();
+
+    // TaskCompletion 테이블에서 해당 날짜의 완료 기록을 실시간 감지
+    await for (final completions
+        in (select(taskCompletion)
+              ..where((tbl) => tbl.completedDate.equals(dateOnly))
+              ..orderBy([
+                (tbl) => OrderingTerm(
+                  expression: tbl.createdAt,
+                  mode: OrderingMode.desc,
+                ), // 완료 시간 역순
+              ]))
+            .watch()) {
+      // 완료된 할일 ID 리스트
+      final taskIds = completions.map((c) => c.taskId).toSet().toList();
+
+      if (taskIds.isEmpty) {
+        yield [];
+        continue;
+      }
+
+      // Task 테이블에서 해당 할일들의 정보 조회
+      final tasks = await (select(
+        task,
+      )..where((tbl) => tbl.id.isIn(taskIds))).get();
+
+      // createdAt 순서대로 정렬
+      final sortedTasks = <TaskData>[];
+      for (final completion in completions) {
+        try {
+          final taskData = tasks.firstWhere((t) => t.id == completion.taskId);
+          if (!sortedTasks.any((t) => t.id == taskData.id)) {
+            sortedTasks.add(taskData);
+          }
+        } catch (e) {
+          // Task가 삭제된 경우 스킵
+          continue;
+        }
+      }
+
+      yield sortedTasks;
+    }
   }
 
   /// ✅ 특정 날짜의 완료된 습관 조회 (HabitCompletion 기준)
@@ -1116,31 +1296,61 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
-  /// ✅ 특정 날짜의 완료된 일정 조회 (completedAt 기준)
-  /// 이거를 설정하고 → completed가 true이고 start 날짜가 해당 날짜인 일정을 가져와서
-  /// 이거를 해서 → 완료된 일정을 완료 시간 역순으로 정렬하고
-  /// 이거는 이래서 → 최근에 완료한 것이 먼저 표시된다
-  Stream<List<ScheduleData>> watchCompletedSchedulesByDay(DateTime date) {
-    final startOfDay = DateTime(date.year, date.month, date.day);
-    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+  /// ✅ 특정 날짜의 완료된 일정 조회 (ScheduleCompletion 기준)
+  /// 이거를 설정하고 → ScheduleCompletion 테이블에서 해당 날짜에 완료된 일정 ID를 조회하고
+  /// 이거를 해서 → 완료된 일정들의 상세 정보를 Schedule 테이블에서 가져와서
+  /// 이거는 이래서 → 반복 일정의 특정 날짜 완료도 정확하게 표시된다
+  Stream<List<ScheduleData>> watchCompletedSchedulesByDay(
+    DateTime date,
+  ) async* {
+    final dateOnly = DateTime(date.year, date.month, date.day);
 
     print(
       '✅ [DB] watchCompletedSchedulesByDay: ${date.toString().split(' ')[0]}',
     );
-    return (select(schedule)
-          ..where(
-            (tbl) =>
-                tbl.completed.equals(true) &
-                tbl.start.isBiggerOrEqualValue(startOfDay) &
-                tbl.start.isSmallerOrEqualValue(endOfDay),
-          )
-          ..orderBy([
-            (tbl) => OrderingTerm(
-              expression: tbl.completedAt,
-              mode: OrderingMode.desc,
-            ), // 완료 시간 역순
-          ]))
-        .watch();
+
+    // ScheduleCompletion 테이블에서 해당 날짜의 완료 기록을 실시간 감지
+    await for (final completions
+        in (select(scheduleCompletion)
+              ..where((tbl) => tbl.completedDate.equals(dateOnly))
+              ..orderBy([
+                (tbl) => OrderingTerm(
+                  expression: tbl.createdAt,
+                  mode: OrderingMode.desc,
+                ), // 완료 시간 역순
+              ]))
+            .watch()) {
+      // 완료된 일정 ID 리스트
+      final scheduleIds = completions.map((c) => c.scheduleId).toSet().toList();
+
+      if (scheduleIds.isEmpty) {
+        yield [];
+        continue;
+      }
+
+      // Schedule 테이블에서 해당 일정들의 정보 조회
+      final schedules = await (select(
+        schedule,
+      )..where((tbl) => tbl.id.isIn(scheduleIds))).get();
+
+      // createdAt 순서대로 정렬
+      final sortedSchedules = <ScheduleData>[];
+      for (final completion in completions) {
+        try {
+          final scheduleData = schedules.firstWhere(
+            (s) => s.id == completion.scheduleId,
+          );
+          if (!sortedSchedules.any((s) => s.id == scheduleData.id)) {
+            sortedSchedules.add(scheduleData);
+          }
+        } catch (e) {
+          // Schedule이 삭제된 경우 스킵
+          continue;
+        }
+      }
+
+      yield sortedSchedules;
+    }
   }
 
   /// 📊 할일 총 개수 조회 (페이지네이션용)
@@ -1197,6 +1407,10 @@ class AppDatabase extends _$AppDatabase {
     await for (final schedules in watchSchedules()) {
       print('📊 [DB] 전체 Schedule 개수: ${schedules.length}');
 
+      // 🔥 해당 날짜의 완료 기록 조회
+      final completions = await getScheduleCompletionsByDate(target);
+      final completedIds = completions.map((c) => c.scheduleId).toSet();
+
       final result = <ScheduleData>[];
 
       for (final schedule in schedules) {
@@ -1207,11 +1421,16 @@ class AppDatabase extends _$AppDatabase {
         );
 
         if (pattern == null) {
-          // 일반 일정: 날짜 범위 체크
+          // 일반 일정: 날짜 범위 체크 + 완료 여부 확인
           if (schedule.start.isBefore(targetEnd) &&
               schedule.end.isAfter(target)) {
-            print('  ✅ [일정] "${schedule.summary}" - 일반 일정 (날짜 일치)');
-            result.add(schedule);
+            // 🔥 일반 일정은 completed 필드로 완료 확인 (기존 방식 유지)
+            if (!schedule.completed) {
+              print('  ✅ [일정] "${schedule.summary}" - 일반 일정 (날짜 일치, 미완료)');
+              result.add(schedule);
+            } else {
+              print('  ⏭️ [일정] "${schedule.summary}" - 완료됨, 스킵');
+            }
           }
         } else {
           // 반복 일정: RRULE로 인스턴스 생성
@@ -1223,15 +1442,22 @@ class AppDatabase extends _$AppDatabase {
             );
 
             if (instances.isNotEmpty) {
-              print('  ✅ [일정] "${schedule.summary}" - 반복 일정 (RRULE 일치)');
-              result.add(schedule);
+              // 🔥 반복 일정은 ScheduleCompletion 테이블로 완료 확인
+              if (!completedIds.contains(schedule.id)) {
+                print('  ✅ [일정] "${schedule.summary}" - 반복 일정 (RRULE 일치, 미완료)');
+                result.add(schedule);
+              } else {
+                print('  ⏭️ [일정] "${schedule.summary}" - 완료됨, 스킵');
+              }
             }
           } catch (e) {
             print('  ⚠️ [일정] "${schedule.summary}" - RRULE 파싱 실패: $e');
             // 실패 시 원본 날짜 기준으로 폴백
             if (schedule.start.isBefore(targetEnd) &&
                 schedule.end.isAfter(target)) {
-              result.add(schedule);
+              if (!completedIds.contains(schedule.id)) {
+                result.add(schedule);
+              }
             }
           }
         }
@@ -1364,6 +1590,10 @@ class AppDatabase extends _$AppDatabase {
     await for (final tasks in watchTasks()) {
       print('📊 [DB] 전체 Task 개수: ${tasks.length}');
 
+      // 🔥 해당 날짜의 완료 기록 조회
+      final completions = await getTaskCompletionsByDate(target);
+      final completedIds = completions.map((c) => c.taskId).toSet();
+
       final result = <TaskData>[];
 
       for (final task in tasks) {
@@ -1380,16 +1610,19 @@ class AppDatabase extends _$AppDatabase {
         );
 
         if (pattern == null) {
-          // 일반 할일: executionDate 기준 (완료된 것은 제외)
+          // 일반 할일: executionDate 기준 + 완료 여부 확인
           final taskDate = _normalizeDate(task.executionDate!);
-          if (taskDate.isAtSameMomentAs(target) && !task.completed) {
-            print('  ✅ [할일] "${task.title}" - 일반 할일 (날짜 일치, 미완료)');
-            result.add(task);
-          } else if (taskDate.isAtSameMomentAs(target) && task.completed) {
-            print('  ⏭️ [할일] "${task.title}" - 완료됨, 스킵');
+          if (taskDate.isAtSameMomentAs(target)) {
+            // 🔥 일반 할일은 completed 필드로 완료 확인 (기존 방식 유지)
+            if (!task.completed) {
+              print('  ✅ [할일] "${task.title}" - 일반 할일 (날짜 일치, 미완료)');
+              result.add(task);
+            } else {
+              print('  ⏭️ [할일] "${task.title}" - 완료됨, 스킵');
+            }
           }
         } else {
-          // 반복 할일: RRULE로 인스턴스 생성 (완료된 것은 제외)
+          // 반복 할일: RRULE로 인스턴스 생성
           try {
             final instances = await _generateTaskInstancesForDate(
               task: task,
@@ -1397,11 +1630,14 @@ class AppDatabase extends _$AppDatabase {
               targetDate: target,
             );
 
-            if (instances.isNotEmpty && !task.completed) {
-              print('  ✅ [할일] "${task.title}" - 반복 할일 (RRULE 일치, 미완료)');
-              result.add(task);
-            } else if (instances.isNotEmpty && task.completed) {
-              print('  ⏭️ [할일] "${task.title}" - 완료됨, 스킵');
+            if (instances.isNotEmpty) {
+              // 🔥 반복 할일은 TaskCompletion 테이블로 완료 확인
+              if (!completedIds.contains(task.id)) {
+                print('  ✅ [할일] "${task.title}" - 반복 할일 (RRULE 일치, 미완료)');
+                result.add(task);
+              } else {
+                print('  ⏭️ [할일] "${task.title}" - 완료됨, 스킵');
+              }
             }
           } catch (e) {
             print('  ⚠️ [할일] "${task.title}" - RRULE 파싱 실패: $e');
@@ -1784,7 +2020,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 9; // ✅ 스키마 버전 9: Task 테이블에 inboxOrder 컬럼 추가 (인박스 순서 관리)
+  int get schemaVersion => 10; // ✅ 스키마 버전 10: ScheduleCompletion, TaskCompletion 테이블 추가 (반복 이벤트 완료 처리)
 
   // ✅ [마이그레이션 전략 추가]
   // 이거를 설정하고 → onCreate에서 테이블을 생성하고
@@ -1853,6 +2089,16 @@ class AppDatabase extends _$AppDatabase {
         print('📦 [DB Migration] v8→v9+: Task에 inboxOrder 컬럼 추가');
         await m.addColumn(task, task.inboxOrder);
         print('✅ [DB Migration] v8→v9+ 완료 - Task 인박스 순서 관리 기능 추가');
+      }
+
+      // v9 → v10: ScheduleCompletion, TaskCompletion 테이블 추가 (반복 이벤트 완료 처리)
+      if (from == 9 && to >= 10) {
+        print(
+          '📦 [DB Migration] v9→v10+: ScheduleCompletion, TaskCompletion 테이블 생성',
+        );
+        await m.createTable(scheduleCompletion);
+        await m.createTable(taskCompletion);
+        print('✅ [DB Migration] v9→v10+ 완료 - 반복 이벤트 날짜별 완료 처리 기능 추가');
       }
 
       print('✅ [DB Migration] 업그레이드 완료');

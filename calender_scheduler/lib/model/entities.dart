@@ -121,6 +121,66 @@ class HabitCompletion extends Table {
   DateTimeColumn get createdAt => dateTime()();
 }
 
+/// ScheduleCompletion (일정 완료 기록) 테이블
+/// 이거를 설정하고 → 날짜별 일정 완료 기록을 저장하는 테이블을 정의해서
+/// 이거를 해서 → 반복 일정의 특정 인스턴스만 완료 처리하고
+/// 이거는 이래서 → 다른 날짜의 인스턴스는 계속 표시된다
+@DataClassName('ScheduleCompletionData')
+class ScheduleCompletion extends Table {
+  // 🔑 Primary Key: 자동 증가 ID
+  IntColumn get id => integer().autoIncrement()();
+
+  // 🔗 일정 ID (Schedule.id 참조)
+  // 이거를 설정하고 → scheduleId를 foreign key로 설정해서
+  // 이거를 해서 → Schedule 테이블과 연결한다
+  IntColumn get scheduleId => integer()();
+
+  // 📅 완료한 날짜 (정규화: YYYY-MM-DD 00:00:00)
+  // 이거를 설정하고 → 어느 날짜의 인스턴스를 완료했는지 저장해서
+  // 이거를 해서 → 반복 일정의 특정 발생만 완료 처리한다
+  DateTimeColumn get completedDate => dateTime()();
+
+  // ⏰ 기록 생성 시간
+  DateTimeColumn get createdAt => dateTime()();
+
+  // 🔍 성능 최적화: {scheduleId, completedDate} 복합 UNIQUE 제약
+  // → 같은 일정의 같은 날짜는 한 번만 완료 가능
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {scheduleId, completedDate},
+  ];
+}
+
+/// TaskCompletion (할일 완료 기록) 테이블
+/// 이거를 설정하고 → 날짜별 할일 완료 기록을 저장하는 테이블을 정의해서
+/// 이거를 해서 → 반복 할일의 특정 인스턴스만 완료 처리하고
+/// 이거는 이래서 → 다른 날짜의 인스턴스는 계속 표시된다
+@DataClassName('TaskCompletionData')
+class TaskCompletion extends Table {
+  // 🔑 Primary Key: 자동 증가 ID
+  IntColumn get id => integer().autoIncrement()();
+
+  // 🔗 할일 ID (Task.id 참조)
+  // 이거를 설정하고 → taskId를 foreign key로 설정해서
+  // 이거를 해서 → Task 테이블과 연결한다
+  IntColumn get taskId => integer()();
+
+  // 📅 완료한 날짜 (정규화: YYYY-MM-DD 00:00:00)
+  // 이거를 설정하고 → 어느 날짜의 인스턴스를 완료했는지 저장해서
+  // 이거를 해서 → 반복 할일의 특정 발생만 완료 처리한다
+  DateTimeColumn get completedDate => dateTime()();
+
+  // ⏰ 기록 생성 시간
+  DateTimeColumn get createdAt => dateTime()();
+
+  // 🔍 성능 최적화: {taskId, completedDate} 복합 UNIQUE 제약
+  // → 같은 할일의 같은 날짜는 한 번만 완료 가능
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {taskId, completedDate},
+  ];
+}
+
 /// DailyCardOrder (날짜별 카드 순서 관리) 테이블
 ///
 /// 이거를 설정하고 → 특정 날짜에 표시되는 모든 카드의 순서를 관리하는 테이블을 정의해서
