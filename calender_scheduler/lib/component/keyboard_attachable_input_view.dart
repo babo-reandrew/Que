@@ -108,10 +108,7 @@ class _InputAccessoryWithBlurState extends State<InputAccessoryWithBlur>
           child: AnimatedBuilder(
             animation: _fadeAnimation,
             builder: (context, child) {
-              return Opacity(
-                opacity: _fadeAnimation.value,
-                child: child,
-              );
+              return Opacity(opacity: _fadeAnimation.value, child: child);
             },
             child: BackdropFilter(
               filter: ImageFilter.blur(
@@ -151,24 +148,35 @@ class _InputAccessoryWithBlurState extends State<InputAccessoryWithBlur>
             alignment: Alignment.bottomCenter,
             child: Padding(
               padding: EdgeInsets.only(bottom: keyboardHeight), // 키보드 높이만큼 올림
-              child: Padding(
-                padding: EdgeInsets.only(
-                  left: 14,
-                  right: 14,
-                  bottom: 0 + extraBottomPadding, // 하단 여백 제거 (버튼 자체에서 18px 적용)
-                ),
-                child: SafeArea(
-                  top: false,
-                  child: QuickAddControlBox(
-                    selectedDate: widget.selectedDate,
-                    onSave: (data) {
-                      _animateOut(() {
-                        widget.onSaveComplete?.call();
-                        Navigator.pop(context);
-                      });
-                    },
-                  ),
-                ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // ✅ 동적 너비: 화면 너비 - 좌우 여백 28px (각 14px)
+                  final screenWidth = MediaQuery.of(context).size.width;
+
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      left: 14,
+                      right: 14,
+                      bottom:
+                          0 + extraBottomPadding, // 하단 여백 제거 (버튼 자체에서 18px 적용)
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      child: SizedBox(
+                        width: screenWidth - 28, // ✅ 동적 너비 적용
+                        child: QuickAddControlBox(
+                          selectedDate: widget.selectedDate,
+                          onSave: (data) {
+                            _animateOut(() {
+                              widget.onSaveComplete?.call();
+                              Navigator.pop(context);
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),

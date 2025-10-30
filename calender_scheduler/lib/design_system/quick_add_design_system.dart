@@ -99,8 +99,23 @@ class QuickAddDimensions {
   /// Input Accessory View 기본 높이 (Figma: 192px)
   static const double containerHeight = 192.0;
 
-  /// Frame 701 너비 (Figma: 365px)
+  /// Frame 701 너비 - 🔥 동적 계산 함수로 변경됨! (아래 getFrameWidth 참조)
+  /// 기본 Figma 값: 365px (화면너비 393px - 좌우 여백 각 14px)
   static const double frameWidth = 365.0;
+
+  /// 🔥 동적 Frame 너비 계산 (화면너비 - 28px)
+  /// 사용법: QuickAddDimensions.getFrameWidth(context)
+  static double getFrameWidth(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    return screenWidth - 28.0; // 좌우 각 14px 여백
+  }
+
+  /// 🔥 동적 Type Selector 너비 계산 (Frame 너비 기준)
+  /// Figma에서 Frame 701 (365px) 대비 Type Selector (220px) 비율 = 0.602
+  static double getTypeSelectorWidth(BuildContext context) {
+    final frameWidth = getFrameWidth(context);
+    return frameWidth * 0.602; // 약 60.3% 비율 유지
+  }
 
   /// Frame 701 높이 (Figma: 132px)
   static const double frameHeight = 132.0;

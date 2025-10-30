@@ -18,6 +18,10 @@ import 'package:drift/drift.dart' hide Column;
 import '../providers/bottom_sheet_controller.dart';
 import '../design_system/wolt_typography.dart'; // ✅ WoltTypography 사용
 import '../design_system/wolt_helpers.dart'; // ✅ Wolt helper functions
+import 'toast/save_toast.dart'; // 🔥 SaveToast import
+import 'modal/schedule_detail_wolt_modal.dart'; // 🔥 상세 모달
+import 'modal/task_detail_wolt_modal.dart'; // 🔥 상세 모달
+import 'modal/habit_detail_wolt_modal.dart'; // 🔥 상세 모달
 
 /// CreateEntryBottomSheet - Quick_Add 시스템 통합 버전
 /// 이거를 설정하고 → 기존 기능을 모두 보존하면서 새 컴포넌트를 조합해서
@@ -116,6 +120,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
       final type = data['type'] as QuickAddType;
       final title = data['title'] as String;
       final colorId = data['colorId'] as String;
+      int? savedId; // 🔥 저장된 ID 추적
 
       if (type == QuickAddType.schedule) {
         // 일정 저장
@@ -139,9 +144,9 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         );
 
         final database = GetIt.I<AppDatabase>();
-        final id = await database.createSchedule(companion);
+        savedId = await database.createSchedule(companion);
 
-        print('✅ [Quick Add 저장] 일정 저장 완료! ID: $id');
+        print('✅ [Quick Add 저장] 일정 저장 완료! ID: $savedId');
         print('   → 제목: $title');
         print('   → 시작: $startDateTime');
         print('   → 종료: $endDateTime');
@@ -167,6 +172,12 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         if (!validationResult['isValid']) {
           print('❌ [Quick Add 저장] 할일 검증 실패 - 저장 중단');
           print('========================================\n');
+          // 🔥 검증 실패 시 사용자 피드백
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('タイトルを入力してください')),
+            );
+          }
           return;
         }
 
@@ -183,9 +194,9 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         );
 
         final database = GetIt.I<AppDatabase>();
-        final id = await database.createTask(companion);
+        savedId = await database.createTask(companion);
 
-        print('✅ [Quick Add 저장] 할일 저장 완료! ID: $id');
+        print('✅ [Quick Add 저장] 할일 저장 완료! ID: $savedId');
         print('   → 제목: $title');
         print('   → 마감일: ${dueDate ?? "(없음)"}');
         print('   → 색상: $colorId');
@@ -209,6 +220,12 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         if (!validationResult['isValid']) {
           print('❌ [Quick Add 저장] 습관 검증 실패 - 저장 중단');
           print('========================================\n');
+          // 🔥 검증 실패 시 사용자 피드백
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('繰り返し設定を選択してください')),
+            );
+          }
           return;
         }
 
@@ -222,9 +239,9 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         );
 
         final database = GetIt.I<AppDatabase>();
-        final id = await database.createHabit(companion);
+        savedId = await database.createHabit(companion);
 
-        print('✅ [Quick Add 저장] 습관 저장 완료! ID: $id');
+        print('✅ [Quick Add 저장] 습관 저장 완료! ID: $savedId');
         print('   → 제목: $title');
         print('   → 반복: $repeatRule');
         print('   → 색상: $colorId');
@@ -236,9 +253,55 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
       await TempInputCache.clearTempInput();
       print('🗑️ [Quick Add 저장] 임시 캐시 삭제 완료');
 
-      if (context.mounted) {
+      // 🔥 저장 성공 후 바텀시트를 닫고 토스트 표시
+      if (context.mounted && savedId != null) {
+        // 먼저 바텀시트 닫기
         Navigator.of(context).pop();
         print('🔙 [UI] 바텀시트 닫기 → StreamBuilder 자동 갱신');
+
+        // 약간의 딜레이 후 토스트 표시 (바텀시트 애니메이션 완료 대기)
+        await Future.delayed(const Duration(milliseconds: 150));
+
+        if (context.mounted) {
+          showSaveToast(
+            context,
+            toInbox: type != QuickAddType.schedule, // 일정은 캘린더, 할일/습관은 인박스
+            onTap: () async {
+              // 🔥 토스트 탭 시 상세 모달 열기 (저장된 데이터 로드)
+              final database = GetIt.I<AppDatabase>();
+
+              if (type == QuickAddType.schedule) {
+                final schedule = await database.getScheduleById(savedId!);
+                if (context.mounted && schedule != null) {
+                  showScheduleDetailWoltModal(
+                    context,
+                    schedule: schedule,
+                    selectedDate: widget.selectedDate,
+                  );
+                }
+              } else if (type == QuickAddType.task) {
+                final task = await database.getTaskById(savedId!);
+                if (context.mounted && task != null) {
+                  showTaskDetailWoltModal(
+                    context,
+                    task: task,
+                    selectedDate: widget.selectedDate,
+                  );
+                }
+              } else if (type == QuickAddType.habit) {
+                final habit = await database.getHabitById(savedId!);
+                if (context.mounted && habit != null) {
+                  showHabitDetailWoltModal(
+                    context,
+                    habit: habit,
+                    selectedDate: widget.selectedDate,
+                  );
+                }
+              }
+            },
+          );
+          print('🍞 [Toast] 저장 토스트 표시 완료 (${type == QuickAddType.schedule ? "保存されました" : "ヒキダシに保存されました"})');
+        }
       }
 
       print('========================================\n');
@@ -246,6 +309,13 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
       print('❌ [Quick Add 저장] 에러 발생: $e');
       print('스택 트레이스: $stackTrace');
       print('========================================\n');
+
+      // 🔥 에러 발생 시 사용자 피드백
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('保存に失敗しました: $e')),
+        );
+      }
     }
   }
 

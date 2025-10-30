@@ -76,9 +76,15 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
     // ✅ 외부에서 전달받은 타입이 있으면 초기화
     _selectedType = widget.externalSelectedType;
 
-    // ✅ 임시 캐시에서 색상 복원
+    // ✅ 임시 캐시에서 색상 복원 + 초기 포커스 설정
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _restoreCachedState();
+
+      // 🔥 초기 포커스를 수동으로 요청 (autofocus 대신)
+      if (mounted) {
+        _focusNode.requestFocus();
+        print('🎯 [Quick Add] 초기 포커스 설정 완료');
+      }
     });
 
     // 이거를 설정하고 → AnimationController를 초기화해서
@@ -556,13 +562,18 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
                 Align(
                   alignment: Alignment.center,
                   child: SizedBox(
-                    width: QuickAddDimensions.frameWidth, // 365px
-                    height: _heightAnimation.value, // ✅ 동적 높이 (기본 132px, 일정 196px, 할일 192px)
+                    width: QuickAddDimensions.getFrameWidth(
+                      context,
+                    ), // 🔥 동적 너비 (화면너비 - 28px)
+                    height: _heightAnimation
+                        .value, // ✅ 동적 높이 (기본 132px, 일정 196px, 할일 192px)
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
                         Container(
-                          width: QuickAddDimensions.frameWidth, // 365px
+                          width: QuickAddDimensions.getFrameWidth(
+                            context,
+                          ), // 🔥 동적 너비
                           height: _heightAnimation.value, // 동적 높이
                           decoration: QuickAddWidgets.frame701Decoration,
                           child: Column(
@@ -571,7 +582,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
                             children: [
                               // ✅ 상단 24px 고정 여백
                               const SizedBox(height: 24),
-                              
+
                               // ✅ 상단: 텍스트 입력 영역 (Frame 700)
                               _buildTextInputArea(),
 
@@ -591,7 +602,9 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
                                 },
                                 child: _selectedType != null
                                     ? KeyedSubtree(
-                                        key: const ValueKey('quickDetailOptions'),
+                                        key: const ValueKey(
+                                          'quickDetailOptions',
+                                        ),
                                         child: _buildQuickDetailOptions(),
                                       )
                                     : KeyedSubtree(
@@ -640,13 +653,13 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   /// ✅ Figma: Frame 704는 항상 표시됨
   Widget _buildTypeSelector() {
     // Figma: Frame 704 (220×52px)
-    // Column 내부에서 중앙 정렬
+    // 🔥 동적 너비 계산 (Frame 너비의 약 60%)
     return Hero(
       tag: 'typeSelectorHero',
       child: Material(
         color: Colors.transparent,
         child: Container(
-          width: 220, // Figma: Frame 704 width
+          width: QuickAddDimensions.getTypeSelectorWidth(context), // 🔥 동적 너비
           height: 52, // Figma: Frame 704 height
           padding: const EdgeInsets.symmetric(
             horizontal: 4,
@@ -672,16 +685,16 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
         color: Colors.transparent,
         child: QuickDetailPopup(
           onScheduleSelected: () {
-            print('📋 [QuickDetailPopup] 일정 선택 - 직접 저장');
-            _saveDirectSchedule();
+            print('📋 [QuickDetailPopup] 일정 선택 → 타입 설정');
+            _onTypeSelected(QuickAddType.schedule);
           },
           onTaskSelected: () {
-            print('📋 [QuickDetailPopup] 할일 선택 - 직접 저장');
-            _saveDirectTask();
+            print('📋 [QuickDetailPopup] 할일 선택 → 타입 설정');
+            _onTypeSelected(QuickAddType.task);
           },
           onHabitSelected: () {
-            print('📋 [QuickDetailPopup] 습관 선택 - 직접 저장');
-            _saveDirectHabit();
+            print('📋 [QuickDetailPopup] 습관 선택 → 모달 표시');
+            _onTypeSelected(QuickAddType.habit);
           },
         ),
       ),
@@ -697,9 +710,10 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
       child: LayoutBuilder(
         builder: (context, constraints) {
           return TextField(
+            key: const ValueKey('quick_add_text_field'), // 🔥 상태 보존용 key 추가!
             controller: _textController,
             focusNode: _focusNode, // 🔥 FocusNode 연결
-            autofocus: true, // 🔥 자동 포커스 복원!
+            autofocus: false, // 🔥 autofocus 제거 (깜빡임 방지)
             keyboardType: TextInputType.multiline, // ✅ 개행 가능한 기본 키보드
             textInputAction: TextInputAction.newline, // ✅ 엔터 키 → 개행
             maxLines: 2, // ✅✅✅ 최대 2행까지만 입력 가능
@@ -724,10 +738,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
 
               // ✅✅✅ 2행 초과 입력 방지
               final textPainter = TextPainter(
-                text: TextSpan(
-                  text: text,
-                  style: QuickAddTextStyles.inputText,
-                ),
+                text: TextSpan(text: text, style: QuickAddTextStyles.inputText),
                 maxLines: null,
                 textDirection: TextDirection.ltr,
               )..layout(maxWidth: constraints.maxWidth);
@@ -996,7 +1007,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
                 vertical: 10,
               ), // ✅ Figma 스펙
         decoration: ShapeDecoration(
-          color: hasText 
+          color: hasText
               ? const Color(0xFF111111) // 텍스트 있으면 #111111
               : const Color(0xFFDDDDDD), // 텍스트 없으면 #DDDDDD
           shape: SmoothRectangleBorder(
@@ -1015,10 +1026,10 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
 
   /// 기본 추가 버튼 내용 (追加 + ↑)
   Widget _buildAddButtonContent(bool hasText) {
-    final textColor = hasText 
+    final textColor = hasText
         ? const Color(0xFFFAFAFA) // 텍스트 있으면 #FAFAFA
         : const Color(0xFFAAAAAA); // 텍스트 없으면 #AAAAAA
-    
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1101,10 +1112,12 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
     );
   }
 
-  /// DirectAddButton 클릭 처리
+  /// DirectAddButton 클릭 처리 (타입별 분기)
   void _handleDirectAdd() {
     print('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    print('➕ [Quick Add] 추가버튼 클릭!');
+    print('➕ [Quick Add] 전송버튼 클릭!');
+    print('   → 현재 타입: $_selectedType');
+    print('   → 팝업 상태: $_showDetailPopup');
     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     final text = _textController.text.trim();
@@ -1114,47 +1127,117 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
       return;
     }
 
-    // 🔥 1단계: 즉시 키보드 내리기!
-    _focusNode.unfocus();
-    print('⌨️ [KEYBOARD] 키보드 즉시 내림!');
+    // 🔥 중요: 팝업이 이미 표시된 상태면 닫기만 함
+    if (_showDetailPopup) {
+      print('🔄 [Quick Add] 팝업이 이미 표시됨 → 팝업 닫기');
+      setState(() {
+        _showDetailPopup = false;
+      });
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+      return;
+    }
 
-    // 🔥 2단계: 팝업 표시
-    setState(() {
-      _showDetailPopup = true;
-    });
-    print('✅ [POPUP] 타입 선택 팝업 표시 완료');
+    // ✅ 타입이 선택되지 않은 경우 → 타입 선택 팝업 표시
+    if (_selectedType == null) {
+      print('� [Quick Add] 타입 미선택 → 타입 선택 팝업 표시');
 
-    // 🔥 3단계: 부모에게 "키보드 고정해!" 신호 보내기
-    if (widget.onAddButtonPressed != null) {
-      debugPrint('🔒 [QuickAdd] 키보드 고정 콜백 실행!');
-      widget.onAddButtonPressed!();
+      // 1단계: 키보드 내리기
+      _focusNode.unfocus();
+      print('⌨️ [KEYBOARD] 키보드 즉시 내림!');
+
+      // 2단계: 팝업 표시
+      setState(() {
+        _showDetailPopup = true;
+      });
+      print('✅ [POPUP] 타입 선택 팝업 표시 완료');
+
+      // 3단계: 부모에게 키보드 고정 신호
+      if (widget.onAddButtonPressed != null) {
+        debugPrint('🔒 [QuickAdd] 키보드 고정 콜백 실행!');
+        widget.onAddButtonPressed!();
+      }
+
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+      return;
+    }
+
+    // ✅ 타입이 선택된 경우 → 해당 타입으로 직접 저장
+    print('💾 [Quick Add] 타입 선택됨 → 직접 저장 시작');
+
+    switch (_selectedType!) {
+      case QuickAddType.schedule:
+        // 일정: 텍스트만 있으면 저장 (시간은 자동 설정)
+        print('📅 [Quick Add] 일정 저장 시작');
+        print('   → 제목: $text');
+        if (_startDateTime != null && _endDateTime != null) {
+          print('   → 시작: $_startDateTime (사용자 선택)');
+          print('   → 종료: $_endDateTime (사용자 선택)');
+        } else {
+          print('   → 시간: 자동 설정 (현재시간 반올림)');
+        }
+        _saveDirectSchedule();
+        break;
+
+      case QuickAddType.task:
+        // 할일: 텍스트만 있으면 저장 가능 (마감일 선택사항)
+        print('✅ [Quick Add] 할일 저장 시작');
+        print('   → 제목: $text');
+        print('   → 마감일: ${_startDateTime ?? "(없음)"}');
+        _saveDirectTask();
+        break;
+
+      case QuickAddType.habit:
+        // 습관: 여기 도달하면 안됨 (타입 선택 시 즉시 모달 표시)
+        print('⚠️ [Quick Add] 습관은 모달로 처리됨 - 이 경로 도달 불가');
+        break;
     }
 
     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   }
 
   // ========================================
-  // 직접 일정 저장 (현재시간 반올림 + 1시간)
+  // 직접 일정 저장 (시간 자동 설정 or 사용자 선택)
   // ========================================
   void _saveDirectSchedule() async {
     final title = _textController.text.trim();
     final now = DateTime.now();
 
-    // ✅ Figma 스펙: 현재시간 반올림 (14:34 → 15:00)
-    int roundedHour = now.hour;
-    if (now.minute > 0) {
-      roundedHour += 1; // 분이 있으면 다음 시간으로 반올림
+    DateTime startTime;
+    DateTime endTime;
+
+    // ✅ 사용자가 시간을 선택했으면 그대로 사용
+    if (_startDateTime != null && _endDateTime != null) {
+      startTime = _startDateTime!;
+      endTime = _endDateTime!;
+      print('✅ [DirectAdd] 일정 직접 저장: $title');
+      print('   → 시작: $startTime (사용자 선택)');
+      print('   → 종료: $endTime (사용자 선택)');
+    } else {
+      // ✅ 시간을 선택하지 않았으면 현재시간 반올림 (14:34 → 15:00)
+      int roundedHour = now.hour;
+      if (now.minute > 0) {
+        roundedHour += 1; // 분이 있으면 다음 시간으로 반올림
+      }
+
+      startTime = DateTime(
+        widget.selectedDate.year,
+        widget.selectedDate.month,
+        widget.selectedDate.day,
+        roundedHour.clamp(0, 23), // 🔥 시간이 24를 넘지 않도록 보정
+        0, // 분은 00으로
+      );
+      endTime = startTime.add(const Duration(hours: 1)); // +1시간
+
+      print('✅ [DirectAdd] 일정 직접 저장: $title');
+      print('   → 시작: $startTime (현재시간 반올림)');
+      print('   → 종료: $endTime (+1시간)');
     }
 
-    final startTime = DateTime(
-      widget.selectedDate.year,
-      widget.selectedDate.month,
-      widget.selectedDate.day,
-      roundedHour,
-      0, // 분은 00으로
-    );
-    final endTime = startTime.add(const Duration(hours: 1)); // +1시간
+    // 🔥 1단계: 키보드 즉시 내리기
+    _focusNode.unfocus();
+    print('⌨️ [KEYBOARD] 키보드 즉시 내림!');
 
+    // 🔥 2단계: 저장 콜백 호출 (부모가 바텀시트를 닫고 토스트 표시)
     widget.onSave?.call({
       'type': QuickAddType.schedule,
       'title': title,
@@ -1164,47 +1247,37 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
       'repeatRule': _repeatRule,
       'reminder': _reminder,
     });
-
-    print('✅ [DirectAdd] 일정 직접 저장: $title');
-    print('   → 시작: $startTime (현재시간 반올림)');
-    print('   → 종료: $endTime (+1시간)');
   }
 
   // ========================================
-  // 직접 할일 저장 (제목만, 마감기한 없음)
+  // 직접 할일 저장 (제목만, 마감기한 선택사항)
   // ========================================
   void _saveDirectTask() {
     final title = _textController.text.trim();
 
+    print('✅ [DirectAdd] 할일 직접 저장: $title');
+    print('   → 마감일: ${_startDateTime ?? "(없음)"}');
+
+    // 🔥 1단계: 키보드 즉시 내리기
+    _focusNode.unfocus();
+    print('⌨️ [KEYBOARD] 키보드 즉시 내림!');
+
+    // 🔥 2단계: 저장 콜백 호출 (부모가 바텀시트를 닫고 토스트 표시)
     widget.onSave?.call({
       'type': QuickAddType.task,
       'title': title,
       'colorId': _selectedColorId,
-      'dueDate': null, // ✅ Figma: 마감기한 없이 저장
+      'dueDate': _startDateTime, // ✅ 사용자가 선택한 마감일 (없을 수도 있음)
       'repeatRule': _repeatRule,
       'reminder': _reminder,
     });
-
-    print('✅ [DirectAdd] 할일 직접 저장: $title (마감기한 없음)');
   }
 
   // ========================================
-  // 직접 습관 저장
+  // ✅ 습관은 타입 선택 시 즉시 모달 표시 (직접 저장 없음)
   // ========================================
-  void _saveDirectHabit() {
-    final title = _textController.text.trim();
-
-    widget.onSave?.call({
-      'type': QuickAddType.habit,
-      'title': title,
-      'colorId': _selectedColorId,
-      'repeatRule': _repeatRule, // ✅ 사용자가 설정한 값만 전달 (기본값 강제 설정 제거)
-      'reminder': _reminder,
-    });
-
-    print('✅ [DirectAdd] 습관 직접 저장: $title');
-    print('   → 반복: ${_repeatRule.isEmpty ? "(미설정)" : _repeatRule}');
-  }
+  // _saveDirectHabit() 함수 제거됨
+  // → _onTypeSelected(QuickAddType.habit)에서 _showFullHabitBottomSheet() 호출
 }
 
 /// 자동 스크롤되는 날짜/시간 텍스트 위젯
