@@ -87,8 +87,6 @@ class _InputAccessoryWithBlurState extends State<InputAccessoryWithBlur>
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
 
     // ✅ 키보드가 올라와 있으면 높이 저장
@@ -102,73 +100,80 @@ class _InputAccessoryWithBlurState extends State<InputAccessoryWithBlur>
         : 0.0;
 
     // 🍎 Apple Spring Animation 적용
-    return SizedBox(
-      width: screenWidth,
-      height: screenHeight,
-      child: Stack(
-        children: [
-          // ✅ Figma 그라디언트 배경 + Blur
-          Positioned.fill(
-            child: ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0x00FFFFFF), // rgba(255, 255, 255, 0) - 투명
-                        Color(0xF2F0F0F0), // rgba(240, 240, 240, 0.95) - 50% 지점
-                      ],
-                      stops: [0.0, 0.5],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          
-          // ✅ 컨텐츠 - 애니메이션 적용
-          AnimatedBuilder(
-            animation: _springController,
+    // ✅ 핵심: Blur 배경을 먼저, 컨텐츠를 나중에 (컨텐츠가 blur 위에 떠있도록)
+    return Stack(
+      children: [
+        // 1️⃣ Blur + Gradient 배경 레이어 (화면 전체를 덮음)
+        Positioned.fill(
+          child: AnimatedBuilder(
+            animation: _fadeAnimation,
             builder: (context, child) {
-              return Transform.translate(
-                offset: Offset(0, _slideAnimation.value), // Y축 슬라이드
-                child: Opacity(
-                  opacity: _fadeAnimation.value, // 페이드 인
-                  child: child,
-                ),
+              return Opacity(
+                opacity: _fadeAnimation.value,
+                child: child,
               );
             },
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: EdgeInsets.only(bottom: keyboardHeight), // 키보드 높이만큼 올림
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    left: 14,
-                    right: 14,
-                    bottom: 0 + extraBottomPadding, // 하단 여백 제거 (버튼 자체에서 18px 적용)
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: QuickAddControlBox(
-                      selectedDate: widget.selectedDate,
-                      onSave: (data) {
-                        _animateOut(() {
-                          widget.onSaveComplete?.call();
-                          Navigator.pop(context);
-                        });
-                      },
-                    ),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(
+                sigmaX: 20, // 강한 blur (육안 확인용)
+                sigmaY: 20,
+              ),
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x00FFFFFF), // rgba(255, 255, 255, 0) - 투명
+                      Color(0xF2F0F0F0), // rgba(240, 240, 240, 0.95)
+                    ],
+                    stops: [0.0, 0.5],
                   ),
                 ),
               ),
             ),
           ),
-        ],
-      ),
+        ),
+
+        // 2️⃣ Input Accessory 컨텐츠 (blur 위에 떠있음)
+        AnimatedBuilder(
+          animation: _springController,
+          builder: (context, child) {
+            return Transform.translate(
+              offset: Offset(0, _slideAnimation.value), // Y축 슬라이드
+              child: Opacity(
+                opacity: _fadeAnimation.value, // 페이드 인
+                child: child,
+              ),
+            );
+          },
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: EdgeInsets.only(bottom: keyboardHeight), // 키보드 높이만큼 올림
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 14,
+                  right: 14,
+                  bottom: 0 + extraBottomPadding, // 하단 여백 제거 (버튼 자체에서 18px 적용)
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: QuickAddControlBox(
+                    selectedDate: widget.selectedDate,
+                    onSave: (data) {
+                      _animateOut(() {
+                        widget.onSaveComplete?.call();
+                        Navigator.pop(context);
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

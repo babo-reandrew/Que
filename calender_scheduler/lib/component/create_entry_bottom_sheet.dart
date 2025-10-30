@@ -578,105 +578,115 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
     if (_useQuickAdd) {
       print('✅ [CreateEntryBottomSheet] Quick Add 모드');
 
+      // 🔥 핵심: LayoutBuilder로 정확한 위치 계산하여 blur 영역 제한
       return Scaffold(
         backgroundColor: Colors.transparent,
-        resizeToAvoidBottomInset: false, // ✅ Scaffold 자동 리사이즈 차단
-        body: Stack(
-          children: [
-            // 🎨 상단 투명 영역 - 터치 시 바텀시트 닫기
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.of(context).pop();
-                },
-                child: Container(
-                  color: Colors.transparent, // ✅ 배경 완전 투명
-                ),
-              ),
-            ),
-            // 🌈 배경 그라데이션 블러 박스 (캘린더에서 인풋으로 자연스러운 전환)
-            // 이거를 설정하고 → 상단은 투명, 하단으로 갈수록 블러가 강해지는 그라데이션을 만들어서
-            // 이거를 해서 → 캘린더에서 인풋 액세서리로 자연스럽게 전환되는 시각 효과를 제공한다
-            // 이거는 이래서 → 사용자가 캘린더와 입력 영역의 경계를 명확하게 인식할 수 있다
-            QuickAddKeyboardTracker(
-              isLocked: _isKeyboardLocked,
-              child: IgnorePointer(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0x00FFFFFF), // 상단: 완전 투명 (캘린더 선명하게 보임)
-                        Color(0x4DFAFAFA), // 중간: 30% 불투명 (FAFAFA)
-                        Color(0xF2FAFAFA), // 하단: 95% 불투명 (FAFAFA)
-                      ],
-                      stops: [0.0, 0.4, 1.0], // 상단 40%까지 투명 유지, 하단 60%에서 블러 강화
-                    ),
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(24), // 상단만 둥글게
+        resizeToAvoidBottomInset: false,
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final screenHeight = constraints.maxHeight;
+            final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+
+            // Input Accessory 예상 높이 (SafeArea bottom + padding + QuickAddControlBox 기본 높이)
+            final safeAreaBottom = MediaQuery.of(context).padding.bottom;
+            final inputAccessoryHeight = safeAreaBottom + 8.0 + 60.0; // 대략적인 높이
+
+            // Input Accessory가 시작되는 Y 좌표 (위에서부터)
+            final inputAccessoryTop = screenHeight - keyboardHeight - inputAccessoryHeight;
+
+            print('📐 [Blur] screenHeight: $screenHeight');
+            print('📐 [Blur] keyboardHeight: $keyboardHeight');
+            print('📐 [Blur] inputAccessoryTop: $inputAccessoryTop');
+            print('📐 [Blur] blur 영역: $inputAccessoryTop ~ $screenHeight');
+
+            return Stack(
+              children: [
+                // 1️⃣ 커스텀 Barrier - 빈 공간 터치 시 닫기
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: () {
+                      if (!_isKeyboardLocked) {
+                        Navigator.of(context).pop();
+                      }
+                    },
+                    child: Container(
+                      color: Colors.transparent,
                     ),
                   ),
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(24),
-                    ),
+                ),
+
+                // 2️⃣ Blur + Gradient - Input Accessory 상단부터 화면 하단까지만 (Positioned로 정확히 제한)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: inputAccessoryTop, // 🔥 Input Accessory 상단부터 시작
+                  bottom: 0,              // 🔥 화면 하단까지
+                  child: IgnorePointer(
                     child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
-                      child: Container(color: Colors.transparent),
+                      filter: ImageFilter.blur(
+                        sigmaX: 4.0, // Figma 스펙: 4px blur
+                        sigmaY: 4.0,
+                      ),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color(0x00FFFFFF), // 상단: 완전 투명
+                              Color(0xF2F0F0F0), // 하단: 95% 불투명 (Figma 스펙)
+                            ],
+                            stops: [0.0, 0.5], // Figma: 0%, 50%
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-            // 🔥 전체 입력박스 - 추가 버튼 누르면 상단 위치 고정!
-            // 이거를 설정하고 → QuickAddKeyboardTracker가 Positioned로 절대 위치 관리해서
-            // 이거를 해서 → 고정 시: 박스 상단이 화면 상단에서 고정 위치 유지
-            // 이거는 이래서 → 키보드 내려가도 박스는 그 자리, 타입선택기는 박스 안에서 확장!
-            QuickAddKeyboardTracker(
-              isLocked: _isKeyboardLocked, // 🔥 고정 상태 전달
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8.0), // ✅ 키보드와 8px 여백
-                child: SafeArea(
-                  top: false,
+
+                // 3️⃣ Input Accessory 컨텐츠
+                QuickAddKeyboardTracker(
+                  isLocked: _isKeyboardLocked,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                    ), // ✅ 좌우만 20px
-                    child: QuickAddControlBox(
-                      selectedDate: widget.selectedDate,
-                      onSave: _handleQuickAddSave,
-                      externalSelectedType: _selectedQuickAddType,
-                      onTypeChanged: (type) {
-                        setState(() {
-                          _selectedQuickAddType = type;
-                        });
-                        print('📋 [타입 변경] $type');
-                      },
-                      onAddButtonPressed: () {
-                        // 🔥 추가 버튼 클릭 시 키보드 고정!
-                        setState(() {
-                          _isKeyboardLocked = true;
-                        });
-                        debugPrint(
-                          '🔒 [CreateEntry] 키보드 고정! isLocked: $_isKeyboardLocked',
-                        );
-                      },
-                      onInputFocused: () {
-                        // 🔥 입력 포커스 시 키보드 락 해제!
-                        setState(() {
-                          _isKeyboardLocked = false;
-                        });
-                        debugPrint(
-                          '🔓 [CreateEntry] 키보드 락 해제! isLocked: $_isKeyboardLocked',
-                        );
-                      },
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: QuickAddControlBox(
+                          selectedDate: widget.selectedDate,
+                          onSave: _handleQuickAddSave,
+                          externalSelectedType: _selectedQuickAddType,
+                          onTypeChanged: (type) {
+                            setState(() {
+                              _selectedQuickAddType = type;
+                            });
+                            print('📋 [타입 변경] $type');
+                          },
+                          onAddButtonPressed: () {
+                            setState(() {
+                              _isKeyboardLocked = true;
+                            });
+                            debugPrint(
+                              '🔒 [CreateEntry] 키보드 고정! isLocked: $_isKeyboardLocked',
+                            );
+                          },
+                          onInputFocused: () {
+                            setState(() {
+                              _isKeyboardLocked = false;
+                            });
+                            debugPrint(
+                              '🔓 [CreateEntry] 키보드 락 해제! isLocked: $_isKeyboardLocked',
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
       );
     }
