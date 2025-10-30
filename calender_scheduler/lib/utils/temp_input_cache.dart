@@ -17,6 +17,27 @@ class TempInputCache {
   static const String _keyTempTitle = 'temp_title'; // ✅ 제목
   static const String _keyTempRepeatRule = 'temp_repeat_rule'; // ✅ 반복 규칙
 
+  // 🎯 타입별 캐시 키 정의 (공통 데이터 + 개별 데이터)
+  static const String _keyCurrentType = 'unified_current_type'; // 현재 선택된 타입
+
+  // 공통 캐시 키 (모든 타입에서 공유)
+  static const String _keyCommonTitle = 'unified_common_title';
+  static const String _keyCommonColor = 'unified_common_color';
+  static const String _keyCommonReminder = 'unified_common_reminder';
+  static const String _keyCommonRepeatRule = 'unified_common_repeat_rule';
+
+  // 일정 전용 캐시 키
+  static const String _keyScheduleStartDateTime = 'unified_schedule_start';
+  static const String _keyScheduleEndDateTime = 'unified_schedule_end';
+  static const String _keyScheduleIsAllDay = 'unified_schedule_is_all_day';
+
+  // 할일 전용 캐시 키
+  static const String _keyTaskExecutionDate = 'unified_task_execution';
+  static const String _keyTaskDueDate = 'unified_task_due';
+
+  // 습관 전용 캐시 키
+  static const String _keyHabitTime = 'unified_habit_time';
+
   /// 임시 입력 저장
   /// 이거를 설정하고 → 입력된 텍스트와 타임스탬프를 저장해서
   /// 이거를 해서 → 나중에 복원할 수 있도록 한다
@@ -254,5 +275,246 @@ class TempInputCache {
     final color = prefs.getString(_keyTempColor);
     return (text != null && text.isNotEmpty) ||
         (color != null && color.isNotEmpty);
+  }
+
+  // ========================================
+  // 🎯 통합 캐시 시스템 (타입별 데이터 관리)
+  // ========================================
+
+  /// 현재 선택된 타입 저장
+  static Future<void> saveCurrentType(String type) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyCurrentType, type);
+    print('💾 [UnifiedCache] 현재 타입 저장: $type');
+  }
+
+  /// 현재 선택된 타입 불러오기
+  static Future<String?> getCurrentType() async {
+    final prefs = await SharedPreferences.getInstance();
+    final type = prefs.getString(_keyCurrentType);
+    if (type != null) {
+      print('📦 [UnifiedCache] 현재 타입 복원: $type');
+    }
+    return type;
+  }
+
+  /// 공통 데이터 저장 (모든 타입에서 공유)
+  static Future<void> saveCommonData({
+    String? title,
+    String? colorId,
+    String? reminder,
+    String? repeatRule,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (title != null) {
+      await prefs.setString(_keyCommonTitle, title);
+      print('💾 [UnifiedCache] 공통 제목 저장: "$title"');
+    }
+    if (colorId != null) {
+      await prefs.setString(_keyCommonColor, colorId);
+      print('💾 [UnifiedCache] 공통 색상 저장: $colorId');
+    }
+    if (reminder != null) {
+      await prefs.setString(_keyCommonReminder, reminder);
+      print('💾 [UnifiedCache] 공통 리마인더 저장: $reminder');
+    }
+    if (repeatRule != null) {
+      await prefs.setString(_keyCommonRepeatRule, repeatRule);
+      print('💾 [UnifiedCache] 공통 반복규칙 저장: $repeatRule');
+    }
+  }
+
+  /// 공통 데이터 불러오기
+  static Future<Map<String, String?>> getCommonData() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final title = prefs.getString(_keyCommonTitle);
+    final colorId = prefs.getString(_keyCommonColor);
+    final reminder = prefs.getString(_keyCommonReminder);
+    final repeatRule = prefs.getString(_keyCommonRepeatRule);
+
+    print('📦 [UnifiedCache] 공통 데이터 복원: title=$title, color=$colorId');
+
+    return {
+      'title': title,
+      'colorId': colorId,
+      'reminder': reminder,
+      'repeatRule': repeatRule,
+    };
+  }
+
+  /// 일정 전용 데이터 저장
+  static Future<void> saveScheduleData({
+    DateTime? startDateTime,
+    DateTime? endDateTime,
+    bool? isAllDay,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (startDateTime != null) {
+      await prefs.setString(
+        _keyScheduleStartDateTime,
+        startDateTime.toIso8601String(),
+      );
+      print('💾 [UnifiedCache] 일정 시작시간 저장: $startDateTime');
+    }
+    if (endDateTime != null) {
+      await prefs.setString(
+        _keyScheduleEndDateTime,
+        endDateTime.toIso8601String(),
+      );
+      print('💾 [UnifiedCache] 일정 종료시간 저장: $endDateTime');
+    }
+    if (isAllDay != null) {
+      await prefs.setBool(_keyScheduleIsAllDay, isAllDay);
+      print('💾 [UnifiedCache] 일정 종일여부 저장: $isAllDay');
+    }
+  }
+
+  /// 일정 전용 데이터 불러오기
+  static Future<Map<String, dynamic>?> getScheduleData() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final startStr = prefs.getString(_keyScheduleStartDateTime);
+    final endStr = prefs.getString(_keyScheduleEndDateTime);
+    final isAllDay = prefs.getBool(_keyScheduleIsAllDay);
+
+    if (startStr == null || endStr == null) return null;
+
+    final startDateTime = DateTime.parse(startStr);
+    final endDateTime = DateTime.parse(endStr);
+
+    print(
+      '📦 [UnifiedCache] 일정 데이터 복원: $startDateTime ~ $endDateTime, allDay=$isAllDay',
+    );
+
+    return {
+      'startDateTime': startDateTime,
+      'endDateTime': endDateTime,
+      'isAllDay': isAllDay ?? false,
+    };
+  }
+
+  /// 할일 전용 데이터 저장
+  static Future<void> saveTaskData({
+    DateTime? executionDate,
+    DateTime? dueDate,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (executionDate != null) {
+      await prefs.setString(
+        _keyTaskExecutionDate,
+        executionDate.toIso8601String(),
+      );
+      print('💾 [UnifiedCache] 할일 실행일 저장: $executionDate');
+    }
+    if (dueDate != null) {
+      await prefs.setString(_keyTaskDueDate, dueDate.toIso8601String());
+      print('💾 [UnifiedCache] 할일 마감일 저장: $dueDate');
+    }
+  }
+
+  /// 할일 전용 데이터 불러오기
+  static Future<Map<String, DateTime?>?> getTaskData() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final execStr = prefs.getString(_keyTaskExecutionDate);
+    final dueStr = prefs.getString(_keyTaskDueDate);
+
+    DateTime? executionDate;
+    DateTime? dueDate;
+
+    if (execStr != null) {
+      executionDate = DateTime.parse(execStr);
+      print('📦 [UnifiedCache] 할일 실행일 복원: $executionDate');
+    }
+    if (dueStr != null) {
+      dueDate = DateTime.parse(dueStr);
+      print('📦 [UnifiedCache] 할일 마감일 복원: $dueDate');
+    }
+
+    if (executionDate == null && dueDate == null) return null;
+
+    return {'executionDate': executionDate, 'dueDate': dueDate};
+  }
+
+  /// 습관 전용 데이터 저장
+  static Future<void> saveHabitData({DateTime? habitTime}) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (habitTime != null) {
+      await prefs.setString(_keyHabitTime, habitTime.toIso8601String());
+      print('💾 [UnifiedCache] 습관 시간 저장: $habitTime');
+    }
+  }
+
+  /// 습관 전용 데이터 불러오기
+  static Future<Map<String, DateTime?>?> getHabitData() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final timeStr = prefs.getString(_keyHabitTime);
+
+    if (timeStr == null) return null;
+
+    final habitTime = DateTime.parse(timeStr);
+    print('📦 [UnifiedCache] 습관 시간 복원: $habitTime');
+
+    return {'habitTime': habitTime};
+  }
+
+  /// 특정 타입의 캐시만 삭제
+  static Future<void> clearCacheForType(String type) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (type == 'schedule') {
+      await prefs.remove(_keyScheduleStartDateTime);
+      await prefs.remove(_keyScheduleEndDateTime);
+      await prefs.remove(_keyScheduleIsAllDay);
+      print('🗑️ [UnifiedCache] 일정 캐시 삭제 완료');
+    } else if (type == 'task') {
+      await prefs.remove(_keyTaskExecutionDate);
+      await prefs.remove(_keyTaskDueDate);
+      print('🗑️ [UnifiedCache] 할일 캐시 삭제 완료');
+    } else if (type == 'habit') {
+      await prefs.remove(_keyHabitTime);
+      print('🗑️ [UnifiedCache] 습관 캐시 삭제 완료');
+    }
+
+    // 공통 데이터도 삭제
+    await prefs.remove(_keyCommonTitle);
+    await prefs.remove(_keyCommonColor);
+    await prefs.remove(_keyCommonReminder);
+    await prefs.remove(_keyCommonRepeatRule);
+    await prefs.remove(_keyCurrentType);
+
+    print('🗑️ [UnifiedCache] 공통 캐시 삭제 완료 - 타입: $type');
+  }
+
+  /// 모든 통합 캐시 삭제
+  static Future<void> clearAllUnifiedCache() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 공통 데이터
+    await prefs.remove(_keyCommonTitle);
+    await prefs.remove(_keyCommonColor);
+    await prefs.remove(_keyCommonReminder);
+    await prefs.remove(_keyCommonRepeatRule);
+    await prefs.remove(_keyCurrentType);
+
+    // 일정 데이터
+    await prefs.remove(_keyScheduleStartDateTime);
+    await prefs.remove(_keyScheduleEndDateTime);
+    await prefs.remove(_keyScheduleIsAllDay);
+
+    // 할일 데이터
+    await prefs.remove(_keyTaskExecutionDate);
+    await prefs.remove(_keyTaskDueDate);
+
+    // 습관 데이터
+    await prefs.remove(_keyHabitTime);
+
+    print('🗑️ [UnifiedCache] 모든 통합 캐시 삭제 완료');
   }
 }

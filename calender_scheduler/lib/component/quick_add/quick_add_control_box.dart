@@ -133,7 +133,12 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   // ========================================
   // 타입 선택 시 높이 변경
   // ========================================
-  void _onTypeSelected(QuickAddType type) {
+  void _onTypeSelected(QuickAddType type) async {
+    // 🎯 타입 전환 시 현재 데이터를 캐시에 저장
+    if (_selectedType != null && _selectedType != type) {
+      await _saveCacheForCurrentType();
+    }
+
     // ✅ 습관 선택 시 → 바로 모달만 표시 (QuickAdd 상태 변경 없음)
     if (type == QuickAddType.habit) {
       print('🔄 [Quick Add] 습관 선택 → 모달만 표시');
@@ -170,6 +175,9 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
       _selectedType = type;
       _showDetailPopup = false; // ✅ 타입 선택 시 팝업 숨김
     });
+
+    // 🎯 새 타입으로 전환 - 캐시에서 데이터 복원
+    await _restoreCacheForType(type);
 
     // ✅ 외부에 타입 변경 알림
     widget.onTypeChanged?.call(type);
@@ -376,6 +384,126 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   }
 
   // ========================================
+  // 🎯 통합 캐시 시스템: 현재 타입의 데이터 저장
+  // ========================================
+  Future<void> _saveCacheForCurrentType() async {
+    if (_selectedType == null) return;
+
+    final currentTitle = _textController.text.trim();
+    final controller = context.read<BottomSheetController>();
+
+    // 공통 데이터 저장
+    await TempInputCache.saveCommonData(
+      title: currentTitle.isNotEmpty ? currentTitle : null,
+      colorId: _selectedColorId,
+      reminder: controller.reminder.isNotEmpty ? controller.reminder : null,
+      repeatRule: controller.repeatRule.isNotEmpty
+          ? controller.repeatRule
+          : null,
+    );
+
+    // 타입별 개별 데이터 저장
+    if (_selectedType == QuickAddType.schedule) {
+      if (_startDateTime != null && _endDateTime != null) {
+        await TempInputCache.saveScheduleData(
+          startDateTime: _startDateTime,
+          endDateTime: _endDateTime,
+          isAllDay: false, // Quick Add에서는 종일 없음
+        );
+      }
+      await TempInputCache.saveCurrentType('schedule');
+      print('💾 [UnifiedCache] 일정 데이터 저장 완료');
+    } else if (_selectedType == QuickAddType.task) {
+      if (_startDateTime != null) {
+        await TempInputCache.saveTaskData(
+          dueDate: _startDateTime,
+          executionDate: null, // Quick Add에서는 실행일 없음
+        );
+      }
+      await TempInputCache.saveCurrentType('task');
+      print('💾 [UnifiedCache] 할일 데이터 저장 완료');
+    }
+  }
+
+  // ========================================
+  // 🎯 통합 캐시 시스템: 특정 타입의 데이터 복원
+  // ========================================
+  Future<void> _restoreCacheForType(QuickAddType type) async {
+    // 공통 데이터 복원
+    final commonData = await TempInputCache.getCommonData();
+
+    if (mounted) {
+      // 제목 복원
+      if (commonData['title'] != null && commonData['title']!.isNotEmpty) {
+        _textController.text = commonData['title']!;
+        setState(() {
+          _isAddButtonActive = true;
+        });
+      }
+
+      // 색상 복원
+      if (commonData['colorId'] != null && commonData['colorId']!.isNotEmpty) {
+        setState(() {
+          _selectedColorId = commonData['colorId']!;
+        });
+        try {
+          context.read<BottomSheetController>().updateColor(
+            commonData['colorId']!,
+          );
+        } catch (e) {
+          debugPrint('⚠️ [UnifiedCache] 색상 복원 중 오류: $e');
+        }
+      }
+
+      // 리마인더 복원
+      if (commonData['reminder'] != null &&
+          commonData['reminder']!.isNotEmpty) {
+        try {
+          context.read<BottomSheetController>().updateReminder(
+            commonData['reminder']!,
+          );
+        } catch (e) {
+          debugPrint('⚠️ [UnifiedCache] 리마인더 복원 중 오류: $e');
+        }
+      }
+
+      // 반복규칙 복원
+      if (commonData['repeatRule'] != null &&
+          commonData['repeatRule']!.isNotEmpty) {
+        try {
+          context.read<BottomSheetController>().updateRepeatRule(
+            commonData['repeatRule']!,
+          );
+        } catch (e) {
+          debugPrint('⚠️ [UnifiedCache] 반복규칙 복원 중 오류: $e');
+        }
+      }
+
+      print('📦 [UnifiedCache] 공통 데이터 복원 완료');
+
+      // 타입별 개별 데이터 복원
+      if (type == QuickAddType.schedule) {
+        final scheduleData = await TempInputCache.getScheduleData();
+        if (scheduleData != null) {
+          setState(() {
+            _startDateTime = scheduleData['startDateTime'] as DateTime?;
+            _endDateTime = scheduleData['endDateTime'] as DateTime?;
+          });
+          print('📦 [UnifiedCache] 일정 데이터 복원 완료');
+        }
+      } else if (type == QuickAddType.task) {
+        final taskData = await TempInputCache.getTaskData();
+        if (taskData != null && taskData['dueDate'] != null) {
+          setState(() {
+            _startDateTime = taskData['dueDate'];
+          });
+          print('📦 [UnifiedCache] 할일 데이터 복원 완료');
+        }
+      }
+    }
+  }
+
+  // ========================================
   // 날짜/시간 선택 모달 표시 (일정용)
   // ========================================
   void _showDateTimePicker() async {
@@ -420,35 +548,43 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   void _showFullScheduleBottomSheet() async {
     print('📋 [Quick Add] 일정 Wolt 모달 열기');
 
-    // ✅ 현재 입력된 제목을 임시 캐시에 저장
     final currentTitle = _textController.text.trim();
-    if (currentTitle.isNotEmpty) {
-      await TempInputCache.saveTempTitle(currentTitle);
-      print('💾 [Quick Add] 임시 캐시에 제목 저장됨: "$currentTitle"');
-    }
+    final controller = context.read<BottomSheetController>();
 
-    // ✅ 현재 선택된 날짜/시간이 있으면 임시 캐시에 저장
+    // 🎯 통합 캐시에 공통 데이터 저장
+    await TempInputCache.saveCommonData(
+      title: currentTitle.isNotEmpty ? currentTitle : null,
+      colorId: _selectedColorId,
+      reminder: controller.reminder.isNotEmpty ? controller.reminder : null,
+      repeatRule: controller.repeatRule.isNotEmpty
+          ? controller.repeatRule
+          : null,
+    );
+
+    // 🎯 통합 캐시에 일정 전용 데이터 저장
     if (_startDateTime != null && _endDateTime != null) {
-      await TempInputCache.saveTempDateTime(_startDateTime!, _endDateTime!);
-      print('💾 [Quick Add] 임시 캐시에 날짜/시간 저장됨: $_startDateTime ~ $_endDateTime');
+      await TempInputCache.saveScheduleData(
+        startDateTime: _startDateTime,
+        endDateTime: _endDateTime,
+        isAllDay: false,
+      );
+      print('💾 [UnifiedCache] 일정 날짜/시간 저장됨: $_startDateTime ~ $_endDateTime');
     }
 
-    // ✅ 선택된 색상을 임시 캐시에 저장
-    await TempInputCache.saveTempColor(_selectedColorId);
-    print('💾 [Quick Add] 임시 캐시에 색상 저장됨: $_selectedColorId');
+    await TempInputCache.saveCurrentType('schedule');
 
-    // ✅ 먼저 현재 bottom sheet 닫기 (검은 화면 방지!)
-    Navigator.of(context).pop();
+    // 🔥 일정 모달을 먼저 열고, 그 다음에 QuickAdd 닫기 (검은 화면 방지!)
+    if (!mounted) return;
 
-    // 약간의 딜레이 후 Wolt 모달 열기 (애니메이션 충돌 방지)
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (!mounted) return;
-
-      showScheduleDetailWoltModal(
-        context,
-        schedule: null, // 새 일정 생성
-        selectedDate: widget.selectedDate,
-      );
+    showScheduleDetailWoltModal(
+      context,
+      schedule: null, // 새 일정 생성
+      selectedDate: widget.selectedDate,
+    ).then((_) {
+      // 일정 모달이 닫힌 후 QuickAdd도 닫기
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
     });
   }
 
@@ -458,35 +594,42 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   void _showFullTaskBottomSheet() async {
     print('📋 [Quick Add] 할일 Wolt 모달 열기');
 
-    // ✅ 현재 입력된 제목을 임시 캐시에 저장
     final currentTitle = _textController.text.trim();
-    if (currentTitle.isNotEmpty) {
-      await TempInputCache.saveTempTitle(currentTitle);
-      print('💾 [Quick Add] 임시 캐시에 제목 저장됨: "$currentTitle"');
-    }
+    final controller = context.read<BottomSheetController>();
 
-    // ✅ 마감일이 있으면 임시 캐시에 저장
+    // 🎯 통합 캐시에 공통 데이터 저장
+    await TempInputCache.saveCommonData(
+      title: currentTitle.isNotEmpty ? currentTitle : null,
+      colorId: _selectedColorId,
+      reminder: controller.reminder.isNotEmpty ? controller.reminder : null,
+      repeatRule: controller.repeatRule.isNotEmpty
+          ? controller.repeatRule
+          : null,
+    );
+
+    // 🎯 통합 캐시에 할일 전용 데이터 저장
     if (_startDateTime != null) {
-      await TempInputCache.saveTempDueDate(_startDateTime!);
-      print('💾 [Quick Add] 임시 캐시에 마감일 저장됨: $_startDateTime');
+      await TempInputCache.saveTaskData(
+        dueDate: _startDateTime,
+        executionDate: null, // Quick Add에서는 실행일 없음
+      );
+      print('💾 [UnifiedCache] 할일 마감일 저장됨: $_startDateTime');
     }
 
-    // ✅ 선택된 색상을 임시 캐시에 저장
-    await TempInputCache.saveTempColor(_selectedColorId);
-    print('💾 [Quick Add] 임시 캐시에 색상 저장됨: $_selectedColorId');
+    await TempInputCache.saveCurrentType('task');
 
-    // ✅ 먼저 현재 bottom sheet 닫기 (검은 화면 방지!)
-    Navigator.of(context).pop();
+    // 🔥 할일 모달을 먼저 열고, 그 다음에 QuickAdd 닫기 (검은 화면 방지!)
+    if (!mounted) return;
 
-    // 약간의 딜레이 후 Wolt 모달 열기 (애니메이션 충돌 방지)
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (!mounted) return;
-
-      showTaskDetailWoltModal(
-        context,
-        task: null,
-        selectedDate: widget.selectedDate,
-      );
+    showTaskDetailWoltModal(
+      context,
+      task: null,
+      selectedDate: widget.selectedDate,
+    ).then((_) {
+      // 할일 모달이 닫힌 후 QuickAdd도 닫기
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
     });
   }
 
@@ -496,29 +639,36 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   void _showFullHabitBottomSheet() async {
     print('📋 [Quick Add] 습관 Wolt 모달 열기');
 
-    // ✅ 현재 입력된 제목을 임시 캐시에 저장
     final currentTitle = _textController.text.trim();
-    if (currentTitle.isNotEmpty) {
-      await TempInputCache.saveTempTitle(currentTitle);
-      print('💾 [Quick Add] 임시 캐시에 제목 저장됨: "$currentTitle"');
-    }
+    final controller = context.read<BottomSheetController>();
 
-    // ✅ 선택된 색상을 임시 캐시에 저장
-    await TempInputCache.saveTempColor(_selectedColorId);
-    print('💾 [Quick Add] 임시 캐시에 색상 저장됨: $_selectedColorId');
+    // 🎯 통합 캐시에 공통 데이터 저장
+    await TempInputCache.saveCommonData(
+      title: currentTitle.isNotEmpty ? currentTitle : null,
+      colorId: _selectedColorId,
+      reminder: controller.reminder.isNotEmpty ? controller.reminder : null,
+      repeatRule: controller.repeatRule.isNotEmpty
+          ? controller.repeatRule
+          : null,
+    );
 
-    // ✅ 먼저 현재 bottom sheet 닫기 (검은 화면 방지!)
-    Navigator.of(context).pop();
+    await TempInputCache.saveCurrentType('habit');
+    print('💾 [UnifiedCache] 습관 데이터 저장 완료');
 
-    // 약간의 딜레이 후 Wolt 모달 열기 (애니메이션 충돌 방지)
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (!mounted) return;
+    // 🔥 습관 모달을 먼저 열고, 그 다음에 QuickAdd 닫기 (검은 화면 방지!)
+    // 습관 모달이 열리면서 자연스럽게 화면 전환
+    if (!mounted) return;
 
-      showHabitDetailWoltModal(
-        context,
-        habit: null, // 새 습관
-        selectedDate: widget.selectedDate,
-      );
+    // 습관 모달 열기 (await 사용하여 모달이 완전히 열릴 때까지 대기)
+    showHabitDetailWoltModal(
+      context,
+      habit: null, // 새 습관
+      selectedDate: widget.selectedDate,
+    ).then((_) {
+      // 습관 모달이 닫힌 후 QuickAdd도 닫기
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
     });
   }
 

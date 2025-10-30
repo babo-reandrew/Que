@@ -100,32 +100,44 @@ Future<void> showScheduleDetailWoltModal(
     scheduleController.reset();
     bottomSheetController.reset(); // ✅ Provider 초기화
 
-    // ✅ 임시 캐시에서 제목 복원
-    final cachedTitle = await TempInputCache.getTempTitle();
-    if (cachedTitle != null && cachedTitle.isNotEmpty) {
-      scheduleController.titleController.text = cachedTitle;
-      debugPrint('✅ [ScheduleWolt] 임시 제목 복원: $cachedTitle');
+    // 🎯 통합 캐시에서 공통 데이터 복원
+    final commonData = await TempInputCache.getCommonData();
+
+    if (commonData['title'] != null && commonData['title']!.isNotEmpty) {
+      scheduleController.titleController.text = commonData['title']!;
+      debugPrint('✅ [ScheduleWolt] 통합 제목 복원: ${commonData['title']}');
     }
 
-    // ✅ 임시 캐시에서 색상 복원 (새 일정일 때만)
-    final cachedColor = await TempInputCache.getTempColor();
-    if (cachedColor != null && cachedColor.isNotEmpty) {
-      bottomSheetController.updateColor(cachedColor);
-      debugPrint('✅ [ScheduleWolt] 임시 색상 복원: $cachedColor');
+    if (commonData['colorId'] != null && commonData['colorId']!.isNotEmpty) {
+      bottomSheetController.updateColor(commonData['colorId']!);
+      debugPrint('✅ [ScheduleWolt] 통합 색상 복원: ${commonData['colorId']}');
     }
 
-    // ✅ 임시 캐시에서 날짜/시간 복원 (새 일정일 때만)
-    final cachedDateTime = await TempInputCache.getTempDateTime();
-    if (cachedDateTime != null) {
-      final cachedStart = cachedDateTime['start'];
-      final cachedEnd = cachedDateTime['end'];
+    if (commonData['reminder'] != null && commonData['reminder']!.isNotEmpty) {
+      bottomSheetController.updateReminder(commonData['reminder']!);
+      debugPrint('✅ [ScheduleWolt] 통합 리마인더 복원: ${commonData['reminder']}');
+    }
+
+    if (commonData['repeatRule'] != null &&
+        commonData['repeatRule']!.isNotEmpty) {
+      bottomSheetController.updateRepeatRule(commonData['repeatRule']!);
+      debugPrint('✅ [ScheduleWolt] 통합 반복규칙 복원: ${commonData['repeatRule']}');
+    }
+
+    // 🎯 통합 캐시에서 일정 전용 데이터 복원
+    final scheduleData = await TempInputCache.getScheduleData();
+    if (scheduleData != null) {
+      final cachedStart = scheduleData['startDateTime'] as DateTime?;
+      final cachedEnd = scheduleData['endDateTime'] as DateTime?;
 
       if (cachedStart != null && cachedEnd != null) {
         scheduleController.setStartDate(cachedStart);
         scheduleController.setEndDate(cachedEnd);
         scheduleController.setStartTime(TimeOfDay.fromDateTime(cachedStart));
         scheduleController.setEndTime(TimeOfDay.fromDateTime(cachedEnd));
-        debugPrint('✅ [ScheduleWolt] 임시 날짜/시간 복원: $cachedStart ~ $cachedEnd');
+        debugPrint(
+          '✅ [ScheduleWolt] 통합 일정 날짜/시간 복원: $cachedStart ~ $cachedEnd',
+        );
       } else {
         // 캐시가 없으면 기본값 사용
         scheduleController.setStartDate(selectedDate);
@@ -136,16 +148,57 @@ Future<void> showScheduleDetailWoltModal(
       scheduleController.setStartDate(selectedDate);
       scheduleController.setEndDate(selectedDate);
     }
-
-    // ✅ 임시 캐시에서 리마인더 복원 (기본값 10분전)
-    final cachedReminder = await TempInputCache.getTempReminder();
-    if (cachedReminder != null && cachedReminder.isNotEmpty) {
-      bottomSheetController.updateReminder(cachedReminder);
-      debugPrint('✅ [ScheduleWolt] 임시 리마인더 복원: $cachedReminder');
-    }
-
-    // ⚠️ 반복 규칙은 캐시에서 복원하지 않음 (사용자가 명시적으로 선택해야 함)
   }
+
+  debugPrint('✅ [ScheduleWolt] Provider 초기화 완료');
+
+  // 🎯 자동 캐시 저장: 제목 변경 시
+  void autoSaveTitle() {
+    if (schedule == null) {
+      // 새 항목일 때만 캐시 저장
+      TempInputCache.saveCommonData(
+        title: scheduleController.titleController.text,
+        colorId: bottomSheetController.selectedColor,
+        reminder: bottomSheetController.reminder,
+        repeatRule: bottomSheetController.repeatRule,
+      );
+    }
+  }
+
+  // 🎯 자동 캐시 저장: 날짜/시간 변경 시
+  void autoSaveScheduleData() {
+    if (schedule == null &&
+        scheduleController.startDate != null &&
+        scheduleController.endDate != null &&
+        scheduleController.startTime != null &&
+        scheduleController.endTime != null) {
+      // 새 항목일 때만 캐시 저장
+      final startDateTime = DateTime(
+        scheduleController.startDate!.year,
+        scheduleController.startDate!.month,
+        scheduleController.startDate!.day,
+        scheduleController.startTime!.hour,
+        scheduleController.startTime!.minute,
+      );
+      final endDateTime = DateTime(
+        scheduleController.endDate!.year,
+        scheduleController.endDate!.month,
+        scheduleController.endDate!.day,
+        scheduleController.endTime!.hour,
+        scheduleController.endTime!.minute,
+      );
+
+      TempInputCache.saveScheduleData(
+        startDateTime: startDateTime,
+        endDateTime: endDateTime,
+      );
+    }
+  }
+
+  // 리스너 등록
+  scheduleController.titleController.addListener(autoSaveTitle);
+  scheduleController.addListener(autoSaveScheduleData);
+  bottomSheetController.addListener(autoSaveTitle);
 
   debugPrint('✅ [ScheduleWolt] Provider 초기화 완료');
 
@@ -433,7 +486,13 @@ Widget _buildTopNavi(
     builder: (context, titleValue, child) {
       return Consumer2<ScheduleFormController, BottomSheetController>(
         builder: (context, scheduleController, bottomSheetController, child) {
-          // ✅ 변경사항 또는 캐시 감지 (초기값과 비교)
+          // 🎯 필수 항목 체크 (일정: 제목 + 시작시간 + 종료시간)
+          final hasRequiredFields =
+              titleValue.text.trim().isNotEmpty &&
+              scheduleController.startDateTime != null &&
+              scheduleController.endDateTime != null;
+
+          // ✅ 변경사항 감지 (초기값과 비교)
           final hasChanges =
               initialTitle != titleValue.text ||
               initialStartDate != scheduleController.startDate ||
@@ -443,6 +502,13 @@ Widget _buildTopNavi(
               initialColor != bottomSheetController.selectedColor.toString() ||
               initialReminder != bottomSheetController.reminder ||
               initialRepeatRule != bottomSheetController.repeatRule;
+
+          // 🎯 保存 버튼 표시 조건:
+          // 1. 새 항목: 필수 항목이 모두 입력됨
+          // 2. 기존 항목: 필수 항목 있음 + 변경사항 있음
+          final showSaveButton = schedule == null
+              ? hasRequiredFields // 새 항목
+              : (hasRequiredFields && hasChanges); // 기존 항목
 
           return Container(
             width: 393,
@@ -464,8 +530,8 @@ Widget _buildTopNavi(
                   ),
                 ),
 
-                // ✅ 조건부 버튼: 변경사항 있으면 完了, 없으면 X 아이콘
-                hasChanges
+                // 🎯 조건부 버튼: 조건 충족하면 完了, 아니면 X 아이콘
+                showSaveButton
                     ? GestureDetector(
                         onTap: () => _handleSave(
                           context,
@@ -1697,9 +1763,9 @@ void _handleSave(
       debugPrint('   - 종료: ${scheduleController.endDateTime}');
       debugPrint('   - 반복 규칙: ${safeRepeatRule ?? "(없음)"}');
 
-      // ✅ 수정 완료 후 캐시 클리어
-      await TempInputCache.clearTempInput();
-      debugPrint('🗑️ [ScheduleWolt] 캐시 클리어 완료');
+      // 🎯 수정 완료 후 통합 캐시 클리어
+      await TempInputCache.clearCacheForType('schedule');
+      debugPrint('🗑️ [ScheduleWolt] 일정 통합 캐시 클리어 완료');
     } else {
       // ========== 5단계: 새 일정 생성 (createdAt 명시) ==========
       final newId = await db.createSchedule(
@@ -1755,9 +1821,9 @@ void _handleSave(
         }
       }
 
-      // ========== 6단계: 캐시 클리어 ==========
-      await TempInputCache.clearTempInput();
-      debugPrint('🗑️ [ScheduleWolt] 캐시 클리어 완료');
+      // ========== 6단계: 통합 캐시 클리어 ==========
+      await TempInputCache.clearCacheForType('schedule');
+      debugPrint('🗑️ [ScheduleWolt] 일정 통합 캐시 클리어 완료');
 
       // ✅ 저장 토스트 표시 (캘린더에 저장됨)
       if (context.mounted) {

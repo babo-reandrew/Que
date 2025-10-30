@@ -98,46 +98,75 @@ Future<void> showTaskDetailWoltModal(
     taskController.reset();
     bottomSheetController.reset(); // ✅ Provider 초기화
 
-    // ✅ 임시 캐시에서 제목 복원 (새 할일일 때만)
-    final cachedTitle = await TempInputCache.getTempTitle();
-    if (cachedTitle != null && cachedTitle.isNotEmpty) {
-      taskController.titleController.text = cachedTitle;
-      debugPrint('✅ [TaskWolt] 임시 제목 복원: $cachedTitle');
+    // 🎯 통합 캐시에서 공통 데이터 복원
+    final commonData = await TempInputCache.getCommonData();
+
+    if (commonData['title'] != null && commonData['title']!.isNotEmpty) {
+      taskController.titleController.text = commonData['title']!;
+      debugPrint('✅ [TaskWolt] 통합 제목 복원: ${commonData['title']}');
     }
 
-    // ✅ 임시 캐시에서 색상 복원 (새 할일일 때만)
-    final cachedColor = await TempInputCache.getTempColor();
-    if (cachedColor != null && cachedColor.isNotEmpty) {
-      bottomSheetController.updateColor(cachedColor);
-      debugPrint('✅ [TaskWolt] 임시 색상 복원: $cachedColor');
+    if (commonData['colorId'] != null && commonData['colorId']!.isNotEmpty) {
+      bottomSheetController.updateColor(commonData['colorId']!);
+      debugPrint('✅ [TaskWolt] 통합 색상 복원: ${commonData['colorId']}');
     }
 
-    // ✅ 임시 캐시에서 실행일 복원
-    final cachedExecutionDate = await TempInputCache.getTempExecutionDate();
-    if (cachedExecutionDate != null) {
-      taskController.setExecutionDate(cachedExecutionDate);
-      debugPrint('✅ [TaskWolt] 임시 실행일 복원: $cachedExecutionDate');
+    if (commonData['reminder'] != null && commonData['reminder']!.isNotEmpty) {
+      bottomSheetController.updateReminder(commonData['reminder']!);
+      debugPrint('✅ [TaskWolt] 통합 리마인더 복원: ${commonData['reminder']}');
     }
 
-    // ✅ 임시 캐시에서 마감일 복원
-    final cachedDueDate = await TempInputCache.getTempDueDate();
-    if (cachedDueDate != null) {
-      taskController.setDueDate(cachedDueDate);
-      debugPrint('✅ [TaskWolt] 임시 마감일 복원: $cachedDueDate');
+    if (commonData['repeatRule'] != null &&
+        commonData['repeatRule']!.isNotEmpty) {
+      bottomSheetController.updateRepeatRule(commonData['repeatRule']!);
+      debugPrint('✅ [TaskWolt] 통합 반복규칙 복원: ${commonData['repeatRule']}');
     }
 
-    // ✅ 임시 캐시에서 리마인더 복원 (기본값 10분전)
-    final cachedReminder = await TempInputCache.getTempReminder();
-    if (cachedReminder != null && cachedReminder.isNotEmpty) {
-      bottomSheetController.updateReminder(cachedReminder);
-      debugPrint('✅ [TaskWolt] 임시 리마인더 복원: $cachedReminder');
+    // 🎯 통합 캐시에서 할일 전용 데이터 복원
+    final taskData = await TempInputCache.getTaskData();
+    if (taskData != null) {
+      if (taskData['executionDate'] != null) {
+        taskController.setExecutionDate(taskData['executionDate']!);
+        debugPrint('✅ [TaskWolt] 통합 실행일 복원: ${taskData['executionDate']}');
+      }
+      if (taskData['dueDate'] != null) {
+        taskController.setDueDate(taskData['dueDate']!);
+        debugPrint('✅ [TaskWolt] 통합 마감일 복원: ${taskData['dueDate']}');
+      }
     }
-
-    // ⚠️ 반복 규칙은 캐시에서 복원하지 않음 (사용자가 명시적으로 선택해야 함)
   }
 
   debugPrint('✅ [TaskWolt] Provider 초기화 완료');
   print('✅ Provider 초기화 완료');
+
+  // 🎯 자동 캐시 저장: 제목 변경 시
+  void autoSaveTitle() {
+    if (task == null) {
+      // 새 항목일 때만 캐시 저장
+      TempInputCache.saveCommonData(
+        title: taskController.titleController.text,
+        colorId: bottomSheetController.selectedColor,
+        reminder: bottomSheetController.reminder,
+        repeatRule: bottomSheetController.repeatRule,
+      );
+    }
+  }
+
+  // 🎯 자동 캐시 저장: 날짜 변경 시
+  void autoSaveTaskData() {
+    if (task == null) {
+      // 새 항목일 때만 캐시 저장
+      TempInputCache.saveTaskData(
+        executionDate: taskController.executionDate,
+        dueDate: taskController.dueDate,
+      );
+    }
+  }
+
+  // 리스너 등록
+  taskController.titleController.addListener(autoSaveTitle);
+  taskController.addListener(autoSaveTaskData);
+  bottomSheetController.addListener(autoSaveTitle);
 
   // ✅ 초기 값 저장 (변경사항 감지용)
   final initialTitle = taskController.titleController.text;
@@ -443,7 +472,10 @@ Widget _buildTopNavi(
     builder: (context, titleValue, child) {
       return Consumer2<TaskFormController, BottomSheetController>(
         builder: (context, taskController, bottomSheetController, child) {
-          // ✅ 변경사항 또는 캐시 감지 (초기값과 비교)
+          // 🎯 필수 항목 체크 (할일: 제목만 필수)
+          final hasRequiredFields = titleValue.text.trim().isNotEmpty;
+
+          // ✅ 변경사항 감지 (초기값과 비교)
           final hasChanges =
               initialTitle != titleValue.text ||
               initialExecutionDate != taskController.executionDate ||
@@ -451,6 +483,13 @@ Widget _buildTopNavi(
               initialColor != bottomSheetController.selectedColor.toString() ||
               initialReminder != bottomSheetController.reminder ||
               initialRepeatRule != bottomSheetController.repeatRule;
+
+          // 🎯 保存 버튼 표시 조건:
+          // 1. 새 항목: 제목이 입력됨
+          // 2. 기존 항목: 제목 있음 + 변경사항 있음
+          final showSaveButton = task == null
+              ? hasRequiredFields // 새 항목
+              : (hasRequiredFields && hasChanges); // 기존 항목
 
           // 텍스트 입력 여부에 따라 색상 변경
           final hasTitle = taskController.hasTitle;
@@ -476,8 +515,8 @@ Widget _buildTopNavi(
                   ),
                 ),
 
-                // ✅ 조건부 버튼: 변경사항 있으면 完了, 없으면 X 아이콘
-                hasChanges
+                // 🎯 조건부 버튼: 조건 충족하면 完了, 아니면 X 아이콘
+                showSaveButton
                     ? GestureDetector(
                         onTap: () => _handleSave(
                           context,
@@ -1799,9 +1838,9 @@ void _handleSave(
         }
       }
 
-      // ✅ 수정 완료 후 캐시 클리어
-      await TempInputCache.clearTempInput();
-      debugPrint('🗑️ [TaskWolt] 캐시 클리어 완료');
+      // 🎯 수정 완료 후 통합 캐시 클리어
+      await TempInputCache.clearCacheForType('task');
+      debugPrint('🗑️ [TaskWolt] 할일 통합 캐시 클리어 완료');
 
       // ✅ 변경 토스트 표시
       if (context.mounted) {
@@ -1862,9 +1901,9 @@ void _handleSave(
         }
       }
 
-      // ========== 6단계: 캐시 클리어 ==========
-      await TempInputCache.clearTempInput();
-      debugPrint('🗑️ [TaskWolt] 캐시 클리어 완료');
+      // ========== 6단계: 통합 캐시 클리어 ==========
+      await TempInputCache.clearCacheForType('task');
+      debugPrint('🗑️ [TaskWolt] 할일 통합 캐시 클리어 완료');
 
       // ✅ 저장 토스트 표시 (인박스 or 캘린더)
       final toInbox = finalExecutionDate == null;
