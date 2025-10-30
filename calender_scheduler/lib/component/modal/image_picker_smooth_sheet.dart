@@ -60,6 +60,39 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
   void initState() {
     super.initState();
     _loadGalleryImages();
+
+    // Sheet의 extent 변화 감지 - 일정 threshold 이하로 내려가면 자동으로 닫기
+    _sheetController.addListener(_onSheetExtentChanged);
+  }
+
+  @override
+  void dispose() {
+    _sheetController.removeListener(_onSheetExtentChanged);
+    _sheetController.dispose();
+    super.dispose();
+  }
+
+  bool _isClosing = false; // 중복 호출 방지
+
+  /// Sheet extent 변화 감지 - 0.25 (25%) 이하로 내려가면 바로 닫기
+  void _onSheetExtentChanged() {
+    if (_isClosing) return; // 이미 닫는 중이면 무시
+
+    final metrics = _sheetController.value;
+    final currentExtent = metrics.pixels;
+    final maxExtent = metrics.maxPixels;
+
+    if (maxExtent > 0) {
+      final ratio = currentExtent / maxExtent;
+
+      // 25% 이하로 내려가면 X 버튼처럼 바로 닫기
+      if (ratio < 0.25 && mounted) {
+        _isClosing = true;
+        if (widget.onClose != null) {
+          widget.onClose!();
+        }
+      }
+    }
   }
 
   /// 갤러리 이미지 로드 (페이징)
@@ -158,7 +191,7 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
               ),
             ),
           ),
-          minExtent: Extent.proportional(0.45),
+          minExtent: const Extent.proportional(0.0), // 0%까지 내릴 수 있음 (닫기 위해)
           maxExtent: Extent.proportional(maxHeight),
           child: ClipRect(
             child: BackdropFilter(
@@ -200,27 +233,32 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
                   ),
                   child: Column(
                     children: [
-                      // 드래그 핸들
+                      // 드래그 핸들 + TopNavi 전체를 SheetDraggable로 묶기
                       SheetDraggable(
-                        child: Container(
-                          color: Colors.transparent,
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          height: 36,
-                          child: Center(
-                            child: Container(
-                              width: 36,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: const Color(0x1A111111),
-                                borderRadius: BorderRadius.circular(100),
+                        child: Column(
+                          children: [
+                            // 드래그 핸들
+                            Container(
+                              color: Colors.transparent,
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              height: 36,
+                              child: Center(
+                                child: Container(
+                                  width: 36,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0x1A111111),
+                                    borderRadius: BorderRadius.circular(100),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+                            // TopNavi
+                            _buildTopNaviContent(),
+                          ],
                         ),
                       ),
-                      // TopNavi
-                      _buildTopNavi(),
                       const SizedBox(height: 16),
                       // 이미지 그리드
                       Expanded(child: _buildImageGrid()),
@@ -335,49 +373,49 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
     );
   }
 
-  /// TopNavi (72px): 画像で追加 + 닫기 버튼
-  Widget _buildTopNavi() {
-    return SheetDraggable(
-      child: Container(
-        height: 72,
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Row(
-          children: [
-            const Text(
-              '画像で追加',
-              style: TextStyle(
-                fontFamily: 'LINE Seed JP App_TTF',
-                fontSize: 19,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.095,
-                color: Color(0xFF566099),
-                height: 1.4,
+  /// TopNavi (72px): 画像で追加 + 닫기 버튼 (내용만)
+  Widget _buildTopNaviContent() {
+    return Container(
+      height: 72,
+      width: double.infinity, // 전체 너비 차지
+      color: Colors.transparent, // 투명 색상으로 터치 영역 확보
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        children: [
+          const Text(
+            '画像で追加',
+            style: TextStyle(
+              fontFamily: 'LINE Seed JP App_TTF',
+              fontSize: 19,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.095,
+              color: Color(0xFF566099),
+              height: 1.4,
+            ),
+          ),
+          const Spacer(),
+          // 닫기 버튼
+          GestureDetector(
+            onTap: () {
+              if (widget.onClose != null) {
+                widget.onClose!();
+              }
+            },
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE4E4E4).withOpacity(0.9),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.close,
+                size: 20,
+                color: Color(0xFF111111),
               ),
             ),
-            const Spacer(),
-            // 닫기 버튼
-            GestureDetector(
-              onTap: () {
-                if (widget.onClose != null) {
-                  widget.onClose!();
-                }
-              },
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE4E4E4).withOpacity(0.9),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.close,
-                  size: 20,
-                  color: Color(0xFF111111),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

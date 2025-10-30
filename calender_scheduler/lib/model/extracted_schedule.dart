@@ -82,8 +82,6 @@ class ExtractedTask {
   final String title; // 제목 (필수)
   final DateTime? dueDate; // 마감 날짜 (nullable)
   final DateTime? executionDate; // 실행 날짜 (nullable)
-  final String description; // 상세 내용
-  final String location; // 관련 장소
   final String colorId; // 색상 ID
   final String listId; // 목록 ID
   final String repeatRule; // 반복 규칙 (RRULE 형식)
@@ -93,8 +91,6 @@ class ExtractedTask {
     required this.title,
     this.dueDate,
     this.executionDate,
-    this.description = '',
-    this.location = '',
     this.colorId = 'gray',
     this.listId = 'inbox',
     this.repeatRule = '',
@@ -111,8 +107,6 @@ class ExtractedTask {
       executionDate: json['executionDate'] != null
           ? DateTime.parse(json['executionDate'] as String)
           : null,
-      description: json['description'] as String? ?? '',
-      location: json['location'] as String? ?? '',
       colorId: json['colorId'] as String? ?? 'gray',
       listId: json['listId'] as String? ?? 'inbox',
       repeatRule: json['repeatRule'] as String? ?? '',
@@ -146,14 +140,12 @@ class ExtractedHabit {
   final String title; // 제목 (필수)
   final String repeatRule; // 반복 규칙 (RRULE 형식, 필수)
   final String colorId; // 색상 ID
-  final String description; // 목표나 상세 설명
   final String reminder; // 리마인더 설정
 
   ExtractedHabit({
     required this.title,
     required this.repeatRule,
     this.colorId = 'gray',
-    this.description = '',
     this.reminder = '',
   });
 
@@ -163,7 +155,6 @@ class ExtractedHabit {
       title: json['title'] as String,
       repeatRule: json['repeatRule'] as String,
       colorId: json['colorId'] as String? ?? 'gray',
-      description: json['description'] as String? ?? '',
       reminder: json['reminder'] as String? ?? '',
     );
   }

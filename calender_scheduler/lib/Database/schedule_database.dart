@@ -763,9 +763,12 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 설정하고 → 기존 반복 규칙을 업데이트해서
   /// 이거를 해서 → RRULE, UNTIL, COUNT 등을 변경한다
   Future<bool> updateRecurringPattern(RecurringPatternCompanion data) async {
-    final result = await update(recurringPattern).replace(data);
-    print('🔄 [DB] updateRecurringPattern: ${result ? "성공" : "실패"}');
-    return result;
+    // ✅ FIX: write()를 사용하여 부분 업데이트 지원 (replace는 모든 필드 필요)
+    final count = await (update(recurringPattern)
+          ..where((tbl) => tbl.id.equals(data.id.value)))
+        .write(data);
+    print('🔄 [DB] updateRecurringPattern: ${count > 0 ? "성공" : "실패"} (affected: $count)');
+    return count > 0;
   }
 
   /// 반복 규칙 삭제
@@ -1442,12 +1445,49 @@ class AppDatabase extends _$AppDatabase {
             );
 
             if (instances.isNotEmpty) {
+              // ✅ FIX: RecurringException의 수정 사항을 적용
+              final exceptions = await getRecurringExceptions(pattern.id);
+              final targetNormalized = _normalizeDate(target);
+
+              // 해당 날짜의 예외 찾기
+              RecurringExceptionData? exception;
+              for (final e in exceptions) {
+                if (_normalizeDate(e.originalDate) == targetNormalized) {
+                  exception = e;
+                  break;
+                }
+              }
+
+              // 표시할 일정 데이터 결정
+              ScheduleData displaySchedule = schedule;
+
+              if (exception != null && !exception.isCancelled) {
+                // ✅ 수정된 필드를 적용한 새 ScheduleData 생성
+                displaySchedule = ScheduleData(
+                  id: schedule.id,
+                  summary: exception.modifiedTitle ?? schedule.summary,
+                  start: exception.newStartDate ?? schedule.start,
+                  end: exception.newEndDate ?? schedule.end,
+                  description: exception.modifiedDescription ?? schedule.description,
+                  location: exception.modifiedLocation ?? schedule.location,
+                  colorId: exception.modifiedColorId ?? schedule.colorId,
+                  completed: schedule.completed,
+                  completedAt: schedule.completedAt,
+                  repeatRule: schedule.repeatRule,
+                  alertSetting: schedule.alertSetting,
+                  createdAt: schedule.createdAt,
+                  status: schedule.status,
+                  visibility: schedule.visibility,
+                );
+                print('  🔄 [일정] "${displaySchedule.summary}" - 예외 적용됨 (원본: "${schedule.summary}")');
+              }
+
               // 🔥 반복 일정은 ScheduleCompletion 테이블로 완료 확인
               if (!completedIds.contains(schedule.id)) {
-                print('  ✅ [일정] "${schedule.summary}" - 반복 일정 (RRULE 일치, 미완료)');
-                result.add(schedule);
+                print('  ✅ [일정] "${displaySchedule.summary}" - 반복 일정 (RRULE 일치, 미완료)');
+                result.add(displaySchedule); // ✅ 수정된 일정 추가
               } else {
-                print('  ⏭️ [일정] "${schedule.summary}" - 완료됨, 스킵');
+                print('  ⏭️ [일정] "${displaySchedule.summary}" - 완료됨, 스킵');
               }
             }
           } catch (e) {
@@ -1631,12 +1671,47 @@ class AppDatabase extends _$AppDatabase {
             );
 
             if (instances.isNotEmpty) {
+              // ✅ FIX: RecurringException의 수정 사항을 적용
+              final exceptions = await getRecurringExceptions(pattern.id);
+              final targetNormalized = _normalizeDate(target);
+
+              // 해당 날짜의 예외 찾기
+              RecurringExceptionData? exception;
+              for (final e in exceptions) {
+                if (_normalizeDate(e.originalDate) == targetNormalized) {
+                  exception = e;
+                  break;
+                }
+              }
+
+              // 표시할 할일 데이터 결정
+              TaskData displayTask = task;
+
+              if (exception != null && !exception.isCancelled) {
+                // ✅ 수정된 필드를 적용한 새 TaskData 생성
+                displayTask = TaskData(
+                  id: task.id,
+                  title: exception.modifiedTitle ?? task.title,
+                  colorId: exception.modifiedColorId ?? task.colorId,
+                  completed: task.completed,
+                  completedAt: task.completedAt,
+                  dueDate: task.dueDate,
+                  executionDate: task.executionDate,
+                  listId: task.listId,
+                  createdAt: task.createdAt,
+                  repeatRule: task.repeatRule,
+                  reminder: task.reminder,
+                  inboxOrder: task.inboxOrder,
+                );
+                print('  🔄 [할일] "${displayTask.title}" - 예외 적용됨 (원본: "${task.title}")');
+              }
+
               // 🔥 반복 할일은 TaskCompletion 테이블로 완료 확인
               if (!completedIds.contains(task.id)) {
-                print('  ✅ [할일] "${task.title}" - 반복 할일 (RRULE 일치, 미완료)');
-                result.add(task);
+                print('  ✅ [할일] "${displayTask.title}" - 반복 할일 (RRULE 일치, 미완료)');
+                result.add(displayTask); // ✅ 수정된 할일 추가
               } else {
-                print('  ⏭️ [할일] "${task.title}" - 완료됨, 스킵');
+                print('  ⏭️ [할일] "${displayTask.title}" - 완료됨, 스킵');
               }
             }
           } catch (e) {
@@ -1754,8 +1829,37 @@ class AppDatabase extends _$AppDatabase {
           );
 
           if (instances.isNotEmpty) {
-            print('  ✅ [습관] "${habitItem.title}" - 반복 습관 (RRULE 일치)');
-            result.add(habitItem);
+            // ✅ FIX: RecurringException의 수정 사항을 적용
+            final exceptions = await getRecurringExceptions(pattern.id);
+            final targetNormalized = _normalizeDate(target);
+
+            // 해당 날짜의 예외 찾기
+            RecurringExceptionData? exception;
+            for (final e in exceptions) {
+              if (_normalizeDate(e.originalDate) == targetNormalized) {
+                exception = e;
+                break;
+              }
+            }
+
+            // 표시할 습관 데이터 결정
+            HabitData displayHabit = habitItem;
+
+            if (exception != null && !exception.isCancelled) {
+              // ✅ 수정된 필드를 적용한 새 HabitData 생성
+              displayHabit = HabitData(
+                id: habitItem.id,
+                title: exception.modifiedTitle ?? habitItem.title,
+                colorId: exception.modifiedColorId ?? habitItem.colorId,
+                createdAt: habitItem.createdAt,
+                repeatRule: habitItem.repeatRule,
+                reminder: habitItem.reminder,
+              );
+              print('  🔄 [습관] "${displayHabit.title}" - 예외 적용됨 (원본: "${habitItem.title}")');
+            }
+
+            print('  ✅ [습관] "${displayHabit.title}" - 반복 습관 (RRULE 일치)');
+            result.add(displayHabit); // ✅ 수정된 습관 추가
           }
         } catch (e) {
           print('  ⚠️ [습관] "${habitItem.title}" - RRULE 파싱 실패: $e');

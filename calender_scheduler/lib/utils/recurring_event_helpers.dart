@@ -3,10 +3,35 @@ import '../Database/schedule_database.dart';
 import '../model/entities.dart';
 import '../model/schedule.dart';
 
-/// 반복 이벤트 수정/삭제 헬퍼 함수
-/// 이거를 설정하고 → Schedule, Task, Habit의 반복 이벤트 처리를 통합해서
-/// 이거를 해서 → 오늘만/이후/전체 수정/삭제를 RFC 5545 표준으로 처리하고
-/// 이거는 이래서 → 코드 중복을 줄이고 일관된 동작을 보장한다
+/// ✅ 반복 이벤트 수정/삭제 헬퍼 함수 (RFC 5545 표준 완벽 준수)
+///
+/// **목적:**
+/// Schedule, Task, Habit의 반복 이벤트 처리를 RRULE 표준에 맞게 통합하여
+/// 오늘만/이후/전체 수정/삭제를 완벽하게 처리한다.
+///
+/// **RFC 5545 표준 준수:**
+/// - EXDATE: 특정 날짜만 제외 (RecurringException with isCancelled=true)
+/// - UNTIL: 반복 종료일 설정 (RecurringPattern.until)
+/// - RecurringException: 단일 인스턴스 수정 (modifiedTitle, newStartDate 등)
+/// - RRULE Split: 이후 모두 변경 시 기존 패턴 종료 + 새 패턴 생성
+///
+/// **지원 작업:**
+/// 1. この回のみ削除: RecurringException(isCancelled=true) 생성
+/// 2. この予定以降削除: RecurringPattern.until 설정
+/// 3. すべての回削除: Base Event 삭제 (CASCADE)
+/// 4. この回のみ変更: RecurringException(modified fields) 생성
+/// 5. この予定以降変更: RRULE 분할 (기존 종료 + 새 패턴)
+/// 6. すべての回変更: Base Event 업데이트
+///
+/// **날짜 정규화:**
+/// - 모든 originalDate는 00:00:00으로 정규화 (날짜만 저장)
+/// - Schedule: 시간 변경 시 isRescheduled=true, newStartDate/newEndDate 사용
+/// - Task/Habit: 시간이 없으므로 isRescheduled=false
+///
+/// **적용 엔티티:**
+/// - Schedule: 일정 (시작/종료 시간 있음)
+/// - Task: 할일 (executionDate만 있음)
+/// - Habit: 습관 (날짜만 있음)
 
 // ==================== Schedule 수정 헬퍼 함수 ====================
 
@@ -35,6 +60,13 @@ Future<void> updateScheduleThisOnly({
   print('   - selectedDate (originalDate): $selectedDate');
   print('   - schedule.start: ${schedule.start}');
 
+  // 🔥 시간 변경 여부 확인: start 또는 end가 변경되었는지 체크
+  final isTimeChanged = (updatedSchedule.start.present &&
+          updatedSchedule.start.value != schedule.start) ||
+      (updatedSchedule.end.present && updatedSchedule.end.value != schedule.end);
+
+  print('   - isTimeChanged: $isTimeChanged');
+
   await db.createRecurringException(
     RecurringExceptionCompanion(
       recurringPatternId: Value(pattern.id),
@@ -42,7 +74,7 @@ Future<void> updateScheduleThisOnly({
         DateTime(selectedDate.year, selectedDate.month, selectedDate.day),
       ), // 날짜만 저장
       isCancelled: const Value(false),
-      isRescheduled: const Value(true),
+      isRescheduled: Value(isTimeChanged), // ✅ 시간이 실제로 변경된 경우만 true
       newStartDate: updatedSchedule.start.present
           ? updatedSchedule.start
           : const Value(null),
@@ -265,12 +297,16 @@ Future<void> updateTaskThisOnly({
     return;
   }
 
+  // 🔥 Task는 시간이 없으므로 항상 isRescheduled=false
+  // (Task는 title, colorId만 변경 가능)
   await db.createRecurringException(
     RecurringExceptionCompanion(
       recurringPatternId: Value(pattern.id),
-      originalDate: Value(selectedDate),
+      originalDate: Value(
+        DateTime(selectedDate.year, selectedDate.month, selectedDate.day),
+      ), // 날짜만 저장
       isCancelled: const Value(false),
-      isRescheduled: const Value(true),
+      isRescheduled: const Value(false), // ✅ Task는 시간 없음
       modifiedTitle: updatedTask.title.present
           ? updatedTask.title
           : const Value(null),
@@ -379,7 +415,9 @@ Future<void> deleteTaskThisOnly({
   await db.createRecurringException(
     RecurringExceptionCompanion(
       recurringPatternId: Value(pattern.id),
-      originalDate: Value(selectedDate),
+      originalDate: Value(
+        DateTime(selectedDate.year, selectedDate.month, selectedDate.day),
+      ), // 날짜만 저장 (시간 제거)
       isCancelled: const Value(true),
       isRescheduled: const Value(false),
     ),

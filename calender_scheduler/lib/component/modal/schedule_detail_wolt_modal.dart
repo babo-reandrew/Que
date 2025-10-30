@@ -24,6 +24,9 @@ import '../toast/save_toast.dart'; // ✅ 저장 토스트
 import '../../utils/recurring_event_helpers.dart'
     as RecurringHelpers; // ✅ 반복 이벤트 헬퍼
 
+/// NavigationSheet용 transition observer (iOS-style paged navigation)
+final _scheduleDetailTransitionObserver = NavigationSheetTransitionObserver();
+
 /// 일정 상세 Wolt Modal Sheet
 ///
 /// **Figma Design Spec (ULTRA PRECISE - 100% Match):**

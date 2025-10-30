@@ -94,8 +94,6 @@ class GeminiItem {
               const Duration(hours: 1),
             ),
             colorId: task.colorId,
-            description: task.description,
-            location: task.location,
             repeatRule: '',
           );
         } else if (type == GeminiItemType.habit) {
@@ -105,8 +103,6 @@ class GeminiItem {
             start: defaultTime,
             end: defaultTime.add(const Duration(hours: 1)),
             colorId: habit.colorId,
-            description: habit.description,
-            location: '',
             repeatRule: habit.repeatRule,
           );
         }
@@ -120,8 +116,6 @@ class GeminiItem {
             dueDate: null,
             executionDate: schedule.start,
             colorId: schedule.colorId,
-            description: schedule.description,
-            location: schedule.location,
             listId: 'inbox',
           );
         } else if (type == GeminiItemType.habit) {
@@ -131,8 +125,6 @@ class GeminiItem {
             dueDate: null,
             executionDate: defaultTime,
             colorId: habit.colorId,
-            description: habit.description,
-            location: '',
             listId: 'inbox',
           );
         }
@@ -144,7 +136,6 @@ class GeminiItem {
           return ExtractedHabit(
             title: schedule.summary,
             colorId: schedule.colorId,
-            description: schedule.description,
             repeatRule: schedule.repeatRule,
           );
         } else if (type == GeminiItemType.task) {
@@ -152,7 +143,6 @@ class GeminiItem {
           return ExtractedHabit(
             title: task.title,
             colorId: task.colorId,
-            description: task.description,
             repeatRule: '',
           );
         }
@@ -923,8 +913,6 @@ class _GeminiResultConfirmationScreenState
             ),
             colorId: bottomSheetController.selectedColor,
             repeatRule: bottomSheetController.repeatRule,
-            description: (item.data as ExtractedSchedule).description,
-            location: (item.data as ExtractedSchedule).location,
           );
           _items[index] = GeminiItem(
             type: GeminiItemType.schedule,
@@ -945,8 +933,6 @@ class _GeminiResultConfirmationScreenState
             executionDate: taskController.executionDate,
             dueDate: taskController.dueDate,
             listId: (item.data as ExtractedTask).listId,
-            description: (item.data as ExtractedTask).description,
-            location: (item.data as ExtractedTask).location,
             repeatRule: bottomSheetController.repeatRule, // 반복 규칙 업데이트
             reminder: bottomSheetController.reminder, // 리마인더 업데이트
           );
@@ -970,7 +956,6 @@ class _GeminiResultConfirmationScreenState
             title: habitController.titleController.text,
             colorId: bottomSheetController.selectedColor,
             repeatRule: bottomSheetController.repeatRule,
-            description: (item.data as ExtractedHabit).description,
             reminder: bottomSheetController.reminder, // 리마인더 업데이트
           );
           _items[index] = GeminiItem(
