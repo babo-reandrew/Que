@@ -37,13 +37,6 @@ class _OptionBottomSheetState extends State<OptionBottomSheet> {
         widget.initialEndTime ??
         DateTime.now().copyWith(hour: 10, minute: 0, second: 0, millisecond: 0);
 
-    print('🕐 시간 입력 바텀시트 초기화 완료');
-    print(
-      '  - 시작 시간: ${_selectedStartTime.hour}:${_selectedStartTime.minute.toString().padLeft(2, '0')}',
-    );
-    print(
-      '  - 종료 시간: ${_selectedEndTime.hour}:${_selectedEndTime.minute.toString().padLeft(2, '0')}',
-    );
   }
 
   @override
@@ -72,9 +65,6 @@ class _OptionBottomSheetState extends State<OptionBottomSheet> {
               setState(() {
                 _selectedStartTime = time;
               });
-              print(
-                '⏰ 시작 시간 변경됨: ${time.hour}:${time.minute.toString().padLeft(2, '0')}',
-              );
             },
           ),
 
@@ -88,9 +78,6 @@ class _OptionBottomSheetState extends State<OptionBottomSheet> {
               setState(() {
                 _selectedEndTime = time;
               });
-              print(
-                '⏰ 종료 시간 변경됨: ${time.hour}:${time.minute.toString().padLeft(2, '0')}',
-              );
             },
           ),
 
@@ -119,13 +106,6 @@ class _OptionBottomSheetState extends State<OptionBottomSheet> {
         TextButton(
           onPressed: () {
             // 완료 버튼을 누르면 선택된 시간을 부모에게 전달하고 바텀시트를 닫음
-            print('✅ 시간 선택 완료');
-            print(
-              '  - 최종 시작 시간: ${_selectedStartTime.hour}:${_selectedStartTime.minute.toString().padLeft(2, '0')}',
-            );
-            print(
-              '  - 최종 종료 시간: ${_selectedEndTime.hour}:${_selectedEndTime.minute.toString().padLeft(2, '0')}',
-            );
             widget.onTimeSelected(
               _selectedStartTime,
               _selectedEndTime,
@@ -216,13 +196,6 @@ class _OptionBottomSheetState extends State<OptionBottomSheet> {
       child: ElevatedButton(
         onPressed: () {
           // 완료 버튼을 누르면 선택된 시간을 부모에게 전달하고 바텀시트를 닫음
-          print('✅ 시간 선택 완료 버튼 클릭');
-          print(
-            '  - 최종 시작 시간: ${_selectedStartTime.hour}:${_selectedStartTime.minute.toString().padLeft(2, '0')}',
-          );
-          print(
-            '  - 최종 종료 시간: ${_selectedEndTime.hour}:${_selectedEndTime.minute.toString().padLeft(2, '0')}',
-          );
           widget.onTimeSelected(
             _selectedStartTime,
             _selectedEndTime,
@@ -256,7 +229,6 @@ class _OptionBottomSheetState extends State<OptionBottomSheet> {
     DateTime initialTime, // 초기 시간
     ValueChanged<DateTime> onTimeChanged, // 시간 변경 시 호출되는 콜백
   ) {
-    print('🕐 시간 선택 다이얼로그 표시: $label');
 
     showCupertinoModalPopup(
       context: context, // 현재 컨텍스트 사용
@@ -284,7 +256,6 @@ class _OptionBottomSheetState extends State<OptionBottomSheet> {
                   CupertinoButton(
                     padding: EdgeInsets.zero, // 버튼 패딩 제거
                     onPressed: () {
-                      print('❌ 시간 선택 취소: $label');
                       Navigator.pop(context); // 다이얼로그 닫기
                     },
                     child: Text(
@@ -309,7 +280,6 @@ class _OptionBottomSheetState extends State<OptionBottomSheet> {
                   CupertinoButton(
                     padding: EdgeInsets.zero, // 버튼 패딩 제거
                     onPressed: () {
-                      print('✅ 시간 선택 완료: $label');
                       onTimeChanged(initialTime); // 선택된 시간을 콜백으로 전달
                       Navigator.pop(context); // 다이얼로그 닫기
                     },
@@ -334,9 +304,6 @@ class _OptionBottomSheetState extends State<OptionBottomSheet> {
                 onDateTimeChanged: (DateTime newTime) {
                   // 시간이 변경되면 초기 시간을 업데이트
                   initialTime = newTime;
-                  print(
-                    '⏰ 시간 변경됨: ${newTime.hour}:${newTime.minute.toString().padLeft(2, '0')}',
-                  );
                 },
               ),
             ),

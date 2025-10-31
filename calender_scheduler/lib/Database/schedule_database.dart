@@ -47,7 +47,6 @@ class AppDatabase extends _$AppDatabase {
   /// RecurringPattern의 dtstart를 날짜만으로 정규화 (시간 제거)
   /// 🔥 UTC 변환 시 날짜가 밀리는 문제를 해결하기 위한 마이그레이션
   Future<void> normalizeDtstartDates() async {
-    print('🔧 [DB] RecurringPattern dtstart 정규화 시작...');
 
     // 모든 RecurringPattern 조회
     final patterns = await select(recurringPattern).get();
@@ -72,10 +71,8 @@ class AppDatabase extends _$AppDatabase {
             ..where((tbl) => tbl.id.equals(pattern.id)))
           .write(RecurringPatternCompanion(dtstart: Value(normalizedDate)));
 
-      print('   ✅ ID ${pattern.id}: ${pattern.dtstart} → $normalizedDate');
     }
 
-    print('✅ [DB] dtstart 정규화 완료: ${patterns.length}개 처리됨');
   }
 
   // ==================== 조회 함수 ====================
@@ -85,7 +82,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 해서 → get()으로 데이터를 가져온다
   Future<List<ScheduleData>> getSchedules() async {
     final result = await select(schedule).get();
-    print('📊 [DB] getSchedules 실행 완료: ${result.length}개 일정 조회됨');
     return result;
   }
 
@@ -94,9 +90,6 @@ class AppDatabase extends _$AppDatabase {
     final result = await (select(
       schedule,
     )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
-    print(
-      '🔍 [DB] getScheduleById 실행: ID=$id → ${result != null ? "찾음" : "없음"}',
-    );
     return result;
   }
 
@@ -119,9 +112,6 @@ class AppDatabase extends _$AppDatabase {
               ..where((tbl) => tbl.start.isSmallerThanValue(dayEnd)))
             .get();
 
-    print(
-      '📅 [DB] getSchedulesByDate 실행 완료: ${selectedDate.toString().split(' ')[0]} → ${result.length}개 일정',
-    );
     return result;
   }
 
@@ -130,7 +120,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거라면 → UI에서 StreamBuilder로 받아서 자동 갱신이 가능하다
   /// 이거를 설정하고 → orderBy로 시작시간 오름차순, 같으면 제목 오름차순으로 정렬한다
   Stream<List<ScheduleData>> watchSchedules() {
-    print('👀 [DB] watchSchedules 스트림 시작 - 실시간 관찰 중 (start↑ → summary↑ 정렬)');
     return (select(schedule)..orderBy([
           (tbl) => OrderingTerm(expression: tbl.start, mode: OrderingMode.asc),
           (tbl) =>
@@ -146,13 +135,9 @@ class AppDatabase extends _$AppDatabase {
     DateTime startDate,
     DateTime endDate,
   ) async* {
-    print(
-      '👀 [DB] watchSchedulesInRange (RRULE) - ${startDate.toString().substring(0, 10)} ~ ${endDate.toString().substring(0, 10)}',
-    );
 
     // 모든 일정을 실시간으로 관찰
     await for (final schedules in watchSchedules()) {
-      print('📊 [DB] [Range] 전체 Schedule 개수: ${schedules.length}');
 
       final result = <ScheduleData>[];
 
@@ -208,7 +193,6 @@ class AppDatabase extends _$AppDatabase {
               result.add(schedule);
             }
           } catch (e) {
-            print('  ⚠️ [일정] "${schedule.summary}" - RRULE 파싱 실패: $e');
             // 실패 시 원본 날짜 기준으로 폴백
             if (schedule.end.isAfter(startDate) &&
                 schedule.start.isBefore(endDate)) {
@@ -218,7 +202,6 @@ class AppDatabase extends _$AppDatabase {
         }
       }
 
-      print('✅ [DB] [Range] 필터링된 Schedule 개수: ${result.length}');
       yield result;
     }
   }
@@ -239,9 +222,6 @@ class AppDatabase extends _$AppDatabase {
             ))
             .get();
 
-    print(
-      '📅 [DB] getByDay 실행 완료: ${selected.toString().split(' ')[0]} → ${result.length}개 일정',
-    );
     return result;
   }
 
@@ -252,9 +232,6 @@ class AppDatabase extends _$AppDatabase {
     final dayStart = DateTime(selected.year, selected.month, selected.day);
     final dayEnd = dayStart.add(const Duration(days: 1));
 
-    print(
-      '👀 [DB] watchByDay 스트림 시작: ${selected.toString().split(' ')[0]} - 실시간 관찰 중 (start↑ → summary↑ 정렬)',
-    );
     return (select(schedule)
           ..where(
             (tbl) =>
@@ -278,10 +255,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거는 이래서 → 삽입된 행의 id를 int로 반환한다 (자동 생성)
   Future<int> createSchedule(ScheduleCompanion data) async {
     final id = await into(schedule).insert(data);
-    print('✅ [DB] createSchedule 실행 완료: ID=$id로 일정 생성됨');
-    print('   → 제목: ${data.summary.value}');
-    print('   → 시작: ${data.start.value}');
-    print('   → 종료: ${data.end.value}');
     return id;
   }
 
@@ -293,9 +266,7 @@ class AppDatabase extends _$AppDatabase {
   /// 이거라면 → 성공 시 true를 반환한다
   Future<bool> updateSchedule(ScheduleCompanion data) async {
     final result = await update(schedule).replace(data);
-    print('🔄 [DB] updateSchedule 실행 완료: ${result ? "성공" : "실패"}');
     if (result) {
-      print('   → 수정된 ID: ${data.id.value}');
     }
     return result;
   }
@@ -310,7 +281,6 @@ class AppDatabase extends _$AppDatabase {
     final count = await (delete(
       schedule,
     )..where((tbl) => tbl.id.equals(id))).go();
-    print('🗑️ [DB] deleteSchedule 실행 완료: ID=$id → $count개 행 삭제됨');
     return count;
   }
 
@@ -322,8 +292,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 해서 → into(task).insert()로 DB에 저장한다
   Future<int> createTask(TaskCompanion data) async {
     final id = await into(task).insert(data);
-    print('✅ [DB] createTask 실행 완료: ID=$id로 할일 생성됨');
-    print('   → 제목: ${data.title.value}');
     return id;
   }
 
@@ -332,7 +300,6 @@ class AppDatabase extends _$AppDatabase {
     final result = await (select(
       task,
     )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
-    print('🔍 [DB] getTaskById 실행: ID=$id → ${result != null ? "찾음" : "없음"}');
     return result;
   }
 
@@ -341,7 +308,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 해서 → 실시간으로 할일 목록을 받는다
   /// 이거는 이래서 → executionDate가 있으면 그 날짜로 정렬하고, 없으면 인박스에만 표시
   Stream<List<TaskData>> watchTasks() {
-    print('👀 [DB] watchTasks 스트림 시작 - 실시간 관찰 중');
     return (select(task)..orderBy([
           (tbl) => OrderingTerm(expression: tbl.completed), // 미완료 먼저
           (tbl) => OrderingTerm(
@@ -361,7 +327,6 @@ class AppDatabase extends _$AppDatabase {
     final count = await (update(task)..where((tbl) => tbl.id.equals(id))).write(
       TaskCompanion(completed: const Value(true), completedAt: Value(now)),
     );
-    print('✅ [DB] completeTask 실행 완료: ID=$id → 완료 처리됨');
     return count;
   }
 
@@ -372,7 +337,6 @@ class AppDatabase extends _$AppDatabase {
     final count = await (update(task)..where((tbl) => tbl.id.equals(id))).write(
       const TaskCompanion(completed: Value(false), completedAt: Value(null)),
     );
-    print('🔄 [DB] uncompleteTask 실행 완료: ID=$id → 완료 해제됨');
     return count;
   }
 
@@ -381,7 +345,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 해서 → DB에서 영구 제거한다
   Future<int> deleteTask(int id) async {
     final count = await (delete(task)..where((tbl) => tbl.id.equals(id))).go();
-    print('🗑️ [DB] deleteTask 실행 완료: ID=$id → $count개 행 삭제됨');
     return count;
   }
 
@@ -397,7 +360,6 @@ class AppDatabase extends _$AppDatabase {
             completedAt: Value(now),
           ),
         );
-    print('✅ [DB] completeSchedule 실행 완료: ID=$id → 완료 처리됨');
     return count;
   }
 
@@ -412,7 +374,6 @@ class AppDatabase extends _$AppDatabase {
             completedAt: Value(null),
           ),
         );
-    print('🔄 [DB] uncompleteSchedule 실행 완료: ID=$id → 완료 해제됨');
     return count;
   }
 
@@ -423,9 +384,6 @@ class AppDatabase extends _$AppDatabase {
   Future<int> updateTaskDate(int id, DateTime newDate) async {
     final count = await (update(task)..where((tbl) => tbl.id.equals(id))).write(
       TaskCompanion(executionDate: Value(newDate)), // ✅ executionDate로 변경
-    );
-    print(
-      '📅 [DB] updateTaskDate 실행 완료: ID=$id → ${newDate.toString().split(' ')[0]}로 이동됨 (executionDate 설정)',
     );
     return count;
   }
@@ -440,9 +398,6 @@ class AppDatabase extends _$AppDatabase {
         executionDate: Value(null),
       ), // ✅ executionDate를 null로 설정
     );
-    print(
-      '📥 [DB] moveTaskToInbox 실행 완료: ID=$id → Inbox로 이동됨 (executionDate 제거)',
-    );
     return count;
   }
 
@@ -451,7 +406,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 해서 → 사용자가 드래그 앤 드롭으로 정한 순서를 저장하고
   /// 이거는 이래서 → 다음에 인박스를 열 때 같은 순서로 표시된다
   Future<void> updateInboxTasksOrder(List<int> taskIds) async {
-    print('📥 [DB] updateInboxTasksOrder 시작: ${taskIds.length}개 Task');
 
     await transaction(() async {
       for (int i = 0; i < taskIds.length; i++) {
@@ -459,11 +413,9 @@ class AppDatabase extends _$AppDatabase {
         await (update(task)..where((tbl) => tbl.id.equals(taskId))).write(
           TaskCompanion(inboxOrder: Value(i)),
         );
-        print('  → Task #$taskId: inboxOrder = $i');
       }
     });
 
-    print('✅ [DB] updateInboxTasksOrder 완료');
   }
 
   // ==================== Habit (습관) 함수 ====================
@@ -473,8 +425,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 해서 → into(habit).insert()로 DB에 저장한다
   Future<int> createHabit(HabitCompanion data) async {
     final id = await into(habit).insert(data);
-    print('✅ [DB] createHabit 실행 완료: ID=$id로 습관 생성됨');
-    print('   → 제목: ${data.title.value}');
     return id;
   }
 
@@ -483,7 +433,6 @@ class AppDatabase extends _$AppDatabase {
     final result = await (select(
       habit,
     )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
-    print('🔍 [DB] getHabitById 실행: ID=$id → ${result != null ? "찾음" : "없음"}');
     return result;
   }
 
@@ -491,7 +440,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 설정하고 → habit 테이블을 watch()로 구독해서
   /// 이거를 해서 → 실시간으로 습관 목록을 받는다
   Stream<List<HabitData>> watchHabits() {
-    print('👀 [DB] watchHabits 스트림 시작 - 실시간 관찰 중');
     return (select(habit)..orderBy([
           (tbl) =>
               OrderingTerm(expression: tbl.createdAt, mode: OrderingMode.desc),
@@ -509,7 +457,6 @@ class AppDatabase extends _$AppDatabase {
       createdAt: DateTime.now(),
     );
     final id = await into(habitCompletion).insert(companion);
-    print('✅ [DB] recordHabitCompletion 실행 완료: habitId=$habitId, date=$date');
     return id;
   }
 
@@ -528,9 +475,6 @@ class AppDatabase extends _$AppDatabase {
                   tbl.completedDate.isSmallerOrEqualValue(endOfDay),
             ))
             .go();
-    print(
-      '🔄 [DB] deleteHabitCompletion 실행 완료: habitId=$habitId, date=$date → $count개 삭제',
-    );
     return count;
   }
 
@@ -551,10 +495,22 @@ class AppDatabase extends _$AppDatabase {
             ))
             .get();
 
-    print(
-      '📊 [DB] getHabitCompletionsByDate 실행 완료: $date → ${result.length}개 기록',
-    );
     return result;
+  }
+
+  /// 특정 날짜의 습관 완료 기록 실시간 감지
+  /// 이거를 설정하고 → 특정 날짜의 완료 기록을 실시간으로 감시해서
+  /// 이거를 해서 → HabitCard가 완료 상태를 즉시 반영한다
+  Stream<List<HabitCompletionData>> watchHabitCompletionsByDate(DateTime date) {
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+
+    return (select(habitCompletion)..where(
+          (tbl) =>
+              tbl.completedDate.isBiggerOrEqualValue(startOfDay) &
+              tbl.completedDate.isSmallerOrEqualValue(endOfDay),
+        ))
+        .watch();
   }
 
   /// 습관 삭제
@@ -568,7 +524,6 @@ class AppDatabase extends _$AppDatabase {
 
     // 2. 습관 삭제
     final count = await (delete(habit)..where((tbl) => tbl.id.equals(id))).go();
-    print('🗑️ [DB] deleteHabit 실행 완료: ID=$id → $count개 행 삭제됨 (완료 기록 포함)');
     return count;
   }
 
@@ -586,9 +541,6 @@ class AppDatabase extends _$AppDatabase {
       createdAt: DateTime.now(),
     );
     final id = await into(scheduleCompletion).insert(companion);
-    print(
-      '✅ [DB] recordScheduleCompletion 실행 완료: scheduleId=$scheduleId, date=$dateOnly',
-    );
     return id;
   }
 
@@ -605,9 +557,6 @@ class AppDatabase extends _$AppDatabase {
                   tbl.completedDate.equals(dateOnly),
             ))
             .go();
-    print(
-      '🔄 [DB] deleteScheduleCompletion 실행 완료: scheduleId=$scheduleId, date=$dateOnly → $count개 삭제',
-    );
     return count;
   }
 
@@ -623,9 +572,6 @@ class AppDatabase extends _$AppDatabase {
       scheduleCompletion,
     )..where((tbl) => tbl.completedDate.equals(dateOnly))).get();
 
-    print(
-      '📊 [DB] getScheduleCompletionsByDate 실행 완료: $dateOnly → ${result.length}개 기록',
-    );
     return result;
   }
 
@@ -663,7 +609,6 @@ class AppDatabase extends _$AppDatabase {
       createdAt: DateTime.now(),
     );
     final id = await into(taskCompletion).insert(companion);
-    print('✅ [DB] recordTaskCompletion 실행 완료: taskId=$taskId, date=$dateOnly');
     return id;
   }
 
@@ -680,9 +625,6 @@ class AppDatabase extends _$AppDatabase {
                   tbl.completedDate.equals(dateOnly),
             ))
             .go();
-    print(
-      '🔄 [DB] deleteTaskCompletion 실행 완료: taskId=$taskId, date=$dateOnly → $count개 삭제',
-    );
     return count;
   }
 
@@ -698,10 +640,18 @@ class AppDatabase extends _$AppDatabase {
       taskCompletion,
     )..where((tbl) => tbl.completedDate.equals(dateOnly))).get();
 
-    print(
-      '📊 [DB] getTaskCompletionsByDate 실행 완료: $dateOnly → ${result.length}개 기록',
-    );
     return result;
+  }
+
+  /// 특정 날짜의 할일 완료 기록 실시간 감지
+  /// 이거를 설정하고 → 특정 날짜의 완료 기록을 실시간으로 감시해서
+  /// 이거를 해서 → TaskCard가 완료 상태를 즉시 반영한다
+  Stream<List<TaskCompletionData>> watchTaskCompletionsByDate(DateTime date) {
+    final dateOnly = DateTime(date.year, date.month, date.day);
+
+    return (select(
+      taskCompletion,
+    )..where((tbl) => tbl.completedDate.equals(dateOnly))).watch();
   }
 
   /// 특정 할일의 특정 날짜 완료 기록 조회 (단일)
@@ -732,10 +682,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거는 이래서 → RRULE 표준으로 반복 패턴을 저장한다
   Future<int> createRecurringPattern(RecurringPatternCompanion data) async {
     final id = await into(recurringPattern).insert(data);
-    print('✅ [DB] createRecurringPattern 실행 완료: ID=$id');
-    print('   → entityType: ${data.entityType.value}');
-    print('   → entityId: ${data.entityId.value}');
-    print('   → rrule: ${data.rrule.value}');
     return id;
   }
 
@@ -754,9 +700,6 @@ class AppDatabase extends _$AppDatabase {
             ))
             .getSingleOrNull();
 
-    print(
-      '🔍 [DB] getRecurringPattern: $entityType #$entityId → ${result != null ? "찾음" : "없음"}',
-    );
     return result;
   }
 
@@ -765,10 +708,9 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 해서 → RRULE, UNTIL, COUNT 등을 변경한다
   Future<bool> updateRecurringPattern(RecurringPatternCompanion data) async {
     // ✅ FIX: write()를 사용하여 부분 업데이트 지원 (replace는 모든 필드 필요)
-    final count = await (update(recurringPattern)
-          ..where((tbl) => tbl.id.equals(data.id.value)))
-        .write(data);
-    print('🔄 [DB] updateRecurringPattern: ${count > 0 ? "성공" : "실패"} (affected: $count)');
+    final count = await (update(
+      recurringPattern,
+    )..where((tbl) => tbl.id.equals(data.id.value))).write(data);
     return count > 0;
   }
 
@@ -787,9 +729,6 @@ class AppDatabase extends _$AppDatabase {
             ))
             .go();
 
-    print(
-      '🗑️ [DB] deleteRecurringPattern: $entityType #$entityId → $count개 삭제',
-    );
     return count;
   }
 
@@ -807,7 +746,6 @@ class AppDatabase extends _$AppDatabase {
     );
 
     if (pattern == null) {
-      print('⚠️ [DB] addExdate 실패: 반복 규칙이 없음');
       return false;
     }
 
@@ -821,7 +759,6 @@ class AppDatabase extends _$AppDatabase {
 
     // 중복 체크
     if (existingExdates.contains(newExdate)) {
-      print('⚠️ [DB] addExdate: 이미 제외된 날짜');
       return false;
     }
 
@@ -835,7 +772,6 @@ class AppDatabase extends _$AppDatabase {
               ..where((tbl) => tbl.id.equals(pattern.id)))
             .write(RecurringPatternCompanion(exdate: Value(updatedExdate)));
 
-    print('✅ [DB] addExdate 완료: $newExdate 추가 → ${result > 0}');
     return result > 0;
   }
 
@@ -861,11 +797,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 해서 → 특정 발생을 수정하거나 취소한다
   Future<int> createRecurringException(RecurringExceptionCompanion data) async {
     final id = await into(recurringException).insert(data);
-    print('✅ [DB] createRecurringException 실행 완료: ID=$id');
-    print('   → recurringPatternId: ${data.recurringPatternId.value}');
-    print('   → originalDate: ${data.originalDate.value}');
-    print('   → isCancelled: ${data.isCancelled.value}');
-    print('   → isRescheduled: ${data.isRescheduled.value}');
     return id;
   }
 
@@ -888,9 +819,6 @@ class AppDatabase extends _$AppDatabase {
               ]))
             .get();
 
-    print(
-      '📋 [DB] getRecurringExceptions: patternId=$recurringPatternId → ${result.length}개',
-    );
     return result;
   }
 
@@ -909,9 +837,6 @@ class AppDatabase extends _$AppDatabase {
             ))
             .getSingleOrNull();
 
-    print(
-      '🔍 [DB] getRecurringExceptionByDate: $originalDate → ${result != null ? "찾음" : "없음"}',
-    );
     return result;
   }
 
@@ -922,7 +847,6 @@ class AppDatabase extends _$AppDatabase {
     final count = await (delete(
       recurringException,
     )..where((tbl) => tbl.id.equals(id))).go();
-    print('🗑️ [DB] deleteRecurringException: ID=$id → $count개 삭제');
     return count;
   }
 
@@ -934,9 +858,7 @@ class AppDatabase extends _$AppDatabase {
   /// 이거라면 → 성공 시 true를 반환한다
   Future<bool> updateHabit(HabitCompanion data) async {
     final result = await update(habit).replace(data);
-    print('🔄 [DB] updateHabit 실행 완료: ${result ? "성공" : "실패"}');
     if (result) {
-      print('   → 수정된 ID: ${data.id.value}');
     }
     return result;
   }
@@ -951,9 +873,6 @@ class AppDatabase extends _$AppDatabase {
     // 이거를 설정하고 → 날짜를 00:00:00으로 정규화해서
     // 이거를 해서 → 시간 상관없이 같은 날짜로 인식되도록 한다
     final normalizedDate = DateTime(date.year, date.month, date.day);
-    print(
-      '👀 [DB] watchDailyCardOrder 스트림 시작: ${normalizedDate.toString().split(' ')[0]}',
-    );
 
     // 이거를 설정하고 → dailyCardOrder 테이블에서 해당 날짜 필터링해서
     // 이거를 해서 → sortOrder 오름차순으로 정렬하고
@@ -978,9 +897,6 @@ class AppDatabase extends _$AppDatabase {
   ) async {
     // 이거를 설정하고 → 날짜를 00:00:00으로 정규화해서
     final normalizedDate = DateTime(date.year, date.month, date.day);
-    print(
-      '💾 [DB] saveDailyCardOrder 시작: ${normalizedDate.toString().split(' ')[0]}',
-    );
 
     // 이거를 설정하고 → transaction()으로 묶어서
     // 이거를 해서 → 삭제와 삽입이 하나의 단위로 실행되고
@@ -992,7 +908,6 @@ class AppDatabase extends _$AppDatabase {
       final deleteCount = await (delete(
         dailyCardOrder,
       )..where((tbl) => tbl.date.equals(normalizedDate))).go();
-      print('  → [1/2] 기존 순서 삭제 완료: $deleteCount개 레코드');
 
       // 2️⃣ 새로운 순서 삽입
       // 이거를 설정하고 → items를 순회하면서
@@ -1024,8 +939,6 @@ class AppDatabase extends _$AppDatabase {
         insertCount++;
       }
 
-      print('  → [2/2] 새로운 순서 저장 완료: $insertCount개 카드');
-      print('✅ [DB] saveDailyCardOrder 완료');
     });
   }
 
@@ -1040,9 +953,6 @@ class AppDatabase extends _$AppDatabase {
     int newOrder,
   ) async {
     final normalizedDate = DateTime(date.year, date.month, date.day);
-    print(
-      '🔄 [DB] updateCardOrder: $cardType-$cardId → order=$newOrder (날짜: ${normalizedDate.toString().split(' ')[0]})',
-    );
 
     // 이거를 설정하고 → update로 특정 카드만 찾아서
     // 이거를 해서 → sortOrder와 updatedAt만 업데이트한다
@@ -1060,7 +970,6 @@ class AppDatabase extends _$AppDatabase {
               ),
             );
 
-    print('✅ [DB] updateCardOrder 완료: $count개 행 업데이트됨');
   }
 
   /// 특정 날짜의 카드 순서 초기화 (삭제)
@@ -1069,9 +978,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거는 이래서 → 기본 순서(createdAt)로 돌아간다
   Future<int> resetDailyCardOrder(DateTime date) async {
     final normalizedDate = DateTime(date.year, date.month, date.day);
-    print(
-      '🔄 [DB] resetDailyCardOrder: ${normalizedDate.toString().split(' ')[0]}',
-    );
 
     // 이거를 설정하고 → delete로 해당 날짜의 모든 순서를 삭제해서
     // 이거를 해서 → 커스텀 순서를 제거한다
@@ -1079,7 +985,6 @@ class AppDatabase extends _$AppDatabase {
       dailyCardOrder,
     )..where((tbl) => tbl.date.equals(normalizedDate))).go();
 
-    print('✅ [DB] resetDailyCardOrder 완료: $count개 순서 리셋됨');
     return count;
   }
 
@@ -1088,7 +993,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 해서 → 모든 날짜의 DailyCardOrder에서 해당 카드를 제거하고
   /// 이거는 이래서 → 고아 레코드(orphan record)를 방지한다
   Future<int> deleteCardFromAllOrders(String cardType, int cardId) async {
-    print('🗑️ [DB] deleteCardFromAllOrders: $cardType-$cardId (모든 날짜)');
 
     // 이거를 설정하고 → cardType과 cardId로 필터링해서
     // 이거를 해서 → 모든 날짜의 해당 카드 순서를 삭제한다
@@ -1099,7 +1003,6 @@ class AppDatabase extends _$AppDatabase {
             ))
             .go();
 
-    print('✅ [DB] deleteCardFromAllOrders 완료: $count개 레코드 삭제됨');
     return count;
   }
 
@@ -1115,9 +1018,6 @@ class AppDatabase extends _$AppDatabase {
     final startOfDay = DateTime(date.year, date.month, date.day);
     final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
-    print(
-      '👀 [DB] watchTasksByExecutionDate: ${date.toString().split(' ')[0]}',
-    );
     return (select(task)
           ..where(
             (tbl) =>
@@ -1138,7 +1038,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 해서 → Inbox에만 표시한다
   /// ✅ inboxOrder로 정렬 (사용자 커스텀 순서 반영)
   Stream<List<TaskData>> watchInboxTasks() {
-    print('👀 [DB] watchInboxTasks: 완료되지 않은 할일만 표시 (inboxOrder 순)');
     return (select(task)
           ..where((tbl) => tbl.completed.equals(false)) // ✅ 완료되지 않은 것만
           ..orderBy([
@@ -1166,7 +1065,6 @@ class AppDatabase extends _$AppDatabase {
     required int limit,
     required int offset,
   }) {
-    print('📄 [DB] watchTasksPaginated: limit=$limit, offset=$offset');
     return (select(task)
           ..orderBy([
             (tbl) => OrderingTerm(expression: tbl.completed), // 미완료 먼저
@@ -1186,7 +1084,6 @@ class AppDatabase extends _$AppDatabase {
     required int limit,
     required int offset,
   }) {
-    print('📄 [DB] watchHabitsPaginated: limit=$limit, offset=$offset');
     return (select(habit)
           ..orderBy([
             (tbl) => OrderingTerm(
@@ -1207,7 +1104,6 @@ class AppDatabase extends _$AppDatabase {
   Stream<List<TaskData>> watchCompletedTasksByDay(DateTime date) async* {
     final dateOnly = DateTime(date.year, date.month, date.day);
 
-    print('✅ [DB] watchCompletedTasksByDay: ${date.toString().split(' ')[0]}');
 
     // TaskCompletion 테이블에서 해당 날짜의 완료 기록을 실시간 감지
     await for (final completions
@@ -1259,7 +1155,6 @@ class AppDatabase extends _$AppDatabase {
     final startOfDay = DateTime(date.year, date.month, date.day);
     final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
-    print('✅ [DB] watchCompletedHabitsByDay: ${date.toString().split(' ')[0]}');
 
     // HabitCompletion 테이블에서 해당 날짜의 완료 기록을 실시간 감지
     await for (final completions
@@ -1311,9 +1206,6 @@ class AppDatabase extends _$AppDatabase {
   ) async* {
     final dateOnly = DateTime(date.year, date.month, date.day);
 
-    print(
-      '✅ [DB] watchCompletedSchedulesByDay: ${date.toString().split(' ')[0]}',
-    );
 
     // ScheduleCompletion 테이블에서 해당 날짜의 완료 기록을 실시간 감지
     await for (final completions
@@ -1366,7 +1258,6 @@ class AppDatabase extends _$AppDatabase {
     final query = selectOnly(task)..addColumns([task.id.count()]);
     final result = await query.getSingle();
     final count = result.read(task.id.count()) ?? 0;
-    print('📊 [DB] getTasksCount: $count개');
     return count;
   }
 
@@ -1377,7 +1268,6 @@ class AppDatabase extends _$AppDatabase {
     final query = selectOnly(habit)..addColumns([habit.id.count()]);
     final result = await query.getSingle();
     final count = result.read(habit.id.count()) ?? 0;
-    print('📊 [DB] getHabitsCount: $count개');
     return count;
   }
 
@@ -1402,16 +1292,12 @@ class AppDatabase extends _$AppDatabase {
   Stream<List<ScheduleData>> watchSchedulesWithRepeat(
     DateTime targetDate,
   ) async* {
-    print(
-      '🔁 [DB] watchSchedulesWithRepeat (RRULE): ${targetDate.toString().split(' ')[0]}',
-    );
 
     // 날짜 정규화 (00:00:00)
     final target = DateTime(targetDate.year, targetDate.month, targetDate.day);
     final targetEnd = target.add(const Duration(days: 1));
 
     await for (final schedules in watchSchedules()) {
-      print('📊 [DB] 전체 Schedule 개수: ${schedules.length}');
 
       // 🔥 해당 날짜의 완료 기록 조회
       final completions = await getScheduleCompletionsByDate(target);
@@ -1432,10 +1318,8 @@ class AppDatabase extends _$AppDatabase {
               schedule.end.isAfter(target)) {
             // 🔥 일반 일정은 completed 필드로 완료 확인 (기존 방식 유지)
             if (!schedule.completed) {
-              print('  ✅ [일정] "${schedule.summary}" - 일반 일정 (날짜 일치, 미완료)');
               result.add(schedule);
             } else {
-              print('  ⏭️ [일정] "${schedule.summary}" - 완료됨, 스킵');
             }
           }
         } else {
@@ -1471,7 +1355,8 @@ class AppDatabase extends _$AppDatabase {
                   summary: exception.modifiedTitle ?? schedule.summary,
                   start: exception.newStartDate ?? schedule.start,
                   end: exception.newEndDate ?? schedule.end,
-                  description: exception.modifiedDescription ?? schedule.description,
+                  description:
+                      exception.modifiedDescription ?? schedule.description,
                   location: exception.modifiedLocation ?? schedule.location,
                   colorId: exception.modifiedColorId ?? schedule.colorId,
                   completed: schedule.completed,
@@ -1482,19 +1367,15 @@ class AppDatabase extends _$AppDatabase {
                   status: schedule.status,
                   visibility: schedule.visibility,
                 );
-                print('  🔄 [일정] "${displaySchedule.summary}" - 예외 적용됨 (원본: "${schedule.summary}")');
               }
 
               // 🔥 반복 일정은 ScheduleCompletion 테이블로 완료 확인
               if (!completedIds.contains(schedule.id)) {
-                print('  ✅ [일정] "${displaySchedule.summary}" - 반복 일정 (RRULE 일치, 미완료)');
                 result.add(displaySchedule); // ✅ 수정된 일정 추가
               } else {
-                print('  ⏭️ [일정] "${displaySchedule.summary}" - 완료됨, 스킵');
               }
             }
           } catch (e) {
-            print('  ⚠️ [일정] "${schedule.summary}" - RRULE 파싱 실패: $e');
             // 실패 시 원본 날짜 기준으로 폴백
             if (schedule.start.isBefore(targetEnd) &&
                 schedule.end.isAfter(target)) {
@@ -1506,7 +1387,6 @@ class AppDatabase extends _$AppDatabase {
         }
       }
 
-      print('✅ [DB] 필터링된 Schedule 개수: ${result.length}');
       yield result;
     }
   }
@@ -1584,7 +1464,6 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
     } catch (e) {
-      print('⚠️ [RRULE] 파싱 실패: $e');
       return [];
     }
   }
@@ -1606,7 +1485,6 @@ class AppDatabase extends _$AppDatabase {
         rruleWithUntil = rrule.contains(';')
             ? '$rrule;UNTIL=$untilStr'
             : '$rrule;UNTIL=$untilStr';
-        print('🔍 [DB] RRULE에 UNTIL 추가: $untilStr');
       }
 
       // RRuleUtils.generateInstances() 호출 (EXDATE 전달)
@@ -1618,7 +1496,6 @@ class AppDatabase extends _$AppDatabase {
         exdates: exdates,
       );
     } catch (e) {
-      print('⚠️ [RRULE] 파싱 실패: $e');
       return [];
     }
   }
@@ -1638,14 +1515,10 @@ class AppDatabase extends _$AppDatabase {
   /// - executionDate가 있고 RecurringPattern 없으면 해당 날짜만
   /// - RecurringPattern이 있으면 RRULE 기반 인스턴스 생성
   Stream<List<TaskData>> watchTasksWithRepeat(DateTime targetDate) async* {
-    print(
-      '🔁 [DB] watchTasksWithRepeat (RRULE): ${targetDate.toString().split(' ')[0]}',
-    );
 
     final target = DateTime(targetDate.year, targetDate.month, targetDate.day);
 
     await for (final tasks in watchTasks()) {
-      print('📊 [DB] 전체 Task 개수: ${tasks.length}');
 
       // 🔥 해당 날짜의 완료 기록 조회
       final completions = await getTaskCompletionsByDate(target);
@@ -1656,7 +1529,6 @@ class AppDatabase extends _$AppDatabase {
       for (final task in tasks) {
         // executionDate가 null이면 Inbox 전용
         if (task.executionDate == null) {
-          print('  ⏭️ [할일] "${task.title}" - executionDate 없음 (Inbox 전용)');
           continue;
         }
 
@@ -1672,10 +1544,8 @@ class AppDatabase extends _$AppDatabase {
           if (taskDate.isAtSameMomentAs(target)) {
             // 🔥 일반 할일은 completed 필드로 완료 확인 (기존 방식 유지)
             if (!task.completed) {
-              print('  ✅ [할일] "${task.title}" - 일반 할일 (날짜 일치, 미완료)');
               result.add(task);
             } else {
-              print('  ⏭️ [할일] "${task.title}" - 완료됨, 스킵');
             }
           }
         } else {
@@ -1720,19 +1590,15 @@ class AppDatabase extends _$AppDatabase {
                   reminder: task.reminder,
                   inboxOrder: task.inboxOrder,
                 );
-                print('  🔄 [할일] "${displayTask.title}" - 예외 적용됨 (원본: "${task.title}")');
               }
 
               // 🔥 반복 할일은 TaskCompletion 테이블로 완료 확인
               if (!completedIds.contains(task.id)) {
-                print('  ✅ [할일] "${displayTask.title}" - 반복 할일 (RRULE 일치, 미완료)');
                 result.add(displayTask); // ✅ 수정된 할일 추가
               } else {
-                print('  ⏭️ [할일] "${displayTask.title}" - 완료됨, 스킵');
               }
             }
           } catch (e) {
-            print('  ⚠️ [할일] "${task.title}" - RRULE 파싱 실패: $e');
           }
         }
       }
@@ -1740,7 +1606,6 @@ class AppDatabase extends _$AppDatabase {
       // 🎯 완료된 Task는 이미 필터링되었으므로 정렬 불필요
       // result는 모두 미완료 Task만 포함
 
-      print('✅ [DB] 필터링된 Task 개수: ${result.length} (모두 미완료)');
       yield result;
     }
   }
@@ -1799,9 +1664,6 @@ class AppDatabase extends _$AppDatabase {
   /// - Habit은 항상 RecurringPattern이 있어야 함 (기본: 매일)
   /// - createdAt 날짜 이후로 반복 규칙에 따라 표시
   Stream<List<HabitData>> watchHabitsWithRepeat(DateTime targetDate) async* {
-    print(
-      '🔁 [DB] watchHabitsWithRepeat (RRULE): ${targetDate.toString().split(' ')[0]}',
-    );
 
     final target = DateTime(targetDate.year, targetDate.month, targetDate.day);
 
@@ -1813,7 +1675,6 @@ class AppDatabase extends _$AppDatabase {
               ),
             ]))
             .watch()) {
-      print('📊 [DB] 전체 Habit 개수: ${habits.length}');
 
       final result = <HabitData>[];
 
@@ -1821,7 +1682,6 @@ class AppDatabase extends _$AppDatabase {
         // createdAt 이전 날짜에는 표시 안 함
         final createdDate = _normalizeDate(habitItem.createdAt);
         if (target.isBefore(createdDate)) {
-          print('  ⏭️ [습관] "${habitItem.title}" - 생성 전 날짜');
           continue;
         }
 
@@ -1833,7 +1693,6 @@ class AppDatabase extends _$AppDatabase {
 
         if (pattern == null) {
           // RecurringPattern 없으면 표시 안 함 (Habit은 반복 필수)
-          print('  ⏭️ [습관] "${habitItem.title}" - RecurringPattern 없음');
           continue;
         }
 
@@ -1872,18 +1731,14 @@ class AppDatabase extends _$AppDatabase {
                 repeatRule: habitItem.repeatRule,
                 reminder: habitItem.reminder,
               );
-              print('  🔄 [습관] "${displayHabit.title}" - 예외 적용됨 (원본: "${habitItem.title}")');
             }
 
-            print('  ✅ [습관] "${displayHabit.title}" - 반복 습관 (RRULE 일치)');
             result.add(displayHabit); // ✅ 수정된 습관 추가
           }
         } catch (e) {
-          print('  ⚠️ [습관] "${habitItem.title}" - RRULE 파싱 실패: $e');
         }
       }
 
-      print('✅ [DB] 필터링된 Habit 개수: ${result.length}');
       yield result;
     }
   }
@@ -1945,16 +1800,13 @@ class AppDatabase extends _$AppDatabase {
     // 날짜 정규화 (시간 부분 제거)
     final normalized = DateTime(date.year, date.month, date.day);
 
-    print('🎵 [DB] getInsightForDate: ${normalized.toString().split(' ')[0]}');
 
     final result = await (select(
       audioContents,
     )..where((t) => t.targetDate.equals(normalized))).getSingleOrNull();
 
     if (result != null) {
-      print('✅ [DB] 인사이트 발견: ${result.title}');
     } else {
-      print('⚠️ [DB] 해당 날짜의 인사이트 없음');
     }
 
     return result;
@@ -1964,7 +1816,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 설정하고 → audioContentId로 필터링해서
   /// 이거를 해서 → sequence 순서대로 정렬된 스크립트를 watch한다
   Stream<List<TranscriptLineData>> watchTranscriptLines(int audioContentId) {
-    print('📜 [DB] watchTranscriptLines: audioContentId=$audioContentId');
 
     return (select(transcriptLines)
           ..where((t) => t.audioContentId.equals(audioContentId))
@@ -1999,7 +1850,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 설정하고 → AudioContents의 lastPositionMs와 lastPlayedAt을 업데이트해서
   /// 이거를 해서 → 사용자가 어디까지 들었는지 기록한다
   Future<void> updateAudioProgress(int audioContentId, int positionMs) async {
-    print('💾 [DB] updateAudioProgress: $positionMs ms');
 
     await (update(
       audioContents,
@@ -2015,7 +1865,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 설정하고 → isCompleted를 true로 설정하고
   /// 이거를 해서 → completedAt 타임스탬프를 기록한다
   Future<void> markInsightAsCompleted(int audioContentId) async {
-    print('✅ [DB] markInsightAsCompleted: audioContentId=$audioContentId');
 
     await (update(
       audioContents,
@@ -2031,7 +1880,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 설정하고 → playCount를 +1 증가시켜서
   /// 이거를 해서 → 몇 번 재생했는지 추적한다
   Future<void> incrementPlayCount(int audioContentId) async {
-    print('📊 [DB] incrementPlayCount: audioContentId=$audioContentId');
 
     final current = await (select(
       audioContents,
@@ -2048,12 +1896,10 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 설정하고 → Figma 텍스트 기반 LRC 데이터를 생성해서
   /// 이거를 해서 → 2025-10-18 날짜에 샘플 인사이트를 추가한다
   Future<void> seedInsightData() async {
-    print('🌱 [DB] seedInsightData 시작');
 
     // 이미 데이터가 있는지 확인
     final existing = await getInsightForDate(DateTime(2025, 10, 18));
     if (existing != null) {
-      print('⚠️ [DB] 이미 샘플 데이터가 존재함. 스킵.');
       return;
     }
 
@@ -2068,7 +1914,6 @@ class AppDatabase extends _$AppDatabase {
         // 재생 상태는 기본값 사용 (lastPositionMs=0, isCompleted=false, playCount=0)
       ),
     );
-    print('✅ [DB] 오디오 콘텐츠 생성 완료 (id=$audioId)');
 
     // 2. 스크립트 라인 삽입 (Figma 텍스트 기반)
     final lines = [
@@ -2132,12 +1977,10 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
     }
-    print('✅ [DB] 스크립트 라인 ${lines.length}개 삽입 완료');
 
     // ⚠️ AudioProgress 제거: 재생 상태는 AudioContents에 통합됨
     // 기본값으로 lastPositionMs=0, isCompleted=false, playCount=0 자동 설정
 
-    print('🎉 [DB] seedInsightData 완료!');
   }
 
   @override
@@ -2151,84 +1994,60 @@ class AppDatabase extends _$AppDatabase {
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
-      print('🏗️ [DB Migration] 데이터베이스 생성 시작');
       await m.createAll();
-      print('✅ [DB Migration] 모든 테이블 생성 완료');
     },
     onUpgrade: (Migrator m, int from, int to) async {
-      print('🔄 [DB Migration] 스키마 업그레이드: v$from → v$to');
 
       // v2 → v3: Task와 Habit 테이블에 반복/리마인더 컬럼 추가
       if (from == 2 && to == 3) {
-        print('📦 [DB Migration] v2→v3: Task/Habit에 반복/리마인더 컬럼 추가');
         await m.addColumn(task, task.repeatRule);
         await m.addColumn(task, task.reminder);
         await m.addColumn(habit, habit.reminder);
-        print('✅ [DB Migration] v2→v3 완료');
       }
 
       // v3 → v4: DailyCardOrder 테이블 추가 (날짜별 카드 순서 관리)
       if (from == 3 && to == 4) {
-        print('📦 [DB Migration] v3→v4: DailyCardOrder 테이블 생성');
         await m.createTable(dailyCardOrder);
-        print('✅ [DB Migration] v3→v4 완료 - 날짜별 카드 순서 관리 기능 추가');
       }
 
       // v4 → v5: Insight Player 테이블 추가 (AudioContents만, 재생 상태 통합)
       if (from == 4 && to >= 5) {
-        print('📦 [DB Migration] v4→v5+: Insight Player 테이블 생성');
         await m.createTable(audioContents);
         await m.createTable(transcriptLines);
-        print('✅ [DB Migration] v4→v5+ 완료 - Insight Player 기능 추가 (재생 상태 통합)');
       }
 
       // v5 → v6: Task 테이블에 executionDate (실행일) 컬럼 추가
       if (from == 5 && to >= 6) {
-        print('📦 [DB Migration] v5→v6+: Task에 executionDate 컬럼 추가');
         await m.addColumn(task, task.executionDate);
-        print('✅ [DB Migration] v5→v6+ 완료 - Task 실행일 기능 추가');
       }
 
       // v6 → v7: RecurringPattern, RecurringException 테이블 추가 (반복 일정 지원)
       if (from == 6 && to >= 7) {
-        print('📦 [DB Migration] v6→v7+: 반복 일정 테이블 생성');
         await m.createTable(recurringPattern);
         await m.createTable(recurringException);
-        print('✅ [DB Migration] v6→v7+ 완료 - 반복 일정 기능 추가 (RRULE 지원)');
       }
 
       // v7 → v8: Schedule 테이블에 completed, completedAt 컬럼 추가
       if (from == 7 && to >= 8) {
-        print('📦 [DB Migration] v7→v8+: Schedule에 완료 기능 컬럼 추가');
         await m.addColumn(schedule, schedule.completed);
         await m.addColumn(schedule, schedule.completedAt);
-        print('✅ [DB Migration] v7→v8+ 완료 - Schedule 완료 기능 추가');
       }
 
       // v8 → v9: Task 테이블에 inboxOrder 컬럼 추가 (인박스 순서 관리)
       if (from == 8 && to >= 9) {
-        print('📦 [DB Migration] v8→v9+: Task에 inboxOrder 컬럼 추가');
         await m.addColumn(task, task.inboxOrder);
-        print('✅ [DB Migration] v8→v9+ 완료 - Task 인박스 순서 관리 기능 추가');
       }
 
       // v9 → v10: ScheduleCompletion, TaskCompletion 테이블 추가 (반복 이벤트 완료 처리)
       if (from == 9 && to >= 10) {
-        print(
-          '📦 [DB Migration] v9→v10+: ScheduleCompletion, TaskCompletion 테이블 생성',
-        );
         await m.createTable(scheduleCompletion);
         await m.createTable(taskCompletion);
-        print('✅ [DB Migration] v9→v10+ 완료 - 반복 이벤트 날짜별 완료 처리 기능 추가');
       }
 
-      print('✅ [DB Migration] 업그레이드 완료');
     },
     beforeOpen: (details) async {
-      print('🔓 [DB] 데이터베이스 연결 전 체크');
       // 외래키 제약조건 활성화 등
       await customStatement('PRAGMA foreign_keys = ON');
-      print('✅ [DB] 연결 준비 완료 (schemaVersion: $schemaVersion)');
     },
   );
 }

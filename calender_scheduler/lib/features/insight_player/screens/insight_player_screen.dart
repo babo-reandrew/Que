@@ -84,7 +84,6 @@ class _InsightPlayerScreenState extends ConsumerState<InsightPlayerScreen>
       ),
     );
 
-    print('🎵 [InsightPlayerScreen] 초기화 완료 - 날짜: ${widget.targetDate}');
   }
 
   @override
@@ -92,7 +91,6 @@ class _InsightPlayerScreenState extends ConsumerState<InsightPlayerScreen>
     // ✅ 메모리 누수 방지를 위해 컨트롤러 정리
     _dismissController.dispose();
     _entryController.dispose();
-    print('🗑️ [InsightPlayerScreen] 리소스 정리 완료');
     super.dispose();
   }
 
@@ -396,7 +394,6 @@ class _InsightPlayerScreenState extends ConsumerState<InsightPlayerScreen>
         // headerWidget 제거 - 더 이상 필요 없음
         onLyricChanged: (LyricLine line, String source) async {
           final positionMs = line.time.inMilliseconds;
-          print('💾 [DB] 재생 위치 저장: ${positionMs}ms');
 
           if (_currentAudioContentId != null) {
             await GetIt.I<AppDatabase>().updateAudioProgress(
@@ -406,7 +403,6 @@ class _InsightPlayerScreenState extends ConsumerState<InsightPlayerScreen>
           }
         },
         onCompleted: () async {
-          print('✅ [amlv] 재생 완료');
           if (_currentAudioContentId != null) {
             await GetIt.I<AppDatabase>().markInsightAsCompleted(
               _currentAudioContentId!,

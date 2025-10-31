@@ -243,10 +243,6 @@ class HabitCard extends StatelessWidget {
 
   /// 체크박스 (40x40 영역)
   Widget _buildCheckbox() {
-    // Habit의 colorId에 해당하는 색상 가져오기
-    final categoryColor =
-        categoryColorMap[habit.colorId] ?? const Color(0xFF111111);
-
     return GestureDetector(
       onTap: onToggle,
       child: Container(
@@ -273,10 +269,19 @@ class HabitCard extends StatelessWidget {
                 'asset/icon/routine_icon.svg',
                 width: 24,
                 height: 24,
-                colorFilter: ColorFilter.mode(
-                  categoryColor.withOpacity(0.15), // colorId 색상 15% 투명도
-                  BlendMode.srcIn,
-                ),
+                colorFilter: habit.colorId.isNotEmpty
+                    ? ColorFilter.mode(
+                        (categoryColorMap[habit.colorId] ??
+                                const Color(0xFF111111))
+                            .withOpacity(0.35), // colorId 색상 35% 투명도 (완료 안 됨)
+                        BlendMode.srcIn,
+                      )
+                    : ColorFilter.mode(
+                        const Color(
+                          0xFF111111,
+                        ).withOpacity(0.35), // 기본 색상 35% 투명도
+                        BlendMode.srcIn,
+                      ),
               ),
       ),
     );

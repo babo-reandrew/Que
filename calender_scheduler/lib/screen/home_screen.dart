@@ -28,7 +28,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   DateTime focusedDay = DateTime.now(); //
   DateTime? selectedDay = DateTime(
     DateTime.now().year,
@@ -52,6 +53,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   // 📋 DateDetailView의 인박스 모드 상태 추적 (DismissiblePage 제어용)
   bool _isDateDetailInboxMode = false;
 
+  // 🎯 인박스에서 드래그 중인지 여부 (월뷰 드래그 투명도 제어용)
+  bool _isDraggingFromInbox = false;
+
+  // 🎯 스크롤 최상단 상태 추적 (DismissiblePage 제어용)
+  bool _isScrollAtTop = true;
+
   //  서랍 아이콘 표시 여부
   // 이거를 설정하고 → 아이콘 표시 타이밍을 제어해서
   // 이거를 해서 → 네비게이션 바 전환 후 아이콘을 표시하고
@@ -65,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    
+
     // 피커 애니메이션 컨트롤러 초기화
     _pickerAnimationController = AnimationController(
       duration: const Duration(milliseconds: 500),
@@ -638,10 +645,25 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       if (_showTaskInboxSheet)
                         Positioned.fill(
                           child: TaskInboxBottomSheet(
+                            isDraggingFromParent:
+                                _isDraggingFromInbox, // 🎯 드래그 상태 전달
+                            isInboxMode: _isInboxMode, // 🎯 인박스 모드 전달
                             onClose: () {
                               setState(() {
                                 _showTaskInboxSheet = false;
                                 _isInboxMode = false;
+                              });
+                            },
+                            onDragStart: () {
+                              // 🎯 드래그 시작 시 바텀시트 투명화
+                              setState(() {
+                                _isDraggingFromInbox = true;
+                              });
+                            },
+                            onDragEnd: () {
+                              // 🎯 드래그 종료 시 바텀시트 투명도 복구
+                              setState(() {
+                                _isDraggingFromInbox = false;
                               });
                             },
                           ),
@@ -667,8 +689,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                               // 🎯 smooth_sheets 애니메이션과 함께 시트 표시
                               Navigator.of(context).push(
                                 ModalSheetRoute(
-                                  barrierColor: const Color(0xFF656565).withOpacity(0.5), // 회색 배경
-                                  transitionDuration: const Duration(milliseconds: 200), // 빠른 닫힘
+                                  barrierColor: const Color(
+                                    0xFF656565,
+                                  ).withOpacity(0.5), // 회색 배경
+                                  transitionDuration: const Duration(
+                                    milliseconds: 200,
+                                  ), // 빠른 닫힘
                                   builder: (context) => ImagePickerSmoothSheet(
                                     onClose: () {
                                       Navigator.of(context).pop();
@@ -1532,7 +1558,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 final inboxModeNotifier = ValueNotifier<bool>(
                   _isDateDetailInboxMode,
                 );
-                final pickerOpenNotifier = ValueNotifier<bool>(false); // 🗓️ 날짜 피커 상태
+                final pickerOpenNotifier = ValueNotifier<bool>(
+                  false,
+                ); // 🗓️ 날짜 피커 상태
 
                 context.pushTransparentRoute(
                   ValueListenableBuilder<bool>(
@@ -1549,48 +1577,60 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                               print('🚪 [DismissiblePage] onDismissed 호출됨!');
                               setState(() {
                                 _isDateDetailInboxMode = false; // 🔥 닫힐 때만 리셋
+                                _isScrollAtTop = true; // 🎯 리셋
                               });
                               Navigator.of(context).pop();
                             },
-                            // 🎯 일반 모드: down (위→아래로만) / 인박스 모드 or 피커 열림: none (완전 차단)
-                            direction: (isInboxMode || isPickerOpen)
+                            // 🎯 dismiss 조건: 일반 모드 && 피커 닫힘 && 스크롤 최상단
+                            direction:
+                                (isInboxMode || isPickerOpen || !_isScrollAtTop)
                                 ? DismissiblePageDismissDirection.none
                                 : DismissiblePageDismissDirection.down,
-                        backgroundColor: Colors.black,
-                        startingOpacity: 0.5, // 시작 배경 투명도
-                        minRadius: 36, // Border radius (작아질 때)
-                        minScale: 0.85, // 최소 스케일 (1.0 → 0.85)
-                        maxTransformValue: 0.3, // 30% 드래그 시 dismiss (일반 모드만)
-                        reverseDuration: const Duration(milliseconds: 300),
-                        child: DateDetailView(
-                          selectedDate: dateKey,
-                          onClose: (lastDate) {
-                            // 🎯 날짜 변경 반영
-                            setState(() {
-                              selectedDay = lastDate;
-                              focusedDay = lastDate;
-                            });
-                          },
-                          onInboxModeChanged: (newInboxMode) {
-                            // 📋 DateDetailView의 인박스 모드 상태 변경 추적
-                            setState(() {
-                              _isDateDetailInboxMode = newInboxMode;
-                            });
-                            inboxModeNotifier.value =
-                                newInboxMode; // 🔄 ValueNotifier 업데이트
-                            print(
-                              '🎯 [HomeScreen] DateDetailView 인박스 모드 변경: $newInboxMode',
-                            );
-                          },
-                          onPickerStateChanged: (isPickerOpen) {
-                            // 🗓️ DateDetailView의 피커 상태 변경 추적 (날짜 피커 + 이미지 피커)
-                            pickerOpenNotifier.value = isPickerOpen;
-                            print(
-                              '🎯 [HomeScreen] DateDetailView 피커 상태 변경: $isPickerOpen (날짜/이미지 피커)',
-                            );
-                          },
-                        ),
-                      );
+                            backgroundColor: Colors.black,
+                            startingOpacity: 0.5, // 시작 배경 투명도
+                            minRadius: 36, // Border radius (작아질 때)
+                            minScale: 0.85, // 최소 스케일 (1.0 → 0.85)
+                            maxTransformValue:
+                                0.4, // 40% 드래그 시 dismiss (더 많이 드래그해야 함)
+                            reverseDuration: const Duration(milliseconds: 300),
+                            child: DateDetailView(
+                              selectedDate: dateKey,
+                              onClose: (lastDate) {
+                                // 🎯 날짜 변경 반영
+                                setState(() {
+                                  selectedDay = lastDate;
+                                  focusedDay = lastDate;
+                                });
+                              },
+                              onInboxModeChanged: (newInboxMode) {
+                                // 📋 DateDetailView의 인박스 모드 상태 변경 추적
+                                setState(() {
+                                  _isDateDetailInboxMode = newInboxMode;
+                                });
+                                inboxModeNotifier.value =
+                                    newInboxMode; // 🔄 ValueNotifier 업데이트
+                                print(
+                                  '🎯 [HomeScreen] DateDetailView 인박스 모드 변경: $newInboxMode',
+                                );
+                              },
+                              onPickerStateChanged: (isPickerOpen) {
+                                // 🗓️ DateDetailView의 피커 상태 변경 추적 (날짜 피커 + 이미지 피커)
+                                pickerOpenNotifier.value = isPickerOpen;
+                                print(
+                                  '🎯 [HomeScreen] DateDetailView 피커 상태 변경: $isPickerOpen (날짜/이미지 피커)',
+                                );
+                              },
+                              onScrollAtTopChanged: (isAtTop) {
+                                // 🎯 스크롤 최상단 상태 변경 추적 (dismiss 제어용)
+                                setState(() {
+                                  _isScrollAtTop = isAtTop;
+                                });
+                                print(
+                                  '🎯 [HomeScreen] DateDetailView 스크롤 최상단: $isAtTop',
+                                );
+                              },
+                            ),
+                          );
                         },
                       );
                     },
@@ -2492,16 +2532,21 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
             left: 0,
             right: 0,
             child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, -1),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(
-                parent: _pickerAnimationController,
-                curve: Curves.easeOutCubic,
-                reverseCurve: Curves.easeInCubic,
-              )),
+              position:
+                  Tween<Offset>(
+                    begin: const Offset(0, -1),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(
+                      parent: _pickerAnimationController,
+                      curve: Curves.easeOutCubic,
+                      reverseCurve: Curves.easeInCubic,
+                    ),
+                  ),
               child: _MonthYearPickerModal(
-                key: ValueKey('${focusedDay.year}-${focusedDay.month}'), // 월/년이 변경되면 피커 재생성
+                key: ValueKey(
+                  '${focusedDay.year}-${focusedDay.month}',
+                ), // 월/년이 변경되면 피커 재생성
                 initialDate: focusedDay,
                 onDateChanged: (newDate) {
                   setState(() {
@@ -2653,168 +2698,168 @@ class _MonthYearPickerModalState extends State<_MonthYearPickerModal> {
         Container(
           color: const Color(0xFF3B3B3B),
           padding: EdgeInsets.only(top: statusBarHeight),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 헤더
+              Container(
+                height: 52,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // 헤더
-                    Container(
-                      height: 52,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const SizedBox(width: 36), // 왼쪽 여백 (버튼 너비만큼)
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                _formatDateHeader(),
-                                style: const TextStyle(
-                                  fontFamily: 'LINE Seed JP App_TTF',
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                  letterSpacing: -0.41,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Transform.rotate(
-                                angle: 3.14159,
-                                child: SvgPicture.asset(
-                                  'asset/icon/down_icon.svg',
-                                  width: 16,
-                                  height: 16,
-                                  colorFilter: const ColorFilter.mode(
-                                    Colors.white,
-                                    BlendMode.srcIn,
-                                  ),
-                                ),
-                              ),
-                            ],
+                    const SizedBox(width: 36), // 왼쪽 여백 (버튼 너비만큼)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _formatDateHeader(),
+                          style: const TextStyle(
+                            fontFamily: 'LINE Seed JP App_TTF',
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: -0.41,
                           ),
-                          // 오늘로 가기 버튼 (다크모드 스타일) - 조건부 표시
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
-                            transitionBuilder: (child, animation) {
-                              return FadeTransition(
-                                opacity: animation,
-                                child: ScaleTransition(
-                                  scale: animation,
-                                  child: child,
-                                ),
-                              );
-                            },
-                            child: isNotCurrentMonth
-                                ? _buildDarkModeTodayButton(today)
-                                : const SizedBox(width: 36), // 빈 공간 유지
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // 피커
-                    SizedBox(
-                      height: 200,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 80),
-                        child: Row(
-                          children: [
-                            // 연도
-                            Expanded(
-                              flex: 3,
-                              child: ListWheelScrollView.useDelegate(
-                                controller: _yearController,
-                                itemExtent: 24,
-                                physics: const FixedExtentScrollPhysics(),
-                                diameterRatio: 1.1,
-                                perspective: 0.004,
-                                squeeze: 1.0,
-                                onSelectedItemChanged: (index) {
-                                  setState(() {
-                                    _selectedYear = 1900 + index;
-                                    _updateDate();
-                                  });
-                                },
-                                childDelegate: ListWheelChildBuilderDelegate(
-                                  builder: (context, index) {
-                                    final year = 1900 + index;
-                                    final isSelected = year == _selectedYear;
-                                    return Center(
-                                      child: Text(
-                                        '$year年',
-                                        style: TextStyle(
-                                          fontFamily: 'LINE Seed JP App_TTF',
-                                          fontSize: 18,
-                                          fontWeight: isSelected
-                                              ? FontWeight.w700
-                                              : FontWeight.w400,
-                                          letterSpacing: -0.41,
-                                          decoration: TextDecoration.none,
-                                          color: isSelected
-                                              ? Colors.white
-                                              : Colors.white.withOpacity(0.3),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  childCount: 201,
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(width: 8),
-
-                            // 월
-                            Expanded(
-                              flex: 2,
-                              child: ListWheelScrollView.useDelegate(
-                                controller: _monthController,
-                                itemExtent: 24,
-                                physics: const FixedExtentScrollPhysics(),
-                                diameterRatio: 1.1,
-                                perspective: 0.004,
-                                squeeze: 1.0,
-                                onSelectedItemChanged: (index) {
-                                  setState(() {
-                                    _selectedMonth = index + 1;
-                                    _updateDate();
-                                  });
-                                },
-                                childDelegate: ListWheelChildBuilderDelegate(
-                                  builder: (context, index) {
-                                    final month = index + 1;
-                                    final isSelected = month == _selectedMonth;
-                                    return Center(
-                                      child: Text(
-                                        '$month月',
-                                        style: TextStyle(
-                                          fontFamily: 'LINE Seed JP App_TTF',
-                                          fontSize: 18,
-                                          fontWeight: isSelected
-                                              ? FontWeight.w700
-                                              : FontWeight.w400,
-                                          letterSpacing: -0.41,
-                                          decoration: TextDecoration.none,
-                                          color: isSelected
-                                              ? Colors.white
-                                              : Colors.white.withOpacity(0.3),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  childCount: 12,
-                                ),
-                              ),
-                            ),
-                          ],
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Transform.rotate(
+                          angle: 3.14159,
+                          child: SvgPicture.asset(
+                            'asset/icon/down_icon.svg',
+                            width: 16,
+                            height: 16,
+                            colorFilter: const ColorFilter.mode(
+                              Colors.white,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-
-                    const SizedBox(height: 20),
+                    // 오늘로 가기 버튼 (다크모드 스타일) - 조건부 표시
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: ScaleTransition(
+                            scale: animation,
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: isNotCurrentMonth
+                          ? _buildDarkModeTodayButton(today)
+                          : const SizedBox(width: 36), // 빈 공간 유지
+                    ),
                   ],
                 ),
               ),
+
+              // 피커
+              SizedBox(
+                height: 200,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 80),
+                  child: Row(
+                    children: [
+                      // 연도
+                      Expanded(
+                        flex: 3,
+                        child: ListWheelScrollView.useDelegate(
+                          controller: _yearController,
+                          itemExtent: 24,
+                          physics: const FixedExtentScrollPhysics(),
+                          diameterRatio: 1.1,
+                          perspective: 0.004,
+                          squeeze: 1.0,
+                          onSelectedItemChanged: (index) {
+                            setState(() {
+                              _selectedYear = 1900 + index;
+                              _updateDate();
+                            });
+                          },
+                          childDelegate: ListWheelChildBuilderDelegate(
+                            builder: (context, index) {
+                              final year = 1900 + index;
+                              final isSelected = year == _selectedYear;
+                              return Center(
+                                child: Text(
+                                  '$year年',
+                                  style: TextStyle(
+                                    fontFamily: 'LINE Seed JP App_TTF',
+                                    fontSize: 18,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w400,
+                                    letterSpacing: -0.41,
+                                    decoration: TextDecoration.none,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.white.withOpacity(0.3),
+                                  ),
+                                ),
+                              );
+                            },
+                            childCount: 201,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 8),
+
+                      // 월
+                      Expanded(
+                        flex: 2,
+                        child: ListWheelScrollView.useDelegate(
+                          controller: _monthController,
+                          itemExtent: 24,
+                          physics: const FixedExtentScrollPhysics(),
+                          diameterRatio: 1.1,
+                          perspective: 0.004,
+                          squeeze: 1.0,
+                          onSelectedItemChanged: (index) {
+                            setState(() {
+                              _selectedMonth = index + 1;
+                              _updateDate();
+                            });
+                          },
+                          childDelegate: ListWheelChildBuilderDelegate(
+                            builder: (context, index) {
+                              final month = index + 1;
+                              final isSelected = month == _selectedMonth;
+                              return Center(
+                                child: Text(
+                                  '$month月',
+                                  style: TextStyle(
+                                    fontFamily: 'LINE Seed JP App_TTF',
+                                    fontSize: 18,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w400,
+                                    letterSpacing: -0.41,
+                                    decoration: TextDecoration.none,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.white.withOpacity(0.3),
+                                  ),
+                                ),
+                              );
+                            },
+                            childCount: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
       ],
     );
   }

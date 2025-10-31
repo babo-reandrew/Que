@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // ✅ TextInputFormatter
 import 'package:provider/provider.dart';
 import 'package:smooth_sheets/smooth_sheets.dart';
 import 'package:drift/drift.dart' hide Column;
@@ -66,14 +67,6 @@ Future<void> showTaskDetailWoltModal(
   required TaskData? task,
   required DateTime selectedDate,
 }) async {
-  print('');
-  print('╔═══════════════════════════════════════════════════════════════╗');
-  print('║  🚀 [MODAL OPEN] showTaskDetailWoltModal() 시작             ║');
-  print('╚═══════════════════════════════════════════════════════════════╝');
-  print(
-    '📋 Task: ${task != null ? '${task.id} - ${task.title}' : 'null (신규)'}',
-  );
-  print('📅 Selected Date: $selectedDate');
   // Provider 초기화 (모달 띄우기 전에!)
   final taskController = Provider.of<TaskFormController>(
     context,
@@ -141,7 +134,6 @@ Future<void> showTaskDetailWoltModal(
   }
 
   debugPrint('✅ [TaskWolt] Provider 초기화 완료');
-  print('✅ Provider 초기화 완료');
 
   // 🎯 자동 캐시 저장: 제목 변경 시
   void autoSaveTitle() {
@@ -180,19 +172,11 @@ Future<void> showTaskDetailWoltModal(
   final initialReminder = bottomSheetController.reminder;
   final initialRepeatRule = bottomSheetController.repeatRule;
 
-  print('📊 초기 상태:');
-  print('   Title: $initialTitle');
-  print('   DueDate: $initialDueDate');
-  print('   ExecutionDate: $initialExecutionDate');
-  print('   Color: $initialColor');
-  print('   Reminder: $initialReminder');
-  print('   RepeatRule: $initialRepeatRule');
 
   // ✅ 드래그 방향 추적 변수
   double? previousExtent;
   bool isDismissing = false; // 팝업 중복 방지
 
-  print('🔓 showModalBottomSheet 호출 시작...');
   await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -228,14 +212,6 @@ Future<void> showTaskDetailWoltModal(
               behavior: HitTestBehavior.opaque,
               onTap: () async {
                 // ✅ 배리어 영역 터치 시
-                print('');
-                print(
-                  '╔═══════════════════════════════════════════════════════════════╗',
-                );
-                print('║  🎯 [BARRIER TAP] 배리어 영역 터치 감지                    ║');
-                print(
-                  '╚═══════════════════════════════════════════════════════════════╝',
-                );
                 debugPrint('🐛 [TaskWolt] 배리어 터치 감지');
 
                 final hasChanges =
@@ -246,30 +222,20 @@ Future<void> showTaskDetailWoltModal(
                     initialReminder != bottomSheetController.reminder ||
                     initialRepeatRule != bottomSheetController.repeatRule;
 
-                print('📊 변경사항 감지: $hasChanges');
 
                 if (hasChanges) {
-                  print('⚠️ 변경사항 있음 - 확인 모달 표시');
                   // ✅ 변경사항 있으면 확인 모달
                   final confirmed = await showDiscardChangesModal(context);
-                  print('✅ 사용자 확인 결과: $confirmed');
                   if (confirmed == true && sheetContext.mounted) {
-                    print('❌ 모달 닫기 - Navigator.pop() 호출');
                     Navigator.of(sheetContext).pop();
-                    print('✅ Navigator.pop() 완료');
                   } else {
-                    print('ℹ️ 사용자가 취소 - 모달 유지');
                   }
                 } else {
-                  print('ℹ️ 변경사항 없음 - 바로 닫기');
                   // ✅ 변경사항 없으면 바로 닫기
                   if (sheetContext.mounted) {
-                    print('❌ 모달 닫기 - Navigator.pop() 호출');
                     Navigator.of(sheetContext).pop();
-                    print('✅ Navigator.pop() 완료');
                   }
                 }
-                print('');
               },
             ),
           ),
@@ -287,20 +253,9 @@ Future<void> showTaskDetailWoltModal(
               if (isMovingDown &&
                   notification.extent <= notification.minExtent + 0.05 &&
                   !isDismissing) {
-                print('');
-                print(
-                  '╔═══════════════════════════════════════════════════════════════╗',
-                );
-                print('║  ⬇️ [DRAG DOWN] 아래로 드래그 닫기 감지                   ║');
-                print(
-                  '╚═══════════════════════════════════════════════════════════════╝',
-                );
                 debugPrint('🐛 [TaskWolt] 아래로 드래그 닫기 감지');
-                print('📊 Extent: ${notification.extent}');
-                print('📊 MinExtent: ${notification.minExtent}');
 
                 isDismissing = true; // ✅ 즉시 플래그 설정하여 중복 호출 방지
-                print('🔒 isDismissing 플래그 설정: true');
 
                 // ✅ 변경사항 확인
                 final hasChanges =
@@ -311,41 +266,30 @@ Future<void> showTaskDetailWoltModal(
                     initialReminder != bottomSheetController.reminder ||
                     initialRepeatRule != bottomSheetController.repeatRule;
 
-                print('📊 변경사항 감지: $hasChanges');
 
                 if (hasChanges) {
-                  print('⚠️ 변경사항 있음 - 확인 모달 표시 (PostFrameCallback)');
                   // ✅ 변경사항 있으면 확인 모달 띄우기
                   WidgetsBinding.instance.addPostFrameCallback((_) async {
                     if (sheetContext.mounted) {
                       final confirmed = await showDiscardChangesModal(context);
-                      print('✅ 사용자 확인 결과: $confirmed');
                       if (confirmed == true && sheetContext.mounted) {
-                        print('❌ 모달 닫기 - Navigator.pop() 호출');
                         Navigator.of(sheetContext).pop();
-                        print('✅ Navigator.pop() 완료');
                       } else {
-                        print('ℹ️ 사용자가 취소 - 모달 유지, isDismissing 리셋');
                         // ✅ 사용자가 취소한 경우에만 플래그 리셋
                         isDismissing = false;
                       }
                     }
                   });
-                  print('');
                   return true; // ✅ 드래그 이벤트 소비 (닫기 방지)
                 } else {
-                  print('ℹ️ 변경사항 없음 - 바로 닫기 (PostFrameCallback)');
                   // ✅ 변경사항 없으면 바로 닫기
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (sheetContext.mounted) {
                       try {
-                        print('❌ 모달 닫기 - Navigator.pop() 호출');
                         Navigator.of(sheetContext, rootNavigator: false).pop();
-                        print('✅ Navigator.pop() 완료');
                         // ✅ pop 성공 후에는 리셋하지 않음 (이미 dispose됨)
                       } catch (e) {
                         debugPrint('❌ 바텀시트 닫기 실패: $e');
-                        print('❌ 닫기 실패: $e - isDismissing 리셋');
                         isDismissing = false; // ✅ 실패한 경우에만 리셋
                       }
                     }
@@ -599,12 +543,6 @@ Widget _buildTopNavi(
     },
   );
 
-  print('');
-  print('╔═══════════════════════════════════════════════════════════════╗');
-  print('║  ❌ [MODAL CLOSED] showModalBottomSheet 완료 - 모달 닫힘    ║');
-  print('╚═══════════════════════════════════════════════════════════════╝');
-  print('⏰ 모달 닫힌 시각: ${DateTime.now()}');
-  print('');
 }
 
 // ========================================
@@ -648,7 +586,18 @@ Widget _buildTextField(BuildContext context) {
           isDense: true,
           contentPadding: EdgeInsets.zero,
         ),
-        maxLines: 1,
+        minLines: 1, // ✅ 최소 1행
+        maxLines: 2, // ✅ 최대 2행까지 입력 가능
+        inputFormatters: [
+          // ✅ 개행 문자를 1개로 제한 (2행까지만 가능)
+          TextInputFormatter.withFunction((oldValue, newValue) {
+            final newLineCount = '\n'.allMatches(newValue.text).length;
+            if (newLineCount > 1) {
+              return oldValue;
+            }
+            return newValue;
+          }),
+        ],
       ),
     ),
   );

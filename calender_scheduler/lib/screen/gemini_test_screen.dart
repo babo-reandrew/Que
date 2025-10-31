@@ -151,9 +151,6 @@ class _GeminiTestScreenState extends State<GeminiTestScreen> {
   /// Gemini API 테스트 실행
   Future<void> _testGemini(ImageSource source) async {
     try {
-      print('═══════════════════════════════════════');
-      print('🧪 [GeminiTest] 테스트 시작');
-      print('═══════════════════════════════════════');
 
       // 1. 이미지 선택
       final XFile? image = await _picker.pickImage(
@@ -164,11 +161,9 @@ class _GeminiTestScreenState extends State<GeminiTestScreen> {
       );
 
       if (image == null) {
-        print('❌ [GeminiTest] 이미지 선택 취소됨');
         return;
       }
 
-      print('✅ [GeminiTest] 이미지 선택됨: ${image.path}');
 
       setState(() {
         _isLoading = true;
@@ -182,11 +177,9 @@ class _GeminiTestScreenState extends State<GeminiTestScreen> {
         throw Exception('.env 파일에 GEMINI_API_KEY가 설정되지 않았습니다');
       }
 
-      print('✅ [GeminiTest] API 키 확인됨: ${apiKey.substring(0, 10)}...');
 
       // 3. 이미지 바이트 읽기
       final bytes = await image.readAsBytes();
-      print('✅ [GeminiTest] 이미지 크기: ${bytes.length} bytes');
 
       // 4. Gemini 모델 초기화
       final model = GenerativeModel(
@@ -200,7 +193,6 @@ class _GeminiTestScreenState extends State<GeminiTestScreen> {
         ),
       );
 
-      print('✅ [GeminiTest] Gemini 모델 초기화 완료: gemini-1.5-flash');
 
       // 5. 간단한 프롬프트로 테스트
       const testPrompt = '''
@@ -213,8 +205,6 @@ class _GeminiTestScreenState extends State<GeminiTestScreen> {
 간단히 설명해주세요.
 ''';
 
-      print('📤 [GeminiTest] Gemini API 호출 시작...');
-      print('📝 [GeminiTest] 프롬프트: ${testPrompt.substring(0, 50)}...');
 
       // 6. API 호출
       final content = [
@@ -226,15 +216,9 @@ class _GeminiTestScreenState extends State<GeminiTestScreen> {
       final endTime = DateTime.now();
       final duration = endTime.difference(startTime);
 
-      print('✅ [GeminiTest] API 응답 수신 완료 (소요 시간: ${duration.inSeconds}초)');
 
       // 7. 응답 출력
       final responseText = response.text ?? '(응답 없음)';
-      print('═══════════════════════════════════════');
-      print('📥 [GeminiTest] Gemini 응답:');
-      print('═══════════════════════════════════════');
-      print(responseText);
-      print('═══════════════════════════════════════');
 
       // 8. UI 업데이트
       setState(() {
@@ -242,8 +226,6 @@ class _GeminiTestScreenState extends State<GeminiTestScreen> {
         _isLoading = false;
       });
 
-      print('✅ [GeminiTest] 테스트 완료!');
-      print('═══════════════════════════════════════');
 
       // 성공 메시지
       if (mounted) {
@@ -255,12 +237,6 @@ class _GeminiTestScreenState extends State<GeminiTestScreen> {
         );
       }
     } catch (e, stackTrace) {
-      print('═══════════════════════════════════════');
-      print('❌ [GeminiTest] 오류 발생:');
-      print('═══════════════════════════════════════');
-      print('Error: $e');
-      print('StackTrace: $stackTrace');
-      print('═══════════════════════════════════════');
 
       setState(() {
         _errorMessage = '오류 발생:\n$e';

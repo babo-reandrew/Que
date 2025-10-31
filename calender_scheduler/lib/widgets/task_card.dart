@@ -15,13 +15,21 @@ import 'package:figma_squircle/figma_squircle.dart';
 import 'dart:convert';
 import '../Database/schedule_database.dart';
 import 'package:intl/intl.dart';
+import '../const/color.dart'; // 색상 맵 import
 
 class TaskCard extends StatelessWidget {
   final TaskData task;
   final VoidCallback? onToggle; // 체크박스 토글 콜백
   final VoidCallback? onTap; // 카드 탭 콜백
+  final bool? isCompleted; // 🔥 완료 상태 오버라이드 (반복 할일용)
 
-  const TaskCard({super.key, required this.task, this.onToggle, this.onTap});
+  const TaskCard({
+    super.key,
+    required this.task,
+    this.onToggle,
+    this.onTap,
+    this.isCompleted,
+  });
 
   // 리마인더 텍스트 파싱: JSON → "15:30" 형식
   String? _parseReminderText() {
@@ -136,23 +144,30 @@ class TaskCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       // 제목
                       Expanded(
-                        child: Text(
-                          task.title,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: task.completed
-                                ? const Color(0xFF111111).withOpacity(0.3)
-                                : const Color(0xFF111111),
-                            fontWeight: FontWeight.w800, // extrabold
-                            fontFamily: 'LINE Seed JP App_TTF', // 정확한 폰트 패밀리명
-                            letterSpacing: -0.005 * 16,
-                            height: 1.4, // 행간 140%
-                            decoration: task.completed
-                                ? TextDecoration.lineThrough
-                                : TextDecoration.none,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: Builder(
+                          builder: (context) {
+                            // 🔥 isCompleted가 제공되면 우선 사용
+                            final effectiveCompleted =
+                                isCompleted ?? task.completed;
+                            return Text(
+                              task.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: effectiveCompleted
+                                    ? const Color(0xFF111111).withOpacity(0.3)
+                                    : const Color(0xFF111111),
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'LINE Seed JP App_TTF',
+                                letterSpacing: -0.005 * 16,
+                                height: 1.4,
+                                decoration: effectiveCompleted
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -309,6 +324,19 @@ class TaskCard extends StatelessWidget {
 
   /// 체크박스 (40x40 영역)
   Widget _buildCheckbox() {
+    // 🔥 isCompleted가 제공되면 우선 사용, 아니면 task.completed 사용
+    final effectiveCompleted = isCompleted ?? task.completed;
+
+    // 🎯 완료되지 않았을 때만 색상 적용
+    Color? checkboxColor;
+    if (!effectiveCompleted && task.colorId.isNotEmpty) {
+      // 색상 지정이 있는 경우 35% 투명도 적용
+      final baseColor = categoryColorMap[task.colorId];
+      if (baseColor != null) {
+        checkboxColor = baseColor.withOpacity(0.35);
+      }
+    }
+
     return GestureDetector(
       onTap: onToggle,
       child: Container(
@@ -316,7 +344,7 @@ class TaskCard extends StatelessWidget {
         height: 40,
         padding: const EdgeInsets.all(4),
         alignment: Alignment.center,
-        child: task.completed
+        child: effectiveCompleted
             ? Container(
                 width: 32,
                 height: 32,
@@ -335,6 +363,9 @@ class TaskCard extends StatelessWidget {
                 'asset/icon/check_box_icon.svg',
                 width: 24,
                 height: 24,
+                colorFilter: checkboxColor != null
+                    ? ColorFilter.mode(checkboxColor, BlendMode.srcIn)
+                    : null,
               ),
       ),
     );

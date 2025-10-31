@@ -23,13 +23,11 @@ class ColorUtils {
       // 현재 entry의 색상 값이 입력된 color와 일치하는지 확인한다
       if (entry.value == color) {
         // 일치하면 해당 색상의 이름(key)을 반환한다
-        print('🎨 색상 변환: $color -> ${entry.key}'); // 디버깅: 변환 과정 출력
         return entry.key;
       }
     }
 
     // 일치하는 색상을 못 찾으면 기본값인 'gray'를 반환한다
-    print('⚠️ 색상 변환 실패, 기본값 사용: $color -> gray'); // 디버깅: 실패 시 기본값 사용
     return 'gray';
   }
 
@@ -51,13 +49,9 @@ class ColorUtils {
 
     if (color != null) {
       // 찾으면 해당 Color 객체를 반환한다
-      print('🎨 문자열 -> 색상 변환: $colorName -> $color'); // 디버깅: 변환 과정 출력
       return color;
     } else {
       // 못 찾으면 기본값인 categoryGray를 반환한다
-      print(
-        '⚠️ 문자열 -> 색상 변환 실패, 기본값 사용: $colorName -> categoryGray',
-      ); // 디버깅: 실패 시 기본값 사용
       return categoryGray;
     }
   }
@@ -76,11 +70,6 @@ class ColorUtils {
   static bool isColorSelected(Color color, String selectedColor) {
     // Color 객체를 문자열로 변환해서 선택된 색상과 비교한다
     final colorName = colorToString(color);
-    final isSelected = colorName == selectedColor;
-
-    print(
-      '🔍 색상 선택 확인: $colorName == $selectedColor ? $isSelected',
-    ); // 디버깅: 비교 과정 출력
-    return isSelected;
+    return colorName == selectedColor;
   }
 }

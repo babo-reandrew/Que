@@ -210,7 +210,6 @@ Widget _buildTaskList(BuildContext context) {
       }
 
       final tasks = snapshot.data!;
-      print('📋 [TaskInbox] 전체 할일 수: ${tasks.length}');
 
       if (tasks.isEmpty) {
         return SliverToBoxAdapter(
@@ -237,7 +236,6 @@ Widget _buildTaskList(BuildContext context) {
         sliver: SliverList(
           delegate: SliverChildBuilderDelegate((context, index) {
             final task = tasks[index];
-            print('  → [TaskInbox] Task ${index + 1}: ${task.title}');
 
             // ✅ SlidableTaskCard 재사용 (DateDetailView와 동일)
             return Padding(
@@ -246,7 +244,6 @@ Widget _buildTaskList(BuildContext context) {
                 groupTag: 'task_inbox',
                 taskId: task.id,
                 onTap: () {
-                  print('📋 [TaskInbox] Task 탭: ${task.title}');
                   // ✅ Task Detail Modal 표시
                   showTaskDetailWoltModal(
                     context,
@@ -255,21 +252,17 @@ Widget _buildTaskList(BuildContext context) {
                   );
                 },
                 onComplete: () async {
-                  print('✅ [TaskInbox] Task 완료 토글: ${task.title}');
                   await GetIt.I<AppDatabase>().completeTask(task.id);
                 },
                 onDelete: () async {
-                  print('🗑️ [TaskInbox] Task 삭제: ${task.title}');
                   await GetIt.I<AppDatabase>().deleteTask(task.id);
                 },
                 child: TaskCard(
                   task: task,
                   onToggle: () async {
                     if (task.completed) {
-                      print('🔄 [TaskInbox] 체크박스 완료 해제: ${task.title}');
                       await GetIt.I<AppDatabase>().uncompleteTask(task.id);
                     } else {
-                      print('✅ [TaskInbox] 체크박스 완료 처리: ${task.title}');
                       await GetIt.I<AppDatabase>().completeTask(task.id);
                     }
                   },
@@ -332,7 +325,6 @@ Widget _buildFilterBar(BuildContext context) {
 Widget _buildCloseButton(BuildContext context) {
   return GestureDetector(
     onTap: () {
-      print('❌ [TaskInbox] 닫기 버튼 클릭');
       Navigator.of(context).pop();
     },
     child: Container(

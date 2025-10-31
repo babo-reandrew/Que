@@ -14,9 +14,6 @@ class HomeScreenUtils {
     required Map<DateTime, List<dynamic>>
     schedules, // 전체 스케줄 맵 (이제 미사용, 호환성 유지)
   }) {
-    print(
-      '🗓️ [Utils] handleDateTap 호출: ${selectedDate.toString().split(' ')[0]}',
-    );
 
     // DateDetailView로 전환한다
     NavigationUtils.navigateToDateDetail(

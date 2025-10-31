@@ -45,9 +45,6 @@ Future<int> updateScheduleThisOnly({
   required DateTime selectedDate,
   required ScheduleCompanion updatedSchedule,
 }) async {
-  print('🔥 [RecurringHelpers] updateScheduleThisOnly 실행 (완전한 포크 방식)');
-  print('   - 원본 Schedule ID: ${schedule.id}');
-  print('   - selectedDate: $selectedDate');
 
   // 1. 원본 RecurringPattern에 EXDATE 추가 (해당 날짜 제외)
   final exdateAdded = await db.addExdate(
@@ -57,9 +54,7 @@ Future<int> updateScheduleThisOnly({
   );
 
   if (!exdateAdded) {
-    print('⚠️ [Schedule] EXDATE 추가 실패');
   } else {
-    print('✅ [Schedule] EXDATE 추가 완료: $selectedDate');
   }
 
   // 2. 완전히 새로운 Schedule 생성 (단일 일정, 반복 없음)
@@ -97,10 +92,6 @@ Future<int> updateScheduleThisOnly({
     ),
   );
 
-  print('✅ [Schedule] 새로운 단일 Schedule 생성 완료');
-  print('   - 새 Schedule ID: $newScheduleId');
-  print('   - 반복 규칙: 없음 (단일 일정)');
-  print('🎯 [결과] 원본 반복에서 해당 날짜 제외 + 새로운 단일 일정 생성');
 
   return newScheduleId; // 새로운 Schedule ID 반환 (DailyCardOrder 업데이트용)
 }
@@ -120,18 +111,12 @@ Future<void> updateScheduleFuture({
   );
 
   if (pattern == null) {
-    print('⚠️ [Schedule] RecurringPattern 없음');
     return;
   }
 
-  print('🔥 [RecurringHelpers] updateScheduleFuture 실행');
-  print('   - Schedule ID: ${schedule.id}');
-  print('   - selectedDate: $selectedDate');
-  print('   - schedule.start: ${schedule.start}');
 
   // 2. 기존 패턴의 UNTIL을 어제로 설정 (선택 날짜 이전까지만 유효)
   final yesterday = selectedDate.subtract(const Duration(days: 1));
-  print('   - 기존 패턴 UNTIL 설정: ${yesterday}');
 
   await db.updateRecurringPattern(
     RecurringPatternCompanion(
@@ -144,7 +129,6 @@ Future<void> updateScheduleFuture({
 
   // 3. 새로운 Schedule 생성 (선택 날짜부터 시작)
   final newScheduleId = await db.createSchedule(updatedSchedule);
-  print('   - 새 Schedule 생성: ID=$newScheduleId');
 
   // 4. 새로운 RecurringPattern 생성
   if (newRRule != null) {
@@ -166,12 +150,8 @@ Future<void> updateScheduleFuture({
         dtstart: dtstart, // ✅ 새 일정의 날짜로 설정
       ),
     );
-    print('   - 새 RecurringPattern 생성: dtstart=$dtstart');
   }
 
-  print('✅ [Schedule] この予定以降 수정 완료 (RRULE 분할)');
-  print('   - 기존 Schedule ID: ${schedule.id} (~$yesterday 23:59:59까지)');
-  print('   - 새 Schedule ID: $newScheduleId (${updatedSchedule.start.present ? updatedSchedule.start.value : schedule.start}부터)');
 }
 
 /// ✅ すべての回 수정: Base Event + RecurringPattern 업데이트
@@ -201,8 +181,6 @@ Future<void> updateScheduleAll({
     }
   }
 
-  print('✅ [Schedule] すべての回 수정 완료');
-  print('   - Schedule ID: ${schedule.id}');
 }
 
 // ==================== Schedule 삭제 헬퍼 함수 ====================
@@ -215,9 +193,6 @@ Future<void> deleteScheduleThisOnly({
   required ScheduleData schedule,
   required DateTime selectedDate,
 }) async {
-  print('🔥 [RecurringHelpers] deleteScheduleThisOnly 실행 (EXDATE 추가 방식)');
-  print('   - Schedule ID: ${schedule.id}');
-  print('   - selectedDate: $selectedDate');
 
   // 원본 RecurringPattern에 EXDATE 추가 (해당 날짜 제외)
   final exdateAdded = await db.addExdate(
@@ -227,12 +202,9 @@ Future<void> deleteScheduleThisOnly({
   );
 
   if (!exdateAdded) {
-    print('⚠️ [Schedule] EXDATE 추가 실패');
     throw Exception('EXDATE 추가 실패');
   }
 
-  print('✅ [Schedule] この回のみ 삭제 완료 (RFC 5545 EXDATE)');
-  print('   - EXDATE 추가: $selectedDate');
 }
 
 /// ✅ この予定以降 삭제: RFC 5545 UNTIL로 종료일 설정
@@ -247,14 +219,9 @@ Future<void> deleteScheduleFuture({
   );
 
   if (pattern == null) {
-    print('⚠️ [Schedule] RecurringPattern 없음');
     return;
   }
 
-  print('🔥 [RecurringHelpers] deleteScheduleFuture 실행');
-  print('   - Schedule ID: ${schedule.id}');
-  print('   - selectedDate: $selectedDate');
-  print('   - schedule.start: ${schedule.start}');
 
   final yesterday = selectedDate.subtract(const Duration(days: 1));
   final until = DateTime(
@@ -265,13 +232,11 @@ Future<void> deleteScheduleFuture({
     59,
     59,
   );
-  print('   - UNTIL 설정: $until');
 
   await db.updateRecurringPattern(
     RecurringPatternCompanion(id: Value(pattern.id), until: Value(until)),
   );
 
-  print('✅ [Schedule] この予定以降 삭제 완료 (RFC 5545 UNTIL)');
 }
 
 /// ✅ すべての回 삭제: RecurringPattern + Base Schedule 삭제
@@ -281,7 +246,6 @@ Future<void> deleteScheduleAll({
 }) async {
   // RecurringPattern도 CASCADE로 자동 삭제됨
   await db.deleteSchedule(schedule.id);
-  print('✅ [Schedule] すべての回 삭제 완료');
 }
 
 // ==================== Task 수정 헬퍼 함수 ====================
@@ -295,9 +259,6 @@ Future<int> updateTaskThisOnly({
   required DateTime selectedDate,
   required TaskCompanion updatedTask,
 }) async {
-  print('🔥 [RecurringHelpers] updateTaskThisOnly 실행 (완전한 포크 방식)');
-  print('   - 원본 Task ID: ${task.id}');
-  print('   - selectedDate: $selectedDate');
 
   // 1. 원본 RecurringPattern에 EXDATE 추가 (해당 날짜 제외)
   final exdateAdded = await db.addExdate(
@@ -307,9 +268,7 @@ Future<int> updateTaskThisOnly({
   );
 
   if (!exdateAdded) {
-    print('⚠️ [Task] EXDATE 추가 실패');
   } else {
-    print('✅ [Task] EXDATE 추가 완료: $selectedDate');
   }
 
   // 2. 완전히 새로운 Task 생성 (단일 할일, 반복 없음)
@@ -338,10 +297,6 @@ Future<int> updateTaskThisOnly({
     ),
   );
 
-  print('✅ [Task] 새로운 단일 Task 생성 완료');
-  print('   - 새 Task ID: $newTaskId');
-  print('   - 반복 규칙: 없음 (단일 할일)');
-  print('🎯 [결과] 원본 반복에서 해당 날짜 제외 + 새로운 단일 할일 생성');
 
   return newTaskId; // 새로운 Task ID 반환
 }
@@ -360,7 +315,6 @@ Future<void> updateTaskFuture({
   );
 
   if (pattern == null) {
-    print('⚠️ [Task] RecurringPattern 없음');
     return;
   }
 
@@ -397,10 +351,8 @@ Future<void> updateTaskFuture({
         dtstart: dtstart, // ✅ 새 할일의 날짜로 설정
       ),
     );
-    print('   - 새 RecurringPattern 생성: dtstart=$dtstart');
   }
 
-  print('✅ [Task] この予定以降 수정 완료 (RRULE 분할)');
 }
 
 /// ✅ すべての回 수정: Base Event + RecurringPattern 업데이트
@@ -431,7 +383,6 @@ Future<void> updateTaskAll({
     }
   }
 
-  print('✅ [Task] すべての回 수정 완료');
 }
 
 // ==================== Task 삭제 헬퍼 함수 ====================
@@ -443,9 +394,6 @@ Future<void> deleteTaskThisOnly({
   required TaskData task,
   required DateTime selectedDate,
 }) async {
-  print('🔥 [RecurringHelpers] deleteTaskThisOnly 실행 (EXDATE 추가 방식)');
-  print('   - Task ID: ${task.id}');
-  print('   - selectedDate: $selectedDate');
 
   // 원본 RecurringPattern에 EXDATE 추가 (해당 날짜 제외)
   final exdateAdded = await db.addExdate(
@@ -455,12 +403,9 @@ Future<void> deleteTaskThisOnly({
   );
 
   if (!exdateAdded) {
-    print('⚠️ [Task] EXDATE 추가 실패');
     throw Exception('EXDATE 추가 실패');
   }
 
-  print('✅ [Task] この回のみ 삭제 완료 (RFC 5545 EXDATE)');
-  print('   - EXDATE 추가: $selectedDate');
 }
 
 /// ✅ この予定以降 삭제: RFC 5545 UNTIL로 종료일 설정
@@ -475,7 +420,6 @@ Future<void> deleteTaskFuture({
   );
 
   if (pattern == null) {
-    print('⚠️ [Task] RecurringPattern 없음');
     return;
   }
 
@@ -493,7 +437,6 @@ Future<void> deleteTaskFuture({
     RecurringPatternCompanion(id: Value(pattern.id), until: Value(until)),
   );
 
-  print('✅ [Task] この予定以降 삭제 완료 (RFC 5545 UNTIL)');
 }
 
 /// ✅ すべての回 삭제: RecurringPattern + Base Task 삭제
@@ -502,5 +445,4 @@ Future<void> deleteTaskAll({
   required TaskData task,
 }) async {
   await db.deleteTask(task.id);
-  print('✅ [Task] すべての回 삭제 완료');
 }

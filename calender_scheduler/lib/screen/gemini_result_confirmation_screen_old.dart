@@ -689,7 +689,6 @@ class _GeminiResultConfirmationScreenState
       // 화면 닫기
       Navigator.of(context).pop(addedCount);
     } catch (e) {
-      print('❌ [ConfirmScreen] 저장 실패: $e');
 
       if (!mounted) return;
 

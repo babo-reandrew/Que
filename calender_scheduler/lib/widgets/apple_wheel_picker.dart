@@ -41,7 +41,6 @@ class AppleWheelPicker extends StatelessWidget {
         backgroundColor: Colors.transparent, // 배경 투명
         selectionOverlay: Container(), // ✅ 선택 오버레이 제거 (기본 하이라이트 박스 제거)
         onSelectedItemChanged: (index) {
-          print('🎡 [Wheel Picker] 선택 변경: index $index → "${items[index]}"');
           onSelectedItemChanged(index);
         },
         children: items.asMap().entries.map((entry) {

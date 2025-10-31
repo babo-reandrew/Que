@@ -52,7 +52,6 @@ class TempInputCache {
       DateTime.now().millisecondsSinceEpoch,
     );
 
-    print('💾 [TempCache] 임시 입력 저장: "$text"');
   }
 
   /// 임시 색상 저장
@@ -61,7 +60,6 @@ class TempInputCache {
   static Future<void> saveTempColor(String colorId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyTempColor, colorId);
-    print('💾 [TempCache] 임시 색상 저장: "$colorId"');
   }
 
   /// 임시 날짜/시간 저장
@@ -75,7 +73,6 @@ class TempInputCache {
       startDateTime.toIso8601String(),
     );
     await prefs.setString(_keyTempEndDateTime, endDateTime.toIso8601String());
-    print('💾 [TempCache] 임시 날짜/시간 저장: $startDateTime ~ $endDateTime');
   }
 
   /// 임시 실행일 저장
@@ -85,21 +82,18 @@ class TempInputCache {
       _keyTempExecutionDate,
       executionDate.toIso8601String(),
     );
-    print('💾 [TempCache] 임시 실행일 저장: $executionDate');
   }
 
   /// 임시 마감일 저장
   static Future<void> saveTempDueDate(DateTime dueDate) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyTempDueDate, dueDate.toIso8601String());
-    print('💾 [TempCache] 임시 마감일 저장: $dueDate');
   }
 
   /// 임시 반복 규칙 저장
   static Future<void> saveTempRepeatRule(String repeatRule) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyTempRepeatRule, repeatRule);
-    print('💾 [TempCache] 임시 반복 규칙 저장: $repeatRule');
   }
 
   /// 임시 입력 불러오기
@@ -114,7 +108,6 @@ class TempInputCache {
     final text = prefs.getString(_keyTempInput);
 
     if (text != null && text.isNotEmpty) {
-      print('📦 [TempCache] 임시 입력 복원: "$text"');
       return text;
     }
 
@@ -127,7 +120,6 @@ class TempInputCache {
     final colorId = prefs.getString(_keyTempColor);
 
     if (colorId != null && colorId.isNotEmpty) {
-      print('📦 [TempCache] 임시 색상 복원: "$colorId"');
       return colorId;
     }
 
@@ -143,7 +135,6 @@ class TempInputCache {
     if (startStr != null && endStr != null) {
       final startDateTime = DateTime.parse(startStr);
       final endDateTime = DateTime.parse(endStr);
-      print('📦 [TempCache] 임시 날짜/시간 복원: $startDateTime ~ $endDateTime');
       return {'start': startDateTime, 'end': endDateTime};
     }
 
@@ -157,7 +148,6 @@ class TempInputCache {
 
     if (dateStr != null) {
       final executionDate = DateTime.parse(dateStr);
-      print('📦 [TempCache] 임시 실행일 복원: $executionDate');
       return executionDate;
     }
 
@@ -171,7 +161,6 @@ class TempInputCache {
 
     if (dateStr != null) {
       final dueDate = DateTime.parse(dateStr);
-      print('📦 [TempCache] 임시 마감일 복원: $dueDate');
       return dueDate;
     }
 
@@ -184,7 +173,6 @@ class TempInputCache {
     final repeatRule = prefs.getString(_keyTempRepeatRule);
 
     if (repeatRule != null && repeatRule.isNotEmpty) {
-      print('📦 [TempCache] 임시 반복 규칙 복원: $repeatRule');
       return repeatRule;
     }
 
@@ -195,7 +183,6 @@ class TempInputCache {
   static Future<void> saveTempTitle(String title) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyTempTitle, title);
-    print('💾 [TempCache] 임시 제목 저장: "$title"');
   }
 
   /// 임시 제목 불러오기
@@ -204,7 +191,6 @@ class TempInputCache {
     final title = prefs.getString(_keyTempTitle);
 
     if (title != null && title.isNotEmpty) {
-      print('📦 [TempCache] 임시 제목 복원: "$title"');
       return title;
     }
 
@@ -215,7 +201,6 @@ class TempInputCache {
   static Future<void> saveTempReminder(String reminder) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('temp_reminder', reminder);
-    print('💾 [TempCache] 임시 리마인더 저장: "$reminder"');
   }
 
   /// 임시 리마인더 불러오기
@@ -224,7 +209,6 @@ class TempInputCache {
     final reminder = prefs.getString('temp_reminder');
 
     if (reminder != null && reminder.isNotEmpty) {
-      print('📦 [TempCache] 임시 리마인더 복원: "$reminder"');
       return reminder;
     }
 
@@ -250,7 +234,6 @@ class TempInputCache {
     await prefs.remove('temp_reminder');
     await prefs.remove(_keyTempRepeatRule); // ✅ 반복 규칙도 삭제
 
-    print('🗑️ [TempCache] 임시 입력 삭제 완료');
 
     // ✅ 리마인더 기본값(10분전) 설정
     await setDefaultReminder();
@@ -260,7 +243,6 @@ class TempInputCache {
   static Future<void> setDefaultReminder() async {
     final defaultReminder = '{"minutes":10,"display":"10分前"}';
     await saveTempReminder(defaultReminder);
-    print('✅ [TempCache] 리마인더 기본값(10분전) 설정 완료');
   }
 
   /// 임시 입력이 있는지 확인
@@ -285,7 +267,6 @@ class TempInputCache {
   static Future<void> saveCurrentType(String type) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyCurrentType, type);
-    print('💾 [UnifiedCache] 현재 타입 저장: $type');
   }
 
   /// 현재 선택된 타입 불러오기
@@ -293,7 +274,6 @@ class TempInputCache {
     final prefs = await SharedPreferences.getInstance();
     final type = prefs.getString(_keyCurrentType);
     if (type != null) {
-      print('📦 [UnifiedCache] 현재 타입 복원: $type');
     }
     return type;
   }
@@ -309,19 +289,15 @@ class TempInputCache {
 
     if (title != null) {
       await prefs.setString(_keyCommonTitle, title);
-      print('💾 [UnifiedCache] 공통 제목 저장: "$title"');
     }
     if (colorId != null) {
       await prefs.setString(_keyCommonColor, colorId);
-      print('💾 [UnifiedCache] 공통 색상 저장: $colorId');
     }
     if (reminder != null) {
       await prefs.setString(_keyCommonReminder, reminder);
-      print('💾 [UnifiedCache] 공통 리마인더 저장: $reminder');
     }
     if (repeatRule != null) {
       await prefs.setString(_keyCommonRepeatRule, repeatRule);
-      print('💾 [UnifiedCache] 공통 반복규칙 저장: $repeatRule');
     }
   }
 
@@ -334,7 +310,6 @@ class TempInputCache {
     final reminder = prefs.getString(_keyCommonReminder);
     final repeatRule = prefs.getString(_keyCommonRepeatRule);
 
-    print('📦 [UnifiedCache] 공통 데이터 복원: title=$title, color=$colorId');
 
     return {
       'title': title,
@@ -357,18 +332,15 @@ class TempInputCache {
         _keyScheduleStartDateTime,
         startDateTime.toIso8601String(),
       );
-      print('💾 [UnifiedCache] 일정 시작시간 저장: $startDateTime');
     }
     if (endDateTime != null) {
       await prefs.setString(
         _keyScheduleEndDateTime,
         endDateTime.toIso8601String(),
       );
-      print('💾 [UnifiedCache] 일정 종료시간 저장: $endDateTime');
     }
     if (isAllDay != null) {
       await prefs.setBool(_keyScheduleIsAllDay, isAllDay);
-      print('💾 [UnifiedCache] 일정 종일여부 저장: $isAllDay');
     }
   }
 
@@ -385,9 +357,6 @@ class TempInputCache {
     final startDateTime = DateTime.parse(startStr);
     final endDateTime = DateTime.parse(endStr);
 
-    print(
-      '📦 [UnifiedCache] 일정 데이터 복원: $startDateTime ~ $endDateTime, allDay=$isAllDay',
-    );
 
     return {
       'startDateTime': startDateTime,
@@ -408,11 +377,9 @@ class TempInputCache {
         _keyTaskExecutionDate,
         executionDate.toIso8601String(),
       );
-      print('💾 [UnifiedCache] 할일 실행일 저장: $executionDate');
     }
     if (dueDate != null) {
       await prefs.setString(_keyTaskDueDate, dueDate.toIso8601String());
-      print('💾 [UnifiedCache] 할일 마감일 저장: $dueDate');
     }
   }
 
@@ -428,11 +395,9 @@ class TempInputCache {
 
     if (execStr != null) {
       executionDate = DateTime.parse(execStr);
-      print('📦 [UnifiedCache] 할일 실행일 복원: $executionDate');
     }
     if (dueStr != null) {
       dueDate = DateTime.parse(dueStr);
-      print('📦 [UnifiedCache] 할일 마감일 복원: $dueDate');
     }
 
     if (executionDate == null && dueDate == null) return null;
@@ -446,7 +411,6 @@ class TempInputCache {
 
     if (habitTime != null) {
       await prefs.setString(_keyHabitTime, habitTime.toIso8601String());
-      print('💾 [UnifiedCache] 습관 시간 저장: $habitTime');
     }
   }
 
@@ -459,7 +423,6 @@ class TempInputCache {
     if (timeStr == null) return null;
 
     final habitTime = DateTime.parse(timeStr);
-    print('📦 [UnifiedCache] 습관 시간 복원: $habitTime');
 
     return {'habitTime': habitTime};
   }
@@ -472,14 +435,11 @@ class TempInputCache {
       await prefs.remove(_keyScheduleStartDateTime);
       await prefs.remove(_keyScheduleEndDateTime);
       await prefs.remove(_keyScheduleIsAllDay);
-      print('🗑️ [UnifiedCache] 일정 캐시 삭제 완료');
     } else if (type == 'task') {
       await prefs.remove(_keyTaskExecutionDate);
       await prefs.remove(_keyTaskDueDate);
-      print('🗑️ [UnifiedCache] 할일 캐시 삭제 완료');
     } else if (type == 'habit') {
       await prefs.remove(_keyHabitTime);
-      print('🗑️ [UnifiedCache] 습관 캐시 삭제 완료');
     }
 
     // 공통 데이터도 삭제
@@ -489,7 +449,6 @@ class TempInputCache {
     await prefs.remove(_keyCommonRepeatRule);
     await prefs.remove(_keyCurrentType);
 
-    print('🗑️ [UnifiedCache] 공통 캐시 삭제 완료 - 타입: $type');
   }
 
   /// 모든 통합 캐시 삭제
@@ -515,6 +474,5 @@ class TempInputCache {
     // 습관 데이터
     await prefs.remove(_keyHabitTime);
 
-    print('🗑️ [UnifiedCache] 모든 통합 캐시 삭제 완료');
   }
 }

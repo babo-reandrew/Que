@@ -38,7 +38,6 @@ class RecurringEventService {
       ),
     );
 
-    print('✅ [RecurringService] 반복 일정 생성 완료: ID=$scheduleId');
     return scheduleId;
   }
 
@@ -67,7 +66,6 @@ class RecurringEventService {
       ),
     );
 
-    print('✅ [RecurringService] 반복 할일 생성 완료: ID=$taskId');
     return taskId;
   }
 
@@ -95,7 +93,6 @@ class RecurringEventService {
       ),
     );
 
-    print('✅ [RecurringService] 반복 습관 생성 완료: ID=$habitId');
     return habitId;
   }
 
@@ -190,10 +187,6 @@ class RecurringEventService {
     // 4. 시작 시간 순 정렬
     instances.sort((a, b) => a.occurrenceDate.compareTo(b.occurrenceDate));
 
-    print(
-      '📅 [RecurringService] 일정 인스턴스 ${instances.length}개 생성됨 '
-      '(${rangeStart.toString().substring(0, 10)} ~ ${rangeEnd.toString().substring(0, 10)})',
-    );
     return instances;
   }
 
@@ -259,7 +252,6 @@ class RecurringEventService {
 
     instances.sort((a, b) => a.occurrenceDate.compareTo(b.occurrenceDate));
 
-    print('📋 [RecurringService] 할일 인스턴스 ${instances.length}개 생성됨');
     return instances;
   }
 
@@ -296,7 +288,6 @@ class RecurringEventService {
 
     instances.sort((a, b) => a.occurrenceDate.compareTo(b.occurrenceDate));
 
-    print('🔄 [RecurringService] 습관 인스턴스 ${instances.length}개 생성됨');
     return instances;
   }
 
@@ -315,7 +306,6 @@ class RecurringEventService {
     );
 
     if (pattern == null) {
-      print('⚠️ [RecurringService] 반복 규칙이 없음');
       return false;
     }
 
@@ -328,7 +318,6 @@ class RecurringEventService {
       ),
     );
 
-    print('✅ [RecurringService] 단일 인스턴스 취소: $originalDate');
     return true;
   }
 
@@ -357,7 +346,6 @@ class RecurringEventService {
       ),
     );
 
-    print('✅ [RecurringService] 단일 인스턴스 시간 변경: $originalDate → $newStartDate');
     return true;
   }
 
@@ -389,7 +377,6 @@ class RecurringEventService {
       ),
     );
 
-    print('✅ [RecurringService] 단일 인스턴스 내용 변경: $originalDate');
     return true;
   }
 }

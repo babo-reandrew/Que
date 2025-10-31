@@ -118,26 +118,17 @@ class InboxAnimationHelper {
   /// 이거를 설정하고 → 콘솔에 진입 시작을 출력해서
   /// 이거는 이래서 → 개발 중 디버깅을 쉽게 한다
   static void logEnterStart() {
-    print('🚪 [Inbox 애니메이션] 진입 시작');
-    print('   → 네비게이션 바 전환: ${navBarTransitionDuration.inMilliseconds}ms');
-    print('   → 서랍 아이콘 딜레이: ${drawerIconsDelay.inMilliseconds}ms');
-    print('   → 예상 완료 시간: ${totalEnterDuration.inMilliseconds}ms');
   }
 
   /// Inbox 종료 애니메이션 시작 로그
   /// 이거를 설정하고 → 콘솔에 종료 시작을 출력해서
   /// 이거는 이래서 → 개발 중 디버깅을 쉽게 한다
   static void logExitStart() {
-    print('🚪 [Inbox 애니메이션] 종료 시작');
-    print('   → 아이콘 사라짐: ${drawerIconsExitDuration.inMilliseconds}ms');
-    print('   → 네비게이션 바 딜레이: ${navBarExitDelay.inMilliseconds}ms');
-    print('   → 예상 완료 시간: ${totalExitDuration.inMilliseconds}ms');
   }
 
   /// 서랍 아이콘 애니메이션 완료 로그
   /// 이거를 설정하고 → 각 아이콘이 완료될 때마다 출력해서
   /// 이거는 이래서 → 타이밍 검증을 쉽게 한다
   static void logIconAnimationComplete(int index) {
-    print('✅ [Inbox 애니메이션] 아이콘 ${index + 1} 등장 완료');
   }
 }

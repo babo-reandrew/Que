@@ -137,26 +137,18 @@ class EntityValidators {
 
   /// 검증 결과를 콘솔에 출력
   static void printValidationResult(Map<String, dynamic> result, String type) {
-    print('\n========================================');
-    print('🔍 [$type 검증] 결과:');
-    print('   → 유효성: ${result['isValid'] ? "✅ 통과" : "❌ 실패"}');
 
     final errors = result['errors'] as Map<String, String>;
     if (errors.isNotEmpty) {
-      print('   → 에러:');
       errors.forEach((field, message) {
-        print('      - $field: $message');
       });
     }
 
     final warnings = result['warnings'] as List<String>;
     if (warnings.isNotEmpty) {
-      print('   → 경고:');
       for (var warning in warnings) {
-        print('      - $warning');
       }
     }
 
-    print('========================================\n');
   }
 }

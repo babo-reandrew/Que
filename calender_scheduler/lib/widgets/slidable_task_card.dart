@@ -110,17 +110,14 @@ class SlidableTaskCard extends StatelessWidget {
                   context,
                   onDeleteThis: () async {
                     confirmed = true;
-                    print('🗑️ [SlidableTask] 반복 할일 ID=$taskId 이 할일만 삭제');
                     await onDelete();
                   },
                   onDeleteFuture: () async {
                     confirmed = true;
-                    print('🗑️ [SlidableTask] 반복 할일 ID=$taskId 이후 할일 삭제');
                     await onDelete();
                   },
                   onDeleteAll: () async {
                     confirmed = true;
-                    print('🗑️ [SlidableTask] 반복 할일 ID=$taskId 전체 삭제');
                     await onDelete();
                   },
                 );
@@ -129,7 +126,6 @@ class SlidableTaskCard extends StatelessWidget {
                   context,
                   onDelete: () async {
                     confirmed = true;
-                    print('🗑️ [SlidableTask] 할일 ID=$taskId 삭제 확인됨');
                     await onDelete();
                   },
                 );
@@ -141,7 +137,6 @@ class SlidableTaskCard extends StatelessWidget {
             }
           },
           onDismissed: () {
-            print('🗑️ [SlidableTask] 할일 ID=$taskId 삭제 스와이프 완료');
           },
         ),
 
@@ -150,7 +145,6 @@ class SlidableTaskCard extends StatelessWidget {
           CustomSlidableAction(
             onPressed: (context) async {
               await HapticFeedback.mediumImpact();
-              print('🗑️ [SlidableTask] 삭제 버튼 클릭');
 
               if (showConfirmDialog) {
                 bool hasRepeat =
@@ -163,15 +157,12 @@ class SlidableTaskCard extends StatelessWidget {
                   await showDeleteRepeatConfirmationModal(
                     context,
                     onDeleteThis: () async {
-                      print('🗑️ [SlidableTask] 반복 할일 ID=$taskId 이 할일만 삭제');
                       await onDelete();
                     },
                     onDeleteFuture: () async {
-                      print('🗑️ [SlidableTask] 반복 할일 ID=$taskId 이후 할일 삭제');
                       await onDelete();
                     },
                     onDeleteAll: () async {
-                      print('🗑️ [SlidableTask] 반복 할일 ID=$taskId 전체 삭제');
                       await onDelete();
                     },
                   );
@@ -179,7 +170,6 @@ class SlidableTaskCard extends StatelessWidget {
                   await showDeleteConfirmationModal(
                     context,
                     onDelete: () async {
-                      print('🗑️ [SlidableTask] 할일 ID=$taskId 삭제 확인됨');
                       await onDelete();
                     },
                   );
@@ -232,7 +222,6 @@ class SlidableTaskCard extends StatelessWidget {
                   CustomSlidableAction(
                     onPressed: (context) async {
                       await HapticFeedback.lightImpact();
-                      print('📥 [SlidableTask] 할일 ID=$taskId 인박스 이동 버튼 클릭');
 
                       // 인박스로 이동 (executionDate만 제거)
                       await onInbox!();
@@ -299,15 +288,9 @@ class SlidableTaskCard extends StatelessWidget {
           onDismissed: () async {
             // 1. 햅틱 피드백 (iOS 네이티브 스타일)
             await HapticFeedback.mediumImpact();
-            print(
-              '✅ [SlidableTask] 할일 ID=$taskId 완료 스와이프 감지 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-            );
 
             // 2. 완료 액션 실행
             await onComplete();
-            print(
-              '✅ [SlidableTask] 할일 ID=$taskId 완료 처리 완료 - DB 업데이트 및 이벤트 로그 기록됨',
-            );
           },
         ),
 
@@ -316,9 +299,6 @@ class SlidableTaskCard extends StatelessWidget {
           CustomSlidableAction(
             onPressed: (context) async {
               await HapticFeedback.lightImpact();
-              print(
-                '✅ [SlidableTask] 할일 ID=$taskId 완료 버튼 클릭 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-              );
               await onComplete();
             },
             autoClose: true,

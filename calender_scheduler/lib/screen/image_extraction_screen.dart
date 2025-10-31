@@ -225,22 +225,18 @@ class _ImageExtractionScreenState extends State<ImageExtractionScreen> {
       );
 
       if (image == null) {
-        print('📷 [ImageExtractionScreen] 이미지 선택 취소됨');
         return;
       }
 
-      print('📷 [ImageExtractionScreen] 이미지 선택됨: ${image.path}');
 
       // 이미지 바이트 읽기
       final bytes = await image.readAsBytes();
-      print('📦 [ImageExtractionScreen] 이미지 크기: ${bytes.length} bytes');
 
       // Provider를 통해 분석 시작
       if (!mounted) return;
       final provider = context.read<ImageAnalysisProvider>();
       await provider.analyzeImage(bytes);
     } catch (e) {
-      print('❌ [ImageExtractionScreen] 이미지 선택 오류: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

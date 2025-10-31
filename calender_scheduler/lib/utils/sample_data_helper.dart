@@ -94,7 +94,6 @@ class SampleDataHelper {
       ),
     );
 
-    print('✅ [SampleData] Schedule 샘플 데이터 5개 생성 완료');
   }
 
   /// Task 샘플 데이터 생성 (10개)
@@ -213,7 +212,6 @@ class SampleDataHelper {
       ),
     );
 
-    print('✅ [SampleData] Task 샘플 데이터 10개 생성 완료');
   }
 
   /// Habit 샘플 데이터 생성 (3개)
@@ -255,7 +253,6 @@ class SampleDataHelper {
       ),
     );
 
-    print('✅ [SampleData] Habit 샘플 데이터 3개 생성 완료');
   }
 
   /// 모든 샘플 데이터 생성 (딱 한 번만)
@@ -269,7 +266,6 @@ class SampleDataHelper {
 
     // 이미 샘플 데이터를 생성했다면 스킵
     if (hasCreatedSampleData) {
-      print('ℹ️ [SampleData] 샘플 데이터가 이미 존재합니다. 스킵합니다.');
       return;
     }
 
@@ -280,7 +276,6 @@ class SampleDataHelper {
 
     // 생성 완료 플래그 저장
     await prefs.setBool('has_created_sample_data', true);
-    print('🎉 [SampleData] 모든 샘플 데이터 생성 완료 (일정 5개, 할일 10개, 습관 3개)');
   }
 
   /// 샘플 데이터 삭제 (초기화)
@@ -294,9 +289,6 @@ class SampleDataHelper {
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
 
-    print(
-      '🧪 [TestData] 오늘 날짜(${todayDate.toString().split(' ')[0]})에 5개 일정 추가 시작...',
-    );
 
     // 테스트 1: 아침 미팅
     await db.createSchedule(
@@ -313,7 +305,6 @@ class SampleDataHelper {
         visibility: 'default',
       ),
     );
-    print('✅ [TestData] 1/5 추가됨: 아침 스탠드업 미팅 (09:00-10:00)');
 
     // 테스트 2: 코드 리뷰
     await db.createSchedule(
@@ -330,7 +321,6 @@ class SampleDataHelper {
         visibility: 'default',
       ),
     );
-    print('✅ [TestData] 2/5 추가됨: Flutter 코드 리뷰 (11:00-12:00)');
 
     // 테스트 3: 점심 약속
     await db.createSchedule(
@@ -347,7 +337,6 @@ class SampleDataHelper {
         visibility: 'default',
       ),
     );
-    print('✅ [TestData] 3/5 추가됨: 팀 점심 식사 (12:30-13:30)');
 
     // 테스트 4: 오후 개발
     await db.createSchedule(
@@ -364,7 +353,6 @@ class SampleDataHelper {
         visibility: 'default',
       ),
     );
-    print('✅ [TestData] 4/5 추가됨: UI 개발 집중 시간 (14:00-16:00)');
 
     // 테스트 5: 저녁 운동
     await db.createSchedule(
@@ -381,9 +369,7 @@ class SampleDataHelper {
         visibility: 'default',
       ),
     );
-    print('✅ [TestData] 5/5 추가됨: 헬스장 운동 (18:30-19:30)');
 
-    print('🎉 [TestData] 오늘 날짜에 5개 일정 추가 완료!');
   }
 
   static Future<void> clearAllSampleData(AppDatabase db) async {
@@ -409,6 +395,5 @@ class SampleDataHelper {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('has_created_sample_data');
 
-    print('🗑️ [SampleData] 모든 샘플 데이터 삭제 완료');
   }
 }

@@ -44,7 +44,6 @@ class ImageAnalysisProvider extends ChangeNotifier {
   ///
   /// [imageBytes]: 분석할 이미지의 바이트 데이터
   Future<void> analyzeImage(Uint8List imageBytes) async {
-    print('🔍 [ImageAnalysisProvider] 이미지 분석 시작');
 
     _isLoading = true;
     _errorMessage = null;
@@ -72,19 +71,12 @@ class ImageAnalysisProvider extends ChangeNotifier {
       // 3. 결과 확인
       if (totalCount == 0) {
         _errorMessage = '이미지에서 일정/할 일/습관을 찾을 수 없습니다.\n다른 이미지를 시도해보세요.';
-        print('⚠️ [ImageAnalysisProvider] 추출된 항목 없음');
       } else {
-        print('✅ [ImageAnalysisProvider] 분석 완료: $totalCount개 항목');
-        print('   - 일정: ${_schedules.length}개');
-        print('   - 작업: ${_tasks.length}개');
-        print('   - 습관: ${_habits.length}개');
       }
     } on GeminiException catch (e) {
       _errorMessage = e.message;
-      print('❌ [ImageAnalysisProvider] Gemini 오류: ${e.message}');
     } catch (e) {
       _errorMessage = '알 수 없는 오류가 발생했습니다.\n다시 시도해주세요.';
-      print('❌ [ImageAnalysisProvider] 예상치 못한 오류: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -107,7 +99,6 @@ class ImageAnalysisProvider extends ChangeNotifier {
         _habits.remove(item);
       }
 
-      print('🗑️ [ImageAnalysisProvider] 항목 제거: 인덱스 $index');
       notifyListeners();
     }
   }
@@ -132,7 +123,6 @@ class ImageAnalysisProvider extends ChangeNotifier {
         if (itemIndex >= 0) _habits[itemIndex] = updatedItem;
       }
 
-      print('✏️ [ImageAnalysisProvider] 항목 업데이트: 인덱스 $index');
       notifyListeners();
     }
   }
@@ -144,7 +134,6 @@ class ImageAnalysisProvider extends ChangeNotifier {
     _habits = [];
     _errorMessage = null;
     _isLoading = false;
-    print('🧹 [ImageAnalysisProvider] 결과 초기화');
     notifyListeners();
   }
 
@@ -156,7 +145,6 @@ class ImageAnalysisProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-    print('♻️ [ImageAnalysisProvider] dispose 호출');
     super.dispose();
   }
 }

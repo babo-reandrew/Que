@@ -268,30 +268,9 @@ class EventValidators {
   static String? validateColorId(String? colorId) {
     // 1. null 체크 - colorId는 선택 사항이므로 null이어도 된다
     if (colorId == null || colorId.isEmpty) {
-      print('🎨 색상 검증: colorId가 null 또는 빈 값 → 기본값 사용 가능'); // 디버깅: null/빈값 케이스
-      return null; // 선택 필드이므로 비어있어도 괜찮다
-    }
-
-    // 2. 유효한 색상 ID 목록 - categoryColorMap의 key들을 사용한다
-    // 이렇게 하면 실제 color.dart에 정의된 색상들만 허용된다
-    final validColorIds = categoryColorMap.keys.toList();
-    print('🎨 색상 검증: 허용된 색상 목록 = $validColorIds'); // 디버깅: 허용된 색상 목록 출력
-
-    // 3. 입력된 색상 ID를 소문자로 변환한다
-    final normalizedColorId = colorId.toLowerCase();
-    print(
-      '🎨 색상 검증: 입력된 colorId = "$colorId" → 정규화 = "$normalizedColorId"',
-    ); // 디버깅: 정규화 과정 출력
-
-    // 4. 색상 ID가 유효한지 확인한다
-    if (!validColorIds.contains(normalizedColorId)) {
-      print('❌ 색상 검증 실패: "$normalizedColorId"는 허용된 색상이 아님'); // 디버깅: 검증 실패
-      return '유효하지 않은 색상입니다';
     }
 
     // 5. 모든 검증을 통과하면 null을 반환한다
-    print('✅ 색상 검증 성공: "$normalizedColorId"는 유효한 색상'); // 디버깅: 검증 성공
-    return null;
   }
 
   /// 상태(status)를 검증하는 함수 - 유효한 상태 값인지 확인한다
@@ -629,27 +608,19 @@ class EventValidators {
 
   /// 검증 결과를 콘솔에 출력하는 함수 - 디버깅 시 사용한다
   static void printValidationResult(ValidationResult result) {
-    print('=== 검증 결과 ===');
-    print('✅ 검증 성공: ${result.isValid}');
 
     if (result.hasErrors) {
-      print('❌ 에러:');
       result.errors.forEach((field, message) {
-        print('  - $field: $message');
       });
     }
 
     if (result.hasWarnings) {
-      print('⚠️ 경고:');
       for (final warning in result.warnings) {
-        print('  - $warning');
       }
     }
 
     if (result.isPerfect) {
-      print('🎉 완벽합니다! 에러도 경고도 없습니다.');
     }
 
-    print('=== 검증 결과 끝 ===\n');
   }
 }

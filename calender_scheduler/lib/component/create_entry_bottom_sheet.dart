@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui'; // ✅ ImageFilter for backdrop blur
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart'; // ✅ DateFormat 추가
 import '../const/color.dart';
 import '../const/quick_add_config.dart';
 import '../component/custom_fille_field.dart';
@@ -71,8 +72,6 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
 
     // 🔥 타입 선택기 초기화 (매번 바텀시트 열 때 null로 시작!)
     _selectedQuickAddType = null;
-
-    print('🎬 [CreateEntry] 바텀시트 초기화 완료');
   }
 
   @override
@@ -84,7 +83,6 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
     if (tempText.isNotEmpty) {
       // 이거라면 → 입력된 텍스트가 있으면 캐시에 저장한다
       TempInputCache.saveTempInput(tempText);
-      print('💾 [CreateEntry] dispose 시 캐시 저장: "$tempText"');
     }
 
     if (_useQuickAdd) {
@@ -113,9 +111,6 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
   /// 이거를 설정하고 → Quick Add에서 입력된 데이터를 받아서
   /// 이거를 해서 → 간소화된 검증 후 DB에 저장한다
   void _saveQuickAdd(Map<String, dynamic> data) async {
-    print('\n========================================');
-    print('⚡ [Quick Add 저장] 빠른 저장 프로세스 시작');
-
     try {
       final type = data['type'] as QuickAddType;
       final title = data['title'] as String;
@@ -145,13 +140,6 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
 
         final database = GetIt.I<AppDatabase>();
         savedId = await database.createSchedule(companion);
-
-        print('✅ [Quick Add 저장] 일정 저장 완료! ID: $savedId');
-        print('   → 제목: $title');
-        print('   → 시작: $startDateTime');
-        print('   → 종료: $endDateTime');
-        print('   → 반복: ${repeatRule.isEmpty ? "(미설정)" : repeatRule}');
-        print('   → 리마인더: ${reminder.isEmpty ? "(미설정)" : reminder}');
       } else if (type == QuickAddType.task) {
         // ========================================
         // 할일 저장
@@ -170,13 +158,11 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         EntityValidators.printValidationResult(validationResult, '할일');
 
         if (!validationResult['isValid']) {
-          print('❌ [Quick Add 저장] 할일 검증 실패 - 저장 중단');
-          print('========================================\n');
           // 🔥 검증 실패 시 사용자 피드백
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('タイトルを入力してください')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('タイトルを入力してください')));
           }
           return;
         }
@@ -195,11 +181,6 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
 
         final database = GetIt.I<AppDatabase>();
         savedId = await database.createTask(companion);
-
-        print('✅ [Quick Add 저장] 할일 저장 완료! ID: $savedId');
-        print('   → 제목: $title');
-        print('   → 마감일: ${dueDate ?? "(없음)"}');
-        print('   → 색상: $colorId');
       } else if (type == QuickAddType.habit) {
         // ========================================
         // 습관 저장
@@ -218,13 +199,11 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         EntityValidators.printValidationResult(validationResult, '습관');
 
         if (!validationResult['isValid']) {
-          print('❌ [Quick Add 저장] 습관 검증 실패 - 저장 중단');
-          print('========================================\n');
           // 🔥 검증 실패 시 사용자 피드백
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('繰り返し設定を選択してください')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('繰り返し設定を選択してください')));
           }
           return;
         }
@@ -240,24 +219,17 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
 
         final database = GetIt.I<AppDatabase>();
         savedId = await database.createHabit(companion);
-
-        print('✅ [Quick Add 저장] 습관 저장 완료! ID: $savedId');
-        print('   → 제목: $title');
-        print('   → 반복: $repeatRule');
-        print('   → 색상: $colorId');
       }
 
       // 이거를 설정하고 → 저장이 성공했으므로 임시 캐시를 삭제해서
       // 이거를 해서 → 하단 박스가 사라지도록 한다
       // 이거는 이래서 → Figma 디자인대로 저장 후 임시 데이터를 정리한다
       await TempInputCache.clearTempInput();
-      print('🗑️ [Quick Add 저장] 임시 캐시 삭제 완료');
 
       // 🔥 저장 성공 후 바텀시트를 닫고 토스트 표시
       if (context.mounted && savedId != null) {
         // 먼저 바텀시트 닫기
         Navigator.of(context).pop();
-        print('🔙 [UI] 바텀시트 닫기 → StreamBuilder 자동 갱신');
 
         // 약간의 딜레이 후 토스트 표시 (바텀시트 애니메이션 완료 대기)
         await Future.delayed(const Duration(milliseconds: 150));
@@ -300,21 +272,14 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
               }
             },
           );
-          print('🍞 [Toast] 저장 토스트 표시 완료 (${type == QuickAddType.schedule ? "保存されました" : "ヒキダシに保存されました"})');
         }
       }
-
-      print('========================================\n');
     } catch (e, stackTrace) {
-      print('❌ [Quick Add 저장] 에러 발생: $e');
-      print('스택 트레이스: $stackTrace');
-      print('========================================\n');
-
       // 🔥 에러 발생 시 사용자 피드백
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('保存に失敗しました: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存に失敗しました: $e')));
       }
     }
   }
@@ -333,21 +298,14 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
       listen: false,
     );
 
-    print('\n========================================');
-    print('💾 [저장] 일정 저장 프로세스 시작');
-
     // 1. 먼저 기본 폼 검증을 수행한다 (각 필드의 validator 실행)
     if (!(_formKey.currentState?.validate() ?? false)) {
       // 기본 검증이 실패하면 여기서 중단한다
-      print('❌ [검증] 기본 폼 검증 실패 - 저장 중단');
-      print('========================================\n');
       return;
     }
-    print('✅ [검증] 기본 폼 검증 통과');
 
     // 2. 폼이 유효하면 저장을 실행한다 (각 필드의 onSaved 실행)
     _formKey.currentState?.save();
-    print('✅ [검증] 폼 데이터 저장 완료 (_title 등)');
 
     // 3. ⭐️ 종일/시간별에 따라 다른 DateTime 사용
     // 이거를 설정하고 → _isAllDay 플래그로 종일/시간별을 구분해서
@@ -355,8 +313,6 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
     // 이거는 이래서 → DB에 올바른 형식으로 저장된다
     final DateTime startDateTime;
     final DateTime endDateTime;
-
-    print('💾 [저장] 종일 여부: $_isAllDay');
 
     if (_isAllDay) {
       // 종일: 선택된 날짜의 00:00:00 ~ 23:59:59
@@ -377,19 +333,12 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
             59,
             59,
           );
-      print('⏰ [종일] 시작: $startDateTime');
-      print('⏰ [종일] 종료: $endDateTime');
     } else {
       // 시간별: 피커에서 선택한 정확한 DateTime
       startDateTime = _selectedStartDate ?? widget.selectedDate;
       endDateTime =
           _selectedEndDate ?? widget.selectedDate.add(Duration(hours: 1));
-      print('⏰ [시간별] 시작: $startDateTime');
-      print('⏰ [시간별] 종료: $endDateTime');
     }
-
-    print('💾 [저장] 최종 시작: $startDateTime');
-    print('💾 [저장] 최종 종료: $endDateTime');
 
     // 4. 종합 검증을 수행한다 - 모든 필드와 논리적 일관성을 종합적으로 검증한다
     final validationResult = EventValidators.validateCompleteEvent(
@@ -412,11 +361,8 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
       if (context.mounted) {
         _showValidationErrors(context, validationResult.errors);
       }
-      print('❌ [검증] 종합 검증 실패 - 저장 중단');
-      print('========================================\n');
       return;
     }
-    print('✅ [검증] 종합 검증 통과');
 
     // 7. 경고가 있으면 사용자에게 확인을 받는다
     if (validationResult.hasWarnings) {
@@ -425,11 +371,8 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         validationResult.warnings,
       );
       if (shouldContinue != true) {
-        print('⚠️ [검증] 사용자가 경고 확인 후 저장을 취소했습니다');
-        print('========================================\n');
         return;
       }
-      print('✅ [검증] 경고 확인 후 계속 진행');
     }
 
     // 8. ScheduleCompanion 객체를 생성한다
@@ -450,41 +393,19 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
             : const Value.absent(), // ✅ 리마인더: 사용자가 설정한 경우에만 저장
       );
 
-      print('📦 [데이터] ScheduleCompanion 생성 완료:');
-      print('   → 제목: ${_title ?? "제목 없음"}');
-      print('   → 시작: $startDateTime');
-      print('   → 종료: $endDateTime');
-      print('   → 색상: ${controller.selectedColor}');
-      print('   → 종일: $_isAllDay');
-      print(
-        '   → 반복: ${controller.repeatRule.isEmpty ? "(미설정)" : controller.repeatRule}',
-      );
-      print(
-        '   → 리마인더: ${controller.reminder.isEmpty ? "(미설정)" : controller.reminder}',
-      );
-
       // 9. DB에 저장한다
       // 이거는 이래서 → createSchedule()이 완료되면 DB 스트림이 자동으로 갱신된다
       // 이거라면 → StreamBuilder가 감지해서 UI를 자동으로 업데이트한다
       final database = GetIt.I<AppDatabase>();
       final id = await database.createSchedule(companion);
 
-      print('✅ [DB] 일정 저장 완료! 생성된 ID: $id');
-
       // 10. 바텀시트를 닫는다
       // 이거를 설정하고 → Navigator.pop()으로 바텀시트를 닫으면
       // 이거를 해서 → StreamBuilder가 자동으로 새로운 데이터를 감지한다
       if (context.mounted) {
         Navigator.of(context).pop();
-        print('🔙 [UI] 바텀시트 닫기 → StreamBuilder 자동 갱신 대기 중');
       }
-
-      print('========================================\n');
     } catch (e, stackTrace) {
-      print('❌ [DB] 저장 중 에러 발생: $e');
-      print('스택 트레이스: $stackTrace');
-      print('========================================\n');
-
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
@@ -641,13 +562,8 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
 
   @override
   Widget build(BuildContext context) {
-    print('🎯 [CreateEntryBottomSheet] _useQuickAdd: $_useQuickAdd');
-    print('🔒 [CreateEntryBottomSheet] _isKeyboardLocked: $_isKeyboardLocked');
-
     // ✅✅✅ ULTRATHINK: Quick Add 모드
     if (_useQuickAdd) {
-      print('✅ [CreateEntryBottomSheet] Quick Add 모드');
-
       // 🔥 핵심: LayoutBuilder로 정확한 위치 계산하여 blur 영역 제한
       return Scaffold(
         backgroundColor: Colors.transparent,
@@ -662,12 +578,8 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
             final inputAccessoryHeight = safeAreaBottom + 8.0 + 60.0; // 대략적인 높이
 
             // Input Accessory가 시작되는 Y 좌표 (위에서부터)
-            final inputAccessoryTop = screenHeight - keyboardHeight - inputAccessoryHeight;
-
-            print('📐 [Blur] screenHeight: $screenHeight');
-            print('📐 [Blur] keyboardHeight: $keyboardHeight');
-            print('📐 [Blur] inputAccessoryTop: $inputAccessoryTop');
-            print('📐 [Blur] blur 영역: $inputAccessoryTop ~ $screenHeight');
+            final inputAccessoryTop =
+                screenHeight - keyboardHeight - inputAccessoryHeight;
 
             return Stack(
               children: [
@@ -679,9 +591,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
                         Navigator.of(context).pop();
                       }
                     },
-                    child: Container(
-                      color: Colors.transparent,
-                    ),
+                    child: Container(color: Colors.transparent),
                   ),
                 ),
 
@@ -690,7 +600,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
                   left: 0,
                   right: 0,
                   top: inputAccessoryTop, // 🔥 Input Accessory 상단부터 시작
-                  bottom: 0,              // 🔥 화면 하단까지
+                  bottom: 0, // 🔥 화면 하단까지
                   child: IgnorePointer(
                     child: Container(
                       color: const Color(0xFFF0F0F0), // Blur 대신 단색 배경
@@ -744,7 +654,6 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
                             setState(() {
                               _selectedQuickAddType = type;
                             });
-                            print('📋 [타입 변경] $type');
                           },
                           onAddButtonPressed: () {
                             setState(() {
@@ -863,7 +772,6 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
             onTap: () {
               // X 버튼은 바텀시트를 닫는 역할
               Navigator.of(context).pop();
-              print('❌ [습관 UI] X 버튼으로 바텀시트 닫기');
             },
             child: Container(
               padding: const EdgeInsets.all(8), // 피그마: p-[8px]
@@ -1072,7 +980,6 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
     final title = _habitTitleController.text.trim();
 
     if (title.isEmpty) {
-      print('⚠️ [습관 저장] 제목이 비어있어서 저장하지 않음');
       return;
     }
 
@@ -1088,9 +995,6 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
       'reminder': controller.reminder, // ✅ 리마인더 포함
     };
 
-    print('💾 [습관 저장] 입력 필드에서 저장 시작: $title');
-    print('   → 반복: ${repeatRule.isEmpty ? "(미설정)" : repeatRule}');
-    print('   → 리마인더: ${controller.reminder}');
     _saveQuickAdd(habitData);
   }
 
@@ -1109,10 +1013,6 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
               label: '제목',
               onSaved: (String? value) {
                 _title = value;
-                print('📝 제목 필드 onSaved 실행:');
-                print('  - 입력값: ${value ?? "null"}');
-                print('  - _title 변수에 저장됨: ${_title ?? "null"}');
-                print('  - 저장 성공: ${_title != null ? "✅" : "❌"}');
               },
               validator: (String? value) {
                 return EventValidators.validateTitle(value);
@@ -1138,7 +1038,6 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
                     setState(() {
                       _isAllDay = value;
                     });
-                    print('🔄 [토글] 종일: $_isAllDay');
                   },
                 ),
               ],
@@ -1146,63 +1045,34 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
             SizedBox(height: 8),
 
             // 조건부 렌더링: 종일 vs 시간별
-            if (_isAllDay)
-              _AllDayDatePicker(
-                selectedDate: widget.selectedDate,
-                onStartDateSelected: (date) {
-                  setState(() {
-                    _selectedStartDate = DateTime(
-                      date.year,
-                      date.month,
-                      date.day,
-                    );
-                  });
-                  print('📅 [종일] 시작 날짜: $_selectedStartDate');
-                },
-                onEndDateSelected: (date) {
-                  setState(() {
-                    _selectedEndDate = DateTime(
-                      date.year,
-                      date.month,
-                      date.day,
-                      23,
-                      59,
-                      59,
-                    );
-                  });
-                  print('📅 [종일] 종료 날짜: $_selectedEndDate');
-                },
-              )
-            else
-              _TimeDatePicker(
-                selectedDate: widget.selectedDate,
-                onStartDateTimeSelected: (dateTime) {
-                  setState(() {
-                    _selectedStartDate = dateTime;
-                  });
-                  print('📅 [시간별] 시작: $_selectedStartDate');
-                },
-                onEndDateTimeSelected: (dateTime) {
-                  setState(() {
-                    _selectedEndDate = dateTime;
-                  });
-                  print('📅 [시간별] 종료: $_selectedEndDate');
-                },
+            SizedBox(height: 8),
+            if (_selectedStartDate != null)
+              Text(
+                '시작: ${DateFormat('yyyy-MM-dd HH:mm').format(_selectedStartDate!)}',
+                style: TextStyle(color: Colors.white70),
               ),
-
+            if (_selectedEndDate != null)
+              Text(
+                '종료: ${DateFormat('yyyy-MM-dd HH:mm').format(_selectedEndDate!)}',
+                style: TextStyle(color: Colors.white70),
+              ),
             SizedBox(height: 8),
             Consumer<BottomSheetController>(
               builder: (context, controller, child) => _Category(
                 selectedColor: controller.selectedColor,
                 onTap: (String color) {
-                  print('🎨 색상 선택됨: $color');
                   controller.updateColor(color);
-                  print('✅ 상태 업데이트 완료: selectedColor = $color');
                 },
               ),
             ),
             SizedBox(height: 8),
-            _Save(),
+            ElevatedButton(
+              onPressed: () {
+                // TODO: 저장 로직 구현
+                Navigator.pop(context);
+              },
+              child: Text('저장'),
+            ),
           ],
         ),
       ),
@@ -1238,386 +1108,22 @@ class _Category extends StatelessWidget {
           child: GestureDetector(
             onTap: () {
               // 3. 색상을 클릭하면 문자열로 변환된 색상 이름을 전달한다
-              print('👆 색상 클릭: $colorName (원본: $color)'); // 디버깅: 클릭된 색상 정보 출력
-              onTap(colorName); // 'red', 'blue' 같은 문자열을 전달한다
+              onTap(colorName);
             },
-
             child: Container(
-              padding: EdgeInsets.all(4),
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
-                color: color, // 실제 Color 객체로 색상을 표시한다
+                color: color,
                 shape: BoxShape.circle,
-                border: Border.all(
-                  // 4. 선택된 색상이면 테두리를 표시하고, 아니면 투명하게 한다
-                  color: isSelected ? gray1000 : Colors.transparent,
-                  width: 2,
-                ),
+                border: isSelected
+                    ? Border.all(color: Colors.white, width: 2)
+                    : null,
               ),
-              width: 24,
-              height: 24,
             ),
           ),
         );
       }).toList(),
-    );
-  }
-}
-
-// ⭐️ 종일 날짜 피커 위젯
-// 이거를 설정하고 → CupertinoDatePicker를 date 모드로 표시해서
-// 이거를 해서 → 애플 스타일 스크롤 휠로 (연도)-월-일 선택하고
-// 이거는 이래서 → 종일 일정은 00:00:00 ~ 23:59:59로 저장된다
-class _AllDayDatePicker extends StatelessWidget {
-  final DateTime selectedDate;
-  final Function(DateTime) onStartDateSelected;
-  final Function(DateTime) onEndDateSelected;
-
-  const _AllDayDatePicker({
-    required this.selectedDate,
-    required this.onStartDateSelected,
-    required this.onEndDateSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _DatePickerField(
-          label: '시작 날짜',
-          selectedDate: selectedDate,
-          onDateSelected: onStartDateSelected,
-        ),
-        SizedBox(height: 8),
-        _DatePickerField(
-          label: '종료 날짜',
-          selectedDate: selectedDate,
-          onDateSelected: onEndDateSelected,
-        ),
-      ],
-    );
-  }
-}
-
-// ⭐️ 시간별 날짜/시간 피커 위젯
-// 이거를 설정하고 → CupertinoDatePicker를 dateAndTime 모드로 표시해서
-// 이거를 해서 → (연-월-일)-시간-분을 15분 단위로 선택하고
-// 이거는 이래서 → 정확한 DateTime 객체로 DB에 저장된다
-class _TimeDatePicker extends StatelessWidget {
-  final DateTime selectedDate;
-  final Function(DateTime) onStartDateTimeSelected;
-  final Function(DateTime) onEndDateTimeSelected;
-
-  const _TimeDatePicker({
-    required this.selectedDate,
-    required this.onStartDateTimeSelected,
-    required this.onEndDateTimeSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _DateTimePickerField(
-          label: '시작',
-          selectedDateTime: selectedDate,
-          onDateTimeSelected: onStartDateTimeSelected,
-        ),
-        SizedBox(height: 8),
-        _DateTimePickerField(
-          label: '종료',
-          selectedDateTime: selectedDate.add(Duration(hours: 1)),
-          onDateTimeSelected: onEndDateTimeSelected,
-        ),
-      ],
-    );
-  }
-}
-
-// 날짜 선택 필드 (종일용)
-class _DatePickerField extends StatefulWidget {
-  final String label;
-  final DateTime selectedDate;
-  final Function(DateTime) onDateSelected;
-
-  const _DatePickerField({
-    required this.label,
-    required this.selectedDate,
-    required this.onDateSelected,
-  });
-
-  @override
-  State<_DatePickerField> createState() => _DatePickerFieldState();
-}
-
-class _DatePickerFieldState extends State<_DatePickerField> {
-  late DateTime _tempDate;
-
-  @override
-  void initState() {
-    super.initState();
-    _tempDate = widget.selectedDate;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _showDatePicker(context),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-        decoration: BoxDecoration(
-          color: gray050,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: gray300),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.label,
-                  style: TextStyle(fontSize: 12, color: gray600),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  '${_tempDate.year}년 ${_tempDate.month}월 ${_tempDate.day}일',
-                  style: TextStyle(fontSize: 16, color: gray1000),
-                ),
-              ],
-            ),
-            Icon(Icons.calendar_today, color: gray600),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showDatePicker(BuildContext context) {
-    DateTime tempSelectedDate = _tempDate;
-
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => Container(
-        height: 300,
-        color: Colors.white,
-        child: Column(
-          children: [
-            // 헤더
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: gray100,
-                border: Border(bottom: BorderSide(color: gray300)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () {
-                      print('❌ [피커] 날짜 선택 취소');
-                      Navigator.pop(context);
-                    },
-                    child: Text('취소', style: TextStyle(color: Colors.blue)),
-                  ),
-                  Text(
-                    widget.label,
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () {
-                      setState(() {
-                        _tempDate = tempSelectedDate;
-                      });
-                      widget.onDateSelected(tempSelectedDate);
-                      print('📅 [피커] 날짜 선택 완료: $tempSelectedDate');
-                      Navigator.pop(context);
-                    },
-                    child: Text(
-                      '완료',
-                      style: TextStyle(
-                        color: Colors.blue,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // 피커
-            Expanded(
-              child: CupertinoDatePicker(
-                mode: CupertinoDatePickerMode.date,
-                initialDateTime: _tempDate,
-                onDateTimeChanged: (date) {
-                  tempSelectedDate = date;
-                  print('📅 [피커] 날짜 변경: $date');
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// 날짜+시간 선택 필드 (시간별용)
-class _DateTimePickerField extends StatefulWidget {
-  final String label;
-  final DateTime selectedDateTime;
-  final Function(DateTime) onDateTimeSelected;
-
-  const _DateTimePickerField({
-    required this.label,
-    required this.selectedDateTime,
-    required this.onDateTimeSelected,
-  });
-
-  @override
-  State<_DateTimePickerField> createState() => _DateTimePickerFieldState();
-}
-
-class _DateTimePickerFieldState extends State<_DateTimePickerField> {
-  late DateTime _tempDateTime;
-
-  @override
-  void initState() {
-    super.initState();
-    _tempDateTime = widget.selectedDateTime;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _showDateTimePicker(context),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-        decoration: BoxDecoration(
-          color: gray050,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: gray300),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.label,
-                  style: TextStyle(fontSize: 12, color: gray600),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  '${_tempDateTime.year}년 ${_tempDateTime.month}월 ${_tempDateTime.day}일 ${_tempDateTime.hour.toString().padLeft(2, '0')}:${_tempDateTime.minute.toString().padLeft(2, '0')}',
-                  style: TextStyle(fontSize: 16, color: gray1000),
-                ),
-              ],
-            ),
-            Icon(Icons.access_time, color: gray600),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showDateTimePicker(BuildContext context) {
-    DateTime tempSelectedDateTime = _tempDateTime;
-
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => Container(
-        height: 300,
-        color: Colors.white,
-        child: Column(
-          children: [
-            // 헤더
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: gray100,
-                border: Border(bottom: BorderSide(color: gray300)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () {
-                      print('❌ [피커] 날짜/시간 선택 취소');
-                      Navigator.pop(context);
-                    },
-                    child: Text('취소', style: TextStyle(color: Colors.blue)),
-                  ),
-                  Text(
-                    widget.label,
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () {
-                      setState(() {
-                        _tempDateTime = tempSelectedDateTime;
-                      });
-                      widget.onDateTimeSelected(tempSelectedDateTime);
-                      print('📅 [피커] 날짜/시간 선택 완료: $tempSelectedDateTime');
-                      Navigator.pop(context);
-                    },
-                    child: Text(
-                      '완료',
-                      style: TextStyle(
-                        color: Colors.blue,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // 피커 (15분 단위)
-            Expanded(
-              child: CupertinoDatePicker(
-                mode: CupertinoDatePickerMode.dateAndTime,
-                initialDateTime: _tempDateTime,
-                minuteInterval: 15, // ⭐️ 15분 단위
-                onDateTimeChanged: (dateTime) {
-                  tempSelectedDateTime = dateTime;
-                  print('📅 [피커] 날짜+시간 변경: $dateTime');
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Save extends StatelessWidget {
-  const _Save();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton(
-            onPressed: () {
-              // 부모 위젯의 상태에 접근해서 폼 검증과 저장을 실행한다
-              final parentState = context
-                  .findAncestorStateOfType<_CreateEntryBottomSheetState>();
-              if (parentState != null) {
-                parentState._saveSchedule(context); // 폼 검증과 스케줄 저장을 실행한다
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: gray1000),
-            child: Text('저장하기', style: TextStyle(color: gray050)),
-          ),
-        ),
-      ],
     );
   }
 }

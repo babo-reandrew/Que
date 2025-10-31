@@ -107,24 +107,15 @@ class SlidableHabitCard extends StatelessWidget {
                       context,
                       onDeleteThis: () async {
                         confirmed = true;
-                        print(
-                          '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 이 습관만 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                        );
                         await onDelete();
                       },
                       onDeleteFuture: () async {
                         confirmed = true;
-                        print(
-                          '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 이후 습관 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                        );
                         // TODO: DB에 이후 삭제 함수 추가 필요
                         await onDelete();
                       },
                       onDeleteAll: () async {
                         confirmed = true;
-                        print(
-                          '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 전체 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                        );
                         await onDelete();
                       },
                     );
@@ -133,9 +124,6 @@ class SlidableHabitCard extends StatelessWidget {
                       context,
                       onDelete: () async {
                         confirmed = true;
-                        print(
-                          '🗑️ [SlidableHabit] 습관 ID=$habitId 삭제 스와이프 확인됨 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                        );
                         await onDelete();
                       },
                     );
@@ -151,9 +139,6 @@ class SlidableHabitCard extends StatelessWidget {
 
           onDismissed: () {
             // confirmDismiss에서 이미 삭제 처리됨
-            print(
-              '🗑️ [SlidableHabit] 습관 ID=$habitId 삭제 스와이프 완료 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-            );
           },
         ),
 
@@ -174,24 +159,15 @@ class SlidableHabitCard extends StatelessWidget {
                     context,
                     onDeleteThis: () async {
                       await HapticFeedback.mediumImpact();
-                      print(
-                        '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 이 습관만 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                      );
                       await onDelete();
                     },
                     onDeleteFuture: () async {
                       await HapticFeedback.mediumImpact();
-                      print(
-                        '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 이후 습관 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                      );
                       // TODO: DB에 이후 삭제 함수 추가 필요
                       await onDelete();
                     },
                     onDeleteAll: () async {
                       await HapticFeedback.mediumImpact();
-                      print(
-                        '🗑️ [SlidableHabit] 반복 습관 ID=$habitId 전체 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                      );
                       await onDelete();
                     },
                   );
@@ -200,18 +176,12 @@ class SlidableHabitCard extends StatelessWidget {
                     context,
                     onDelete: () async {
                       await HapticFeedback.mediumImpact();
-                      print(
-                        '🗑️ [SlidableHabit] 습관 ID=$habitId 삭제 확인됨 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                      );
                       await onDelete();
                     },
                   );
                 }
               } else {
                 await HapticFeedback.mediumImpact();
-                print(
-                  '🗑️ [SlidableHabit] 습관 ID=$habitId 삭제 버튼 클릭 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                );
                 await onDelete();
               }
             },
@@ -272,15 +242,9 @@ class SlidableHabitCard extends StatelessWidget {
           onDismissed: () async {
             // 1. 햅틱 피드백 (iOS 네이티브 스타일)
             await HapticFeedback.mediumImpact();
-            print(
-              '✅ [SlidableHabit] 습관 ID=$habitId 완료 스와이프 감지 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-            );
 
             // 2. 완료 액션 실행
             await onComplete();
-            print(
-              '✅ [SlidableHabit] 습관 ID=$habitId 완료 처리 완료 - DB 업데이트 및 이벤트 로그 기록됨',
-            );
           },
         ),
 
@@ -289,9 +253,6 @@ class SlidableHabitCard extends StatelessWidget {
           CustomSlidableAction(
             onPressed: (context) async {
               await HapticFeedback.lightImpact();
-              print(
-                '✅ [SlidableHabit] 습관 ID=$habitId 완료 버튼 클릭 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-              );
               await onComplete();
             },
             autoClose: true,

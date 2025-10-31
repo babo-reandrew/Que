@@ -61,14 +61,6 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
   @override
   void initState() {
     super.initState();
-    print('');
-    print('╔═══════════════════════════════════════════════════════════════╗');
-    print('║  🚀 [LIFECYCLE] TaskInboxBottomSheet.initState()             ║');
-    print('╚═══════════════════════════════════════════════════════════════╝');
-    print('📊 isDraggingFromParent: ${widget.isDraggingFromParent}');
-    print('🎯 onClose callback: ${widget.onClose != null}');
-    print('🎯 onDragStart callback: ${widget.onDragStart != null}');
-    print('🎯 onDragEnd callback: ${widget.onDragEnd != null}');
     // ✅ 필터 버튼 fade-in 애니메이션
     _filterAnimationController = AnimationController(
       vsync: this,
@@ -83,12 +75,9 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
     // Hero 애니메이션 완료 후 필터 버튼 표시
     Future.delayed(const Duration(milliseconds: 300), () {
       if (mounted) {
-        print('✅ [TaskInboxBottomSheet] 필터 애니메이션 시작 (300ms 후)');
         _filterAnimationController.forward();
       }
     });
-    print('✅ [LIFECYCLE] TaskInboxBottomSheet.initState 완료');
-    print('');
   }
 
   @override
@@ -96,20 +85,9 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
     super.didUpdateWidget(oldWidget);
     // 🔥 드래그 상태 변경 감지하여 즉시 반영
     if (oldWidget.isDraggingFromParent != widget.isDraggingFromParent) {
-      print('');
-      print(
-        '╔═══════════════════════════════════════════════════════════════╗',
-      );
-      print('║  🔄 [LIFECYCLE] didUpdateWidget - isDragging 변경          ║');
-      print(
-        '╚═══════════════════════════════════════════════════════════════╝',
-      );
-      print('📊 이전: ${oldWidget.isDraggingFromParent}');
-      print('📊 현재: ${widget.isDraggingFromParent}');
 
       // 🎯 드래그 시작 시 바텀시트를 즉시 최소 높이(0.16)로 축소
       if (!oldWidget.isDraggingFromParent && widget.isDraggingFromParent) {
-        print('🔥 [SHEET] 드래그 시작 감지 → 바텀시트를 최소 높이로 축소');
         // 🎯 현재 높이를 저장 (픽셀 값 사용)
         final currentExtent = _sheetController.value.maybePixels;
         if (currentExtent != null && mounted) {
@@ -120,10 +98,8 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
             // 이렇게 하면 바텀시트가 최소 높이로 유지되는 문제를 방지
             if (currentHeightRatio > 0.16) {
               _previousSheetHeight = currentHeightRatio;
-              print('💾 [SHEET] 현재 높이 저장: ${(_previousSheetHeight! * 100).toStringAsFixed(0)}%');
             } else {
               _previousSheetHeight = 0.45;
-              print('💾 [SHEET] 현재 높이가 최소값이므로 기본값(45%)로 설정');
             }
           }
         }
@@ -136,16 +112,13 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
       }
       // 🎯 드래그 종료 시 이전 높이로 복원
       else if (oldWidget.isDraggingFromParent && !widget.isDraggingFromParent) {
-        print('🔥 [SHEET] 드래그 종료 감지 → 이전 높이로 복원');
         if (_previousSheetHeight != null) {
-          print('💾 [SHEET] 복원할 높이: ${(_previousSheetHeight! * 100).toStringAsFixed(0)}%');
           _sheetController.animateTo(
             Extent.proportional(_previousSheetHeight!),
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOutCubic,
           );
         } else {
-          print('⚠️ [SHEET] 저장된 높이 없음 - 기본값 0.45로 복원');
           _sheetController.animateTo(
             const Extent.proportional(0.45),
             duration: const Duration(milliseconds: 300),
@@ -153,32 +126,18 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
           );
         }
       }
-      print('');
       // setState 없이도 AnimatedOpacity가 자동으로 감지
     }
   }
 
   @override
   void dispose() {
-    print('');
-    print('╔═══════════════════════════════════════════════════════════════╗');
-    print('║  🗑️ [LIFECYCLE] TaskInboxBottomSheet.dispose()              ║');
-    print('╚═══════════════════════════════════════════════════════════════╝');
     _filterAnimationController.dispose();
-    print('✅ [LIFECYCLE] TaskInboxBottomSheet.dispose 완료');
-    print('');
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    print('');
-    print('╔═══════════════════════════════════════════════════════════════╗');
-    print('║  🏗️ [BUILD] TaskInboxBottomSheet.build()                    ║');
-    print('╚═══════════════════════════════════════════════════════════════╝');
-    print('📊 isDraggingFromParent: ${widget.isDraggingFromParent}');
-    print('🎯 _selectedFilter: $_selectedFilter');
-    print('🤖 _isAIEnabled: $_isAIEnabled');
     final safeAreaTop = MediaQuery.of(context).padding.top;
     final screenHeight = MediaQuery.of(context).size.height;
     final maxHeight = (screenHeight - safeAreaTop - 8) / screenHeight;
@@ -457,23 +416,11 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
         return Listener(
           onPointerUp: (event) {
             // 🔥 손을 떼면 무조건 바텀시트 복구
-            print('');
-            print(
-              '╔═══════════════════════════════════════════════════════════════╗',
-            );
-            print('║  🖐️ [BACKUP] 리스트 전체에서 포인터 업 감지 (백업)       ║');
-            print(
-              '╚═══════════════════════════════════════════════════════════════╝',
-            );
-            print('⏰ 시각: ${DateTime.now()}');
-            print('🔄 바텀시트 복구 시작 (100ms 딜레이)...');
             Future.delayed(const Duration(milliseconds: 100), () {
               if (mounted) {
-                print('✅ onDragEnd 콜백 호출 (백업)');
                 widget.onDragEnd?.call();
               }
             });
-            print('');
           },
           child: ReorderableListView.builder(
             padding: const EdgeInsets.only(
@@ -497,7 +444,6 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
             },
             onReorder: (oldIndex, newIndex) {
               // ✅ 리스트 재정렬 로직
-              print('🔄 [TaskInbox] 재정렬: $oldIndex → $newIndex');
               HapticFeedback.mediumImpact();
 
               // 🎯 filteredTasks의 순서를 재정렬
@@ -583,47 +529,21 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
         child: taskCard,
       ),
       onDragStarted: () {
-        print('');
-        print(
-          '╔═══════════════════════════════════════════════════════════════╗',
-        );
-        print('║  🎯 [DRAG START] 드래그 시작                                ║');
-        print(
-          '╚═══════════════════════════════════════════════════════════════╝',
-        );
-        print('📋 Task: ${task.title} (id=${task.id})');
-        print('⏰ 시각: ${DateTime.now()}');
-        print('🔒 인박스 모드: ${widget.isInboxMode}');
         HapticFeedback.mediumImpact();
 
         // 🔥 부모에게 드래그 시작 알림
         widget.onDragStart?.call();
-        print('✅ onDragStart 콜백 호출 완료');
-        print('');
       },
       onDragEnd: (details) {
-        print('');
-        print(
-          '╔═══════════════════════════════════════════════════════════════╗',
-        );
-        print('║  🎯 [DRAG END] 드래그 종료                                  ║');
-        print(
-          '╚═══════════════════════════════════════════════════════════════╝',
-        );
-        print('📋 Task: ${task.title}');
-        print('✅ wasAccepted: ${details.wasAccepted}');
 
         // 🔥 부모에게 드래그 종료 알림
         widget.onDragEnd?.call();
 
         if (details.wasAccepted) {
-          print('✅ [TaskInbox] 드롭 성공');
           HapticFeedback.heavyImpact(); // ✅ 강한 진동
         } else {
-          print('❌ [TaskInbox] 드롭 실패');
           HapticFeedback.lightImpact(); // ✅ 약한 진동
         }
-        print('');
       },
       child: taskCard,
     );
@@ -637,25 +557,11 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
       repeatRule: task.repeatRule, // 🔄 반복 규칙 전달
       showConfirmDialog: true, // ✅ Inbox에서도 삭제 확인 모달 표시
       onTap: () {
-        print('');
-        print(
-          '╔═══════════════════════════════════════════════════════════════╗',
-        );
-        print('║  📝 [TASK DETAIL] Task 카드 탭 - Wolt Modal 열기            ║');
-        print(
-          '╚═══════════════════════════════════════════════════════════════╝',
-        );
-        print('📋 Task ID: ${task.id}');
-        print('📝 Task Title: ${task.title}');
-        print('⏰ 현재 시각: ${DateTime.now()}');
-        print('🔓 Modal 열기 시작...');
         showTaskDetailWoltModal(
           context,
           task: task,
           selectedDate: DateTime.now(),
         );
-        print('✅ showTaskDetailWoltModal 호출 완료');
-        print('');
       },
       onComplete: () async =>
           await GetIt.I<AppDatabase>().completeTask(task.id),
@@ -760,38 +666,22 @@ class _TaskInboxBottomSheetState extends State<TaskInboxBottomSheet>
   Widget _buildFilterButton(String label, IconData icon, bool isSelected) {
     return _TossButton(
       onTap: () {
-        print('');
-        print(
-          '╔═══════════════════════════════════════════════════════════════╗',
-        );
-        print('║  🔘 [FILTER] 필터 버튼 클릭                                 ║');
-        print(
-          '╚═══════════════════════════════════════════════════════════════╝',
-        );
-        print('⏰ 클릭 전 필터: $_selectedFilter');
-        print('🔘 클릭한 필터: $label');
         setState(() => _selectedFilter = label);
-        print('⏰ setState 후 필터: $_selectedFilter');
 
         // 🎯 필터 버튼 클릭 시 바텀시트가 최소 높이(16%)면 중간 높이(45%)로 이동
         final currentExtent = _sheetController.value.maybePixels;
         final screenHeight = MediaQuery.of(context).size.height;
         final minHeight = screenHeight * 0.16;
 
-        print('📊 현재 Sheet Extent: $currentExtent px');
-        print('📊 최소 높이: $minHeight px (16%)');
 
         if (currentExtent != null && currentExtent <= minHeight + 10) {
-          print('🔼 Sheet 확장 시작: 16% → 45%');
           _sheetController.animateTo(
             const Extent.proportional(0.45),
             duration: const Duration(milliseconds: 400),
             curve: Curves.easeOutCubic,
           );
         } else {
-          print('ℹ️ Sheet 이미 확장되어 있음 - 애니메이션 스킵');
         }
-        print('');
       },
       child: Container(
         width: 80,

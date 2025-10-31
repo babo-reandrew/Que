@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // ✅ TextInputFormatter
 import 'package:provider/provider.dart';
 import 'package:drift/drift.dart' hide Column; // ✅ Column 충돌 방지
 import 'package:get_it/get_it.dart'; // ✅ GetIt import
@@ -562,9 +563,18 @@ Widget _buildTextField(BuildContext context) {
           isDense: true,
           contentPadding: EdgeInsets.zero, // 내부 여백 제거
         ),
-        keyboardType: TextInputType.multiline, // ✅ 개행 지원 키보드
-        textInputAction: TextInputAction.newline, // ✅ 완료 대신 개행 버튼
-        maxLines: null, // ✅ 여러 줄 입력 가능
+        minLines: 1, // ✅ 최소 1행
+        maxLines: 2, // ✅ 최대 2행까지 입력 가능
+        inputFormatters: [
+          // ✅ 개행 문자를 1개로 제한 (2행까지만 가능)
+          TextInputFormatter.withFunction((oldValue, newValue) {
+            final newLineCount = '\n'.allMatches(newValue.text).length;
+            if (newLineCount > 1) {
+              return oldValue;
+            }
+            return newValue;
+          }),
+        ],
       ),
     ),
   );

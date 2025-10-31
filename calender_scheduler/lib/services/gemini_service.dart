@@ -37,7 +37,6 @@ class GeminiService {
         maxOutputTokens: 8192,
       ),
     );
-    print('🤖 [GeminiService] 초기화 완료: gemini-2.0-flash-exp');
   }
 
   /// 이미지를 분석하여 일정/할일/습관 추출
@@ -48,7 +47,6 @@ class GeminiService {
   Future<Map<String, dynamic>> analyzeImage({
     required Uint8List imageBytes,
   }) async {
-    print('📤 [GeminiService] 이미지 분석 시작... (크기: ${imageBytes.length} bytes)');
 
     return await _executeWithRetry(() async {
       try {
@@ -61,7 +59,6 @@ class GeminiService {
         ];
 
         // 2. Gemini API 호출
-        print('🔄 [GeminiService] Gemini API 호출 중...');
         final response = await _model.generateContent(content);
 
         // 3. 응답 확인
@@ -69,23 +66,12 @@ class GeminiService {
           throw GeminiException('Gemini API 응답이 비어있습니다');
         }
 
-        print('✅ [GeminiService] API 응답 수신 성공');
-        print('📄 [GeminiService] 응답 길이: ${response.text!.length} characters');
 
         // 4. JSON 파싱
         final jsonResponse = _parseJsonResponse(response.text!);
-        print('✅ [GeminiService] JSON 파싱 완료');
-        print('📊 [GeminiService] 추출 결과:');
-        print('   - 일정: ${jsonResponse['schedules']?.length ?? 0}개');
-        print('   - 할 일: ${jsonResponse['tasks']?.length ?? 0}개');
-        print('   - 습관: ${jsonResponse['habits']?.length ?? 0}개');
-        print(
-          '   - 관련 없는 이미지: ${jsonResponse['irrelevant_image_count'] ?? 0}개',
-        );
 
         return jsonResponse;
       } catch (e) {
-        print('❌ [GeminiService] 오류 발생: $e');
         throw GeminiException('이미지 분석 실패: $e');
       }
     });
@@ -95,56 +81,37 @@ class GeminiService {
   ///
   /// Gemini가 ```json ... ``` 형식으로 반환하는 경우 처리
   Map<String, dynamic> _parseJsonResponse(String responseText) {
-    print('🔍 [GeminiService] JSON 파싱 시작...');
-    print('📝 [GeminiService] 원본 응답 길이: ${responseText.length} characters');
 
     String jsonStr = responseText.trim();
 
     // 마크다운 코드 블록 제거
     if (jsonStr.startsWith('```json')) {
-      print('🔧 [GeminiService] 마크다운 코드 블록(```json) 감지 - 제거 중...');
       jsonStr = jsonStr.substring(7); // ```json 제거
     } else if (jsonStr.startsWith('```')) {
-      print('🔧 [GeminiService] 마크다운 코드 블록(```) 감지 - 제거 중...');
       jsonStr = jsonStr.substring(3); // ``` 제거
     }
 
     if (jsonStr.endsWith('```')) {
-      print('🔧 [GeminiService] 마크다운 코드 블록 종료(```) 감지 - 제거 중...');
       jsonStr = jsonStr.substring(0, jsonStr.length - 3); // ``` 제거
     }
 
     jsonStr = jsonStr.trim();
-    print('✂️ [GeminiService] 정제된 JSON 길이: ${jsonStr.length} characters');
 
     try {
-      print('🔄 [GeminiService] JSON.decode() 실행 중...');
       final parsed = json.decode(jsonStr) as Map<String, dynamic>;
-      print('✅ [GeminiService] JSON 파싱 성공!');
 
       // 필수 키 확인
-      print('🔍 [GeminiService] 필수 키 검증 중...');
       final hasSchedules = parsed.containsKey('schedules');
       final hasTasks = parsed.containsKey('tasks');
       final hasHabits = parsed.containsKey('habits');
 
-      print('   - schedules 존재: $hasSchedules');
-      print('   - tasks 존재: $hasTasks');
-      print('   - habits 존재: $hasHabits');
 
       if (!hasSchedules || !hasTasks || !hasHabits) {
         throw GeminiException('응답에 필수 키가 없습니다: schedules, tasks, habits');
       }
 
-      print('✅ [GeminiService] 필수 키 검증 완료');
       return parsed;
     } catch (e) {
-      print('═══════════════════════════════════════');
-      print('❌ [GeminiService] JSON 파싱 실패');
-      print('오류: $e');
-      print('정제된 JSON (첫 500자):');
-      print(jsonStr.length > 500 ? '${jsonStr.substring(0, 500)}...' : jsonStr);
-      print('═══════════════════════════════════════');
       throw GeminiException('JSON 파싱 실패: $e');
     }
   }
@@ -154,30 +121,22 @@ class GeminiService {
   /// Exponential Backoff with Jitter 전략 사용
   /// - 429 (Rate Limit), 503 (Overloaded) 등 일시적 오류만 재시도
   Future<T> _executeWithRetry<T>(Future<T> Function() operation) async {
-    print('🔁 [GeminiService] 재시도 로직 시작 (최대 $maxRetries회)');
 
     for (int attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        print('🎯 [GeminiService] 시도 ${attempt + 1}/$maxRetries');
         final result = await operation();
-        print('✅ [GeminiService] 작업 성공! (시도 ${attempt + 1}회)');
         return result;
       } catch (e) {
-        print('⚠️ [GeminiService] 시도 ${attempt + 1} 실패: $e');
 
         if (_isRetryable(e) && attempt < maxRetries - 1) {
           final delay = _calculateDelay(attempt);
-          print('⏳ [GeminiService] ${delay.inMilliseconds}ms 후 재시도...');
-          print('🔄 [GeminiService] 재시도 가능한 오류 감지');
           await Future.delayed(delay);
         } else {
-          print('❌ [GeminiService] 재시도 불가능하거나 최대 재시도 횟수 도달');
           rethrow;
         }
       }
     }
 
-    print('❌ [GeminiService] 모든 재시도 실패');
     throw GeminiException('최대 재시도 횟수($maxRetries)를 초과했습니다');
   }
 

@@ -52,10 +52,8 @@ class QuickAddTypeSelector extends StatelessWidget {
             isSelected: selectedType == QuickAddType.schedule,
             onTap: () {
               if (selectedType == QuickAddType.schedule) {
-                print('📅 [타입 선택] 일정 다시 터치 → 기본 상태로 복귀');
                 onTypeSelected(QuickAddType.schedule);
               } else {
-                print('📅 [타입 선택] 일정 선택됨');
                 onTypeSelected(QuickAddType.schedule);
               }
             },
@@ -67,10 +65,8 @@ class QuickAddTypeSelector extends StatelessWidget {
             isSelected: selectedType == QuickAddType.task,
             onTap: () {
               if (selectedType == QuickAddType.task) {
-                print('✅ [타입 선택] 할일 다시 터치 → 기본 상태로 복귀');
                 onTypeSelected(QuickAddType.task);
               } else {
-                print('✅ [타입 선택] 할일 선택됨');
                 onTypeSelected(QuickAddType.task);
               }
             },
@@ -82,10 +78,8 @@ class QuickAddTypeSelector extends StatelessWidget {
             isSelected: selectedType == QuickAddType.habit,
             onTap: () {
               if (selectedType == QuickAddType.habit) {
-                print('🔄 [타입 선택] 습관 다시 터치 → 기본 상태로 복귀');
                 onTypeSelected(QuickAddType.habit);
               } else {
-                print('🔄 [타입 선택] 습관 선택됨');
                 onTypeSelected(QuickAddType.habit);
               }
             },

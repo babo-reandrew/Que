@@ -79,16 +79,10 @@ class _ConditionalHeroWrapperState extends State<ConditionalHeroWrapper> {
               _isAnimating = ratio.abs() > 0.0 && ratio.abs() < 1.0;
             });
 
-            print(
-              '🔄 [ConditionalHero] ${widget.heroTag} - Slidable 상태 변경: '
-              '${wasOpen ? "열림" : "닫힘"} → ${isOpen ? "열림" : "닫힘"} '
-              '(ratio: ${ratio.toStringAsFixed(3)})',
-            );
           }
         });
       }
     } catch (e) {
-      print('⚠️ [ConditionalHero] Slidable 리스너 설정 실패: $e');
       // Slidable이 없는 경우에도 정상 작동 (Hero만 사용)
     }
   }
@@ -118,14 +112,8 @@ class _ConditionalHeroWrapperState extends State<ConditionalHeroWrapper> {
                   slidableController?.actionPaneType.value != null;
 
               if (!isReallyOpen) {
-                print(
-                  '✅ [ConditionalHero] ${widget.heroTag} - Hero 활성화 상태에서 터치 감지',
-                );
                 widget.onTap();
               } else {
-                print(
-                  '⚠️ [ConditionalHero] ${widget.heroTag} - Slidable 열려있음, 터치 무시',
-                );
               }
             },
             child: widget.child,
@@ -134,16 +122,10 @@ class _ConditionalHeroWrapperState extends State<ConditionalHeroWrapper> {
       );
     } else {
       // ❌ Hero 비활성화: Slidable이 열려있을 때
-      print(
-        '❌ [ConditionalHero] ${widget.heroTag} - Hero 비활성화 (Slidable 상태: ${_isSlidableOpen ? "열림" : "애니메이션 중"})',
-      );
 
       return GestureDetector(
         onTap: () {
           // Slidable이 열려있을 때는 터치 무시
-          print(
-            '🚫 [ConditionalHero] ${widget.heroTag} - Slidable 열림/애니메이션 중, 터치 무시',
-          );
         },
         child: widget.child,
       );

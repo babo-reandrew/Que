@@ -16,7 +16,6 @@ class RepeatRuleUtils {
     try {
       return json.decode(repeatRule) as Map<String, dynamic>;
     } catch (e) {
-      print('❌ [RepeatRule] 파싱 실패: $e');
       return null;
     }
   }

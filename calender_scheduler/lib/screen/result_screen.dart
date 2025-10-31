@@ -83,108 +83,41 @@ class ResultScreen extends StatelessWidget {
   /// 상세 결과 로그 출력
   void _printDetailedResults() {
     if (geminiResponseJson == null) {
-      print('⚠️ [ResultScreen] 응답 데이터가 없습니다');
       return;
     }
 
-    print('');
-    print('╔═══════════════════════════════════════════════════════════╗');
-    print('║          📊 GEMINI API 분석 결과 상세 보고서                ║');
-    print('╚═══════════════════════════════════════════════════════════╝');
-    print('');
 
     // 일정 (Schedules) 출력
     final schedules = geminiResponseJson?['schedules'] as List? ?? [];
-    print('📅 ===== 일정 (SCHEDULES) =====');
-    print('총 ${schedules.length}개의 일정이 추출되었습니다.');
     if (schedules.isNotEmpty) {
       for (int i = 0; i < schedules.length; i++) {
         final schedule = schedules[i];
-        print('');
-        print('  [일정 ${i + 1}]');
-        print('    제목: ${schedule['summary'] ?? '(없음)'}');
-        print('    시작: ${schedule['start'] ?? '(없음)'}');
-        print('    종료: ${schedule['end'] ?? '(없음)'}');
-        print(
-          '    설명: ${schedule['description']?.isEmpty ?? true ? '(없음)' : schedule['description']}',
-        );
-        print(
-          '    장소: ${schedule['location']?.isEmpty ?? true ? '(없음)' : schedule['location']}',
-        );
-        print('    색상: ${schedule['colorId'] ?? 'gray'}');
-        print(
-          '    반복: ${schedule['repeatRule']?.isEmpty ?? true ? '없음' : schedule['repeatRule']}',
-        );
       }
     } else {
-      print('  → 추출된 일정이 없습니다.');
     }
-    print('');
 
     // 작업 (Tasks) 출력
     final tasks = geminiResponseJson?['tasks'] as List? ?? [];
-    print('✅ ===== 작업 (TASKS) =====');
-    print('총 ${tasks.length}개의 작업이 추출되었습니다.');
     if (tasks.isNotEmpty) {
       for (int i = 0; i < tasks.length; i++) {
         final task = tasks[i];
-        print('');
-        print('  [작업 ${i + 1}]');
-        print('    제목: ${task['title'] ?? '(없음)'}');
-        print('    마감일: ${task['dueDate'] ?? '(없음)'}');
-        print('    실행일: ${task['executionDate'] ?? '(없음)'}');
-        print(
-          '    설명: ${task['description']?.isEmpty ?? true ? '(없음)' : task['description']}',
-        );
-        print(
-          '    장소: ${task['location']?.isEmpty ?? true ? '(없음)' : task['location']}',
-        );
-        print('    색상: ${task['colorId'] ?? 'gray'}');
-        print('    목록: ${task['listId'] ?? 'inbox'}');
       }
     } else {
-      print('  → 추출된 작업이 없습니다.');
     }
-    print('');
 
     // 습관 (Habits) 출력
     final habits = geminiResponseJson?['habits'] as List? ?? [];
-    print('🔁 ===== 습관 (HABITS) =====');
-    print('총 ${habits.length}개의 습관이 추출되었습니다.');
     if (habits.isNotEmpty) {
       for (int i = 0; i < habits.length; i++) {
         final habit = habits[i];
-        print('');
-        print('  [습관 ${i + 1}]');
-        print('    제목: ${habit['title'] ?? '(없음)'}');
-        print('    반복 규칙: ${habit['repeatRule'] ?? '(없음)'}');
-        print('    색상: ${habit['colorId'] ?? 'gray'}');
-        print(
-          '    설명: ${habit['description']?.isEmpty ?? true ? '(없음)' : habit['description']}',
-        );
       }
     } else {
-      print('  → 추출된 습관이 없습니다.');
     }
-    print('');
 
     // 기타 정보
     final irrelevantCount = geminiResponseJson?['irrelevant_image_count'] ?? 0;
-    print('🚫 ===== 기타 정보 =====');
-    print('관련 없는 이미지 개수: $irrelevantCount');
-    print('');
 
     // 요약
-    print('📈 ===== 요약 =====');
-    print('총 추출된 항목: ${schedules.length + tasks.length + habits.length}개');
-    print('  - 일정: ${schedules.length}개');
-    print('  - 작업: ${tasks.length}개');
-    print('  - 습관: ${habits.length}개');
-    print('');
-    print('╔═══════════════════════════════════════════════════════════╗');
-    print('║                  🎉 분석 완료!                             ║');
-    print('╚═══════════════════════════════════════════════════════════╝');
-    print('');
   }
 
   Widget _buildSectionTitle(String title) {

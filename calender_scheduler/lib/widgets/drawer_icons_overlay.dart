@@ -58,7 +58,6 @@ class _DrawerIconsOverlayState extends State<DrawerIconsOverlay>
   @override
   void initState() {
     super.initState();
-    print('🎬 [서랍 아이콘] initState 시작 (피그마 디자인)');
 
     // 메인 컨테이너 애니메이션
     _containerController = AnimationController(
@@ -112,11 +111,9 @@ class _DrawerIconsOverlayState extends State<DrawerIconsOverlay>
         .toList();
 
     _startAnimations();
-    print('✅ [서랍 아이콘] initState 완료');
   }
 
   void _startAnimations() {
-    print('🎯 [서랍 아이콘] 애니메이션 시작');
 
     // 1. 메인 컨테이너 등장
     _containerController.forward();
@@ -138,13 +135,11 @@ class _DrawerIconsOverlayState extends State<DrawerIconsOverlay>
 
   @override
   void dispose() {
-    print('🗑️ [서랍 아이콘] dispose 시작');
     _containerController.dispose();
     _addButtonController.dispose();
     for (var controller in _iconControllers) {
       controller.dispose();
     }
-    print('✅ [서랍 아이콘] dispose 완료');
     super.dispose();
   }
 
@@ -272,7 +267,6 @@ class _DrawerIconsOverlayState extends State<DrawerIconsOverlay>
     return GestureDetector(
       onTap: () {
         widget.onAddTap?.call();
-        print('➕ [서랍 아이콘] 추가 버튼 클릭');
       },
       child: Container(
         width: 64,
@@ -299,7 +293,6 @@ class _DrawerIconsOverlayState extends State<DrawerIconsOverlay>
   }
 
   void _handleIconTap(int index) {
-    print('🔘 [서랍 아이콘] 아이콘 ${index + 1} 클릭: ${_mainLabels[index]}');
 
     switch (index) {
       case 0:

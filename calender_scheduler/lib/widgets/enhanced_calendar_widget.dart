@@ -194,9 +194,6 @@ class EnhancedCalendarWidget extends StatelessWidget {
   /// 이거를 해서 → 자체적으로 watchByDay()로 DB를 조회해서
   /// 이거는 이래서 → 실시간으로 해당 날짜의 일정을 표시한다
   void _handleDateTap(BuildContext context, DateTime selectedDate) {
-    print(
-      '🗓️ [Calendar] 날짜 탭됨: ${selectedDate.toString().split(' ')[0]} → DateDetailView로 이동',
-    );
 
     // DateDetailView로 전환한다
     NavigationUtils.navigateToDateDetail(

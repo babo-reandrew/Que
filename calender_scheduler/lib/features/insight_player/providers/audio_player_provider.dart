@@ -166,7 +166,6 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       );
     } catch (e) {
       // 진행도 저장 실패는 사용자에게 보여주지 않음
-      print('⚠️ 오디오 진행도 저장 실패: $e');
     }
   }
 

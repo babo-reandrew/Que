@@ -114,7 +114,6 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
     try {
       final PermissionState ps = await PhotoManager.requestPermissionExtend();
       if (!ps.hasAccess) {
-        print('❌ [ImagePicker] 갤러리 권한 거부됨');
         if (mounted) {
           _showPermissionDialog();
           setState(() => _isLoading = false);
@@ -124,7 +123,6 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
 
       // 제한적 권한일 경우 알림
       if (ps.isAuth == false && ps.hasAccess) {
-        print('⚠️ [ImagePicker] 제한적 갤러리 권한으로 접근 중');
         if (mounted) {
           setState(() {
             _isLimitedAccess = true;
@@ -141,7 +139,6 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
             );
 
         if (albums.isEmpty) {
-          print('⚠️ [ImagePicker] 앨범이 비어있음 (제한적 권한일 수 있음)');
           if (mounted) {
             setState(() => _isLoading = false);
           }
@@ -150,9 +147,6 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
 
         _currentPath = albums.first;
         _totalCount = await _currentPath!.assetCountAsync;
-        print(
-          '✅ [ImagePicker] 총 이미지 개수: $_totalCount (제한적: $_isLimitedAccess)',
-        );
       }
 
       // 페이징 로드
@@ -161,7 +155,6 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
         size: _pageSize,
       );
 
-      print('✅ [ImagePicker] Page $_currentPage 로드: ${assets.length}개');
 
       if (!mounted) return;
 
@@ -172,7 +165,6 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
         _isLoading = false;
       });
     } catch (e) {
-      print('❌ [ImagePicker] 에러: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -613,7 +605,6 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
       );
 
       if (images.isEmpty) {
-        print('📸 [ImagePicker] 추가 이미지 선택 취소');
         return;
       }
 
@@ -624,9 +615,7 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
         }
       });
 
-      print('📸 [ImagePicker] 추가 이미지 ${images.length}개 선택됨');
     } catch (e) {
-      print('📸 [ImagePicker] 추가 이미지 선택 에러: $e');
     }
   }
 
@@ -641,7 +630,6 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
           );
 
           if (photo == null) {
-            print('📸 [Camera] 촬영 취소');
             return;
           }
 
@@ -653,9 +641,7 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
             _capturedPhotos.insert(0, picked);
           });
 
-          print('📸 [Camera] 임시 이미지 추가: ${photo.path}');
         } catch (e) {
-          print('📸 [Camera] 에러: $e');
         }
       },
       child: Container(

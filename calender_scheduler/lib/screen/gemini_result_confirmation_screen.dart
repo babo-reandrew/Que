@@ -591,7 +591,6 @@ class _GeminiResultConfirmationScreenState
             return true;
           },
           onDismissed: () {
-            print('🗑️ [GeminiConfirmation] 아이템 ID=${item.id} 삭제 완료');
           },
         ),
         children: [
@@ -599,7 +598,6 @@ class _GeminiResultConfirmationScreenState
           CustomSlidableAction(
             onPressed: (context) async {
               await HapticFeedback.mediumImpact();
-              print('🗑️ [GeminiConfirmation] 삭제 버튼 클릭');
               _deleteItem(item);
             },
             backgroundColor: Colors.transparent,
@@ -655,68 +653,44 @@ class _GeminiResultConfirmationScreenState
       // 섹션 재정렬
       _reorganizeSections();
     });
-    print('🗑️ [GeminiConfirmation] 아이템 삭제됨: ${item.type} (${item.id})');
   }
 
   /// 재정렬 핸들러
   void _handleReorder(int oldIndex, int newIndex) {
-    print('');
-    print('🔄 ===== Reorder 시작 =====');
-    print('   oldIndex: $oldIndex');
-    print('   newIndex: $newIndex');
-    print('   이동할 아이템: ${_items[oldIndex].type} (${_items[oldIndex].id})');
 
     // 섹션 헤더 정보 출력
     for (int i = 0; i < _items.length; i++) {
       if (_items[i].type == GeminiItemType.sectionHeader) {
-        print('   [섹션 헤더 위치] index=$i, title="${_items[i].sectionTitle}"');
       }
     }
 
     final targetIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
-    print('   계산된 targetIndex: $targetIndex');
 
     setState(() {
       final item = _items.removeAt(oldIndex);
-      print('   ✓ 아이템 제거 완료');
-      print('   제거 후 리스트 길이: ${_items.length}');
 
       _items.insert(targetIndex, item);
-      print('   ✓ 아이템 삽입 완료 (index: $targetIndex)');
-      print('   삽입 후 리스트 길이: ${_items.length}');
 
       // 삽입된 위치 주변 아이템 확인
-      print('   === 주변 아이템 확인 ===');
       if (targetIndex > 0) {
         final prev = _items[targetIndex - 1];
         if (prev.type == GeminiItemType.sectionHeader) {
-          print('   이전: [섹션] "${prev.sectionTitle}"');
         } else {
-          print('   이전: [${prev.type}] ${prev.id}');
         }
       } else {
-        print('   이전: (없음 - 첫 번째 아이템)');
       }
 
-      print('   현재: [${item.type}] ${item.id} ← 이동한 아이템');
 
       if (targetIndex < _items.length - 1) {
         final next = _items[targetIndex + 1];
         if (next.type == GeminiItemType.sectionHeader) {
-          print('   다음: [섹션] "${next.sectionTitle}"');
         } else {
-          print('   다음: [${next.type}] ${next.id}');
         }
       } else {
-        print('   다음: (없음 - 마지막 아이템)');
       }
-      print('   =======================');
 
       // 섹션 경계를 넘어서 이동한 경우 타입 변환
-      print('   타입 변환 체크 시작...');
       _checkAndConvertType(targetIndex);
-      print('🔄 ===== Reorder 완료 =====');
-      print('');
     });
   }
 
@@ -726,11 +700,9 @@ class _GeminiResultConfirmationScreenState
 
     final item = _items[index];
     if (item.type == GeminiItemType.sectionHeader) {
-      print('   ⏭️  섹션 헤더는 변환 안함');
       return;
     }
 
-    print('   🔍 [섹션 감지 시작] index=$index, 현재 타입=${item.type}');
 
     // ==========================================
     // 핵심: 이 아이템이 속한 섹션 찾기
@@ -748,26 +720,20 @@ class _GeminiResultConfirmationScreenState
     if (index < _items.length - 1 &&
         _items[index + 1].type == GeminiItemType.sectionHeader) {
       currentSection = _items[index + 1].sectionTitle;
-      print('   ✨ 다음이 섹션 헤더! → "$currentSection" (index=${index + 1})');
-      print('   → 이 섹션에 속하는 것으로 판단!');
     }
     // 우선순위 2: 위쪽으로 올라가면서 섹션 헤더 찾기
     else {
       for (int i = index - 1; i >= 0; i--) {
         if (_items[i].type == GeminiItemType.sectionHeader) {
           currentSection = _items[i].sectionTitle;
-          print('   ✓ 발견! 위쪽 섹션 헤더: "$currentSection" (index=$i)');
           break;
         }
       }
 
       // 우선순위 3: 위쪽에 섹션이 없으면 아래쪽 확인
       if (currentSection == null) {
-        print('   ⚠️  위쪽에 섹션 없음! 아래쪽 확인...');
         for (int i = index + 1; i < _items.length; i++) {
           if (_items[i].type == GeminiItemType.sectionHeader) {
-            print('   ⚠️  아래쪽 섹션 발견: "${_items[i].sectionTitle}"');
-            print('   ⚠️  위쪽 섹션이 없으므로 첫 번째 섹션으로 간주');
             currentSection = _items[i].sectionTitle;
             break;
           }
@@ -778,36 +744,26 @@ class _GeminiResultConfirmationScreenState
     // 섹션에 따라 타겟 타입 결정
     if (currentSection == 'スケジュール') {
       targetType = GeminiItemType.schedule;
-      print('   → 섹션: "스케줄" → 타겟 타입: schedule');
     } else if (currentSection == 'タスク') {
       targetType = GeminiItemType.task;
-      print('   → 섹션: "태스크" → 타겟 타입: task');
     } else if (currentSection == 'ルーティン') {
       targetType = GeminiItemType.habit;
-      print('   → 섹션: "루틴" → 타겟 타입: habit');
     } else {
-      print('   ❌ 섹션을 찾을 수 없음!');
     }
 
     // 타입이 다르면 변환
     if (targetType != null && item.type != targetType) {
-      print('   🔄 [타입 변환] ${item.type} → $targetType');
       final converted = item.convertToType(targetType);
       _items[index] = GeminiItem(
         type: targetType,
         id: '${targetType.name}_${DateTime.now().millisecondsSinceEpoch}',
         data: converted,
       );
-      print('   ✅ 변환 완료!');
 
       // 🎯 변환 후 올바른 섹션으로 재배치 + 섹션 재정렬
-      print('   🎯 섹션 재정렬 시작...');
       _reorganizeSections();
-      print('   ✅ 섹션 재정렬 완료!');
     } else if (targetType == null) {
-      print('   ⚠️  targetType이 null → 변환 안함');
     } else {
-      print('   ✓ 타입 동일 → 변환 불필요 (${item.type})');
     }
   }
 
@@ -828,9 +784,6 @@ class _GeminiResultConfirmationScreenState
       }
     }
 
-    print(
-      '   분류 결과: 스케줄=${schedules.length}, 태스크=${tasks.length}, 습관=${habits.length}',
-    );
 
     // 2. 새로운 리스트 구성
     _items.clear();
@@ -860,27 +813,20 @@ class _GeminiResultConfirmationScreenState
       _items.add(GeminiItem.header('ルーティン'));
     }
 
-    print('   재정렬 후 총 아이템 수: ${_items.length}');
   }
 
   /// Provider에서 변경사항을 가져와 특정 인덱스의 아이템만 업데이트 (메모리만 업데이트, DB 저장 X)
   void _updateItemAtIndex(int index) {
-    print('');
-    print('🔄 ===== Provider 업데이트 시작 =====');
-    print('   업데이트할 인덱스: $index');
 
     if (index < 0 || index >= _items.length) {
-      print('   ❌ 유효하지 않은 인덱스!');
       return;
     }
 
     final item = _items[index];
     if (item.type == GeminiItemType.sectionHeader) {
-      print('   ⏭️  섹션 헤더는 업데이트 안함');
       return;
     }
 
-    print('   아이템 ID: ${item.id}, 타입: ${item.type}');
 
     final scheduleController = Provider.of<ScheduleFormController>(
       context,
@@ -899,8 +845,6 @@ class _GeminiResultConfirmationScreenState
       listen: false,
     );
 
-    print('   Provider 색상: ${bottomSheetController.selectedColor}');
-    print('   Provider 반복: ${bottomSheetController.repeatRule}');
 
     setState(() {
       switch (item.type) {
@@ -930,10 +874,6 @@ class _GeminiResultConfirmationScreenState
             id: item.id,
             data: updatedSchedule,
           );
-          print('   ✅ 스케줄 업데이트 완료!');
-          print('      제목: ${updatedSchedule.summary}');
-          print('      색상: ${updatedSchedule.colorId}');
-          print('      반복: ${updatedSchedule.repeatRule}');
           break;
 
         case GeminiItemType.task:
@@ -952,13 +892,6 @@ class _GeminiResultConfirmationScreenState
             id: item.id,
             data: updatedTask,
           );
-          print('   ✅ 타스크 업데이트 완료!');
-          print('      제목: ${updatedTask.title}');
-          print('      색상: ${updatedTask.colorId}');
-          print('      실행일: ${updatedTask.executionDate}');
-          print('      마감일: ${updatedTask.dueDate}');
-          print('      반복: ${updatedTask.repeatRule}');
-          print('      리마인더: ${updatedTask.reminder}');
           break;
 
         case GeminiItemType.habit:
@@ -974,11 +907,6 @@ class _GeminiResultConfirmationScreenState
             id: item.id,
             data: updatedHabit,
           );
-          print('   ✅ 습관 업데이트 완료!');
-          print('      제목: ${updatedHabit.title}');
-          print('      색상: ${updatedHabit.colorId}');
-          print('      반복: ${updatedHabit.repeatRule}');
-          print('      리마인더: ${updatedHabit.reminder}');
           break;
 
         case GeminiItemType.sectionHeader:
@@ -986,8 +914,6 @@ class _GeminiResultConfirmationScreenState
       }
     });
 
-    print('🔄 ===== Provider 업데이트 완료 =====');
-    print('');
   }
 
   /// 하단 버튼
@@ -1138,7 +1064,6 @@ class _GeminiResultConfirmationScreenState
 
       Navigator.of(context).pop(true);
     } catch (e) {
-      print('❌ 저장 오류: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('保存に失敗しました: $e'), backgroundColor: Colors.red),

@@ -239,11 +239,5 @@ class InputAccessoryHelper {
 
   /// 디버그: 5가지 Figma 상태 확인용
   static void testAllStates(BuildContext context) {
-    print('=== InputAccessory 5가지 상태 테스트 ===');
-    print('1. Anything (기본)');
-    print('2. Variant5 (버튼만)');
-    print('3. Touched_Anything (확장)');
-    print('4. Task');
-    print('5. Schedule');
   }
 }

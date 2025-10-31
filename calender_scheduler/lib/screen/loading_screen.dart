@@ -25,10 +25,6 @@ class _LoadingScreenState extends State<LoadingScreen> {
 
   /// 이미지 처리 및 Gemini API 호출
   Future<void> _processImages() async {
-    print('═══════════════════════════════════════');
-    print('🧪 [LoadingScreen] Gemini 분석 시작');
-    print('📸 [LoadingScreen] 선택된 이미지: ${widget.selectedImages.length}개');
-    print('═══════════════════════════════════════');
 
     try {
       // [1단계] 첫 번째 이미지 데이터 준비 (현재는 단일 이미지만 처리)
@@ -38,13 +34,9 @@ class _LoadingScreenState extends State<LoadingScreen> {
       if (firstImage.isAsset && firstImage.asset != null) {
         // AssetEntity → bytes
         imageBytes = await firstImage.asset!.originBytes;
-        print(
-          '✅ [LoadingScreen] Asset 이미지 변환 완료: ${imageBytes?.length ?? 0} bytes',
-        );
       } else if (firstImage.isFile && firstImage.file != null) {
         // XFile → bytes
         imageBytes = await firstImage.file!.readAsBytes();
-        print('✅ [LoadingScreen] File 이미지 변환 완료: ${imageBytes.length} bytes');
       }
 
       if (imageBytes == null) {
@@ -52,7 +44,6 @@ class _LoadingScreenState extends State<LoadingScreen> {
       }
 
       // [2단계] Gemini API 호출
-      print('📤 [LoadingScreen] Gemini API 호출 중...');
       final apiKey = dotenv.env['GEMINI_API_KEY'];
       if (apiKey == null || apiKey.isEmpty) {
         throw Exception('API 키가 설정되지 않았습니다. .env 파일을 확인해주세요.');
@@ -61,11 +52,6 @@ class _LoadingScreenState extends State<LoadingScreen> {
       final geminiService = GeminiService(apiKey: apiKey);
       final response = await geminiService.analyzeImage(imageBytes: imageBytes);
 
-      print('📥 [LoadingScreen] Gemini 응답 받음');
-      print('  - 일정: ${response['schedules']?.length ?? 0}개');
-      print('  - 작업: ${response['tasks']?.length ?? 0}개');
-      print('  - 습관: ${response['habits']?.length ?? 0}개');
-      print('  - 관련 없는 이미지: ${response['irrelevant_image_count'] ?? 0}개');
 
       // [3단계] JSON을 모델로 변환
       final schedules = (response['schedules'] as List? ?? [])
@@ -93,11 +79,6 @@ class _LoadingScreenState extends State<LoadingScreen> {
         );
       }
     } catch (e, stackTrace) {
-      print('═══════════════════════════════════════');
-      print('❌ [LoadingScreen] 오류 발생:');
-      print('Error: $e');
-      print('StackTrace: $stackTrace');
-      print('═══════════════════════════════════════');
 
       // 에러 다이얼로그 표시
       if (mounted) {

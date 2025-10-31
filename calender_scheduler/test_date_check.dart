@@ -2,13 +2,11 @@ import 'package:rrule/rrule.dart';
 
 void main() {
   // 테스트: 2025-10-24 목요일부터 시작하는 목금 반복 (실제로는 금토)
-  print('=== 원래 코드: BYDAY=FR,SA ===');
   final rruleOriginal = RecurrenceRule.fromString(
     'RRULE:FREQ=WEEKLY;WKST=MO;BYDAY=FR,SA',
   );
   testRRule(rruleOriginal, 'FREQ=WEEKLY;WKST=MO;BYDAY=FR,SA');
 
-  print('\n=== 수정된 코드: BYDAY=TH,FR (하루 앞당김) ===');
   final rruleFixed = RecurrenceRule.fromString(
     'RRULE:FREQ=WEEKLY;WKST=MO;BYDAY=TH,FR',
   );
@@ -19,9 +17,6 @@ void testRRule(RecurrenceRule rrule, String ruleString) {
   final dtstart = DateTime(2025, 10, 25); // 2025-10-25
   final dtstartUtc = dtstart.toUtc();
 
-  print('DTSTART: $dtstart (요일: ${_getWeekdayName(dtstart.weekday)})');
-  print('RRULE: $ruleString');
-  print('');
 
   // 2025-10-25 ~ 2025-11-08 범위의 인스턴스 생성
   final rangeStart = DateTime(2025, 10, 25);
@@ -36,12 +31,8 @@ void testRRule(RecurrenceRule rrule, String ruleString) {
     before: before,
   );
 
-  print('생성된 인스턴스 (${instances.length}개):');
   for (final inst in instances) {
     final local = inst.toLocal();
-    print(
-      '  ${local.toString().split(' ')[0]} (${_getWeekdayName(local.weekday)})',
-    );
   }
 }
 

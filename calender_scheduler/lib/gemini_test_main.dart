@@ -17,12 +17,7 @@ void main() async {
   // 환경 변수 로드
   try {
     await dotenv.load(fileName: '.env');
-    print('✅ [TestMain] 환경 변수 로드 완료');
-    print(
-      '✅ [TestMain] API 키 확인: ${dotenv.env['GEMINI_API_KEY']?.substring(0, 10)}...',
-    );
   } catch (e) {
-    print('❌ [TestMain] 환경 변수 로드 실패: $e');
   }
 
   runApp(const GeminiTestApp());

@@ -120,20 +120,6 @@ class Responsive {
     final size = MediaQuery.of(context).size;
     final padding = MediaQuery.of(context).padding;
 
-    print('📱 [Responsive] 화면 정보');
-    print('   → 너비: ${size.width.toStringAsFixed(1)}px');
-    print('   → 높이: ${size.height.toStringAsFixed(1)}px');
-    print('   → 너비 비율: ${getWidthRatio(context).toStringAsFixed(2)}x');
-    print('   → 높이 비율: ${getHeightRatio(context).toStringAsFixed(2)}x');
-    print('   → Safe Area (상단): ${padding.top.toStringAsFixed(1)}px');
-    print('   → Safe Area (하단): ${padding.bottom.toStringAsFixed(1)}px');
-    print(
-      '   → 기기 분류: ${isSmallScreen(context)
-          ? "작은 화면"
-          : isLargeScreen(context)
-          ? "큰 화면"
-          : "표준 화면"}',
-    );
   }
 }
 

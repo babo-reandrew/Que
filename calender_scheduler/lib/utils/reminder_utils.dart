@@ -16,7 +16,6 @@ class ReminderUtils {
     try {
       return json.decode(reminder) as Map<String, dynamic>;
     } catch (e) {
-      print('❌ [Reminder] 파싱 실패: $e');
       return null;
     }
   }

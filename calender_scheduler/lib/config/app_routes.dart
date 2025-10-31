@@ -35,11 +35,9 @@ class AppRoutes {
   /// 이거는 이래서 → Navigator.pushNamed()로 간단하게 화면 전환이 가능하다
   /// 이거라면 → 모든 화면 전환이 일관된 애니메이션으로 동작한다
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
-    print('🔀 [Routes] 라우트 요청: ${settings.name}');
 
     switch (settings.name) {
       case home:
-        print('   → HomeScreen으로 이동');
         return MaterialPageRoute(
           builder: (_) => const HomeScreen(),
           settings: settings,
@@ -52,35 +50,28 @@ class AppRoutes {
         final args = settings.arguments;
 
         if (args is DateTime) {
-          print(
-            '   → DateDetailView로 이동 (날짜: ${args.toString().split(' ')[0]})',
-          );
           // ⚠️ 이 코드는 레거시 호환성을 위해 남겨둠 (직접 호출 시)
           return MaterialPageRoute(
             builder: (_) => DateDetailView(selectedDate: args),
             settings: settings,
           );
         } else {
-          print('   ❌ DateDetailView 인자 오류: DateTime이 아님');
           return _errorRoute('날짜 정보가 올바르지 않습니다.');
         }
 
       case imageExtraction:
-        print('   → ImageExtractionScreen으로 이동');
         return MaterialPageRoute(
           builder: (_) => const ImageExtractionScreen(),
           settings: settings,
         );
 
       case geminiTest:
-        print('   → GeminiTestScreen으로 이동');
         return MaterialPageRoute(
           builder: (_) => const GeminiTestScreen(),
           settings: settings,
         );
 
       default:
-        print('   ❌ 정의되지 않은 라우트: ${settings.name}');
         return _errorRoute('존재하지 않는 화면입니다.');
     }
   }
@@ -125,7 +116,6 @@ class AppRoutes {
 
   /// HomeScreen으로 이동한다
   static Future<void> toHome(BuildContext context, {bool clearStack = false}) {
-    print('🏠 [Routes] HomeScreen으로 이동 (스택 클리어: $clearStack)');
 
     if (clearStack) {
       // 이거를 설정하고 → 네비게이션 스택을 전부 지우고
@@ -143,16 +133,12 @@ class AppRoutes {
     BuildContext context,
     DateTime selectedDate,
   ) {
-    print(
-      '📅 [Routes] DateDetailView로 이동 (날짜: ${selectedDate.toString().split(' ')[0]})',
-    );
 
     return Navigator.of(context).pushNamed(dateDetail, arguments: selectedDate);
   }
 
   /// 이전 화면으로 돌아간다
   static void goBack(BuildContext context, {dynamic result}) {
-    print('⬅️ [Routes] 이전 화면으로 돌아가기');
     Navigator.of(context).pop(result);
   }
 

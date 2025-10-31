@@ -18,7 +18,6 @@ int? _jpDayToWeekday(String jpDay) {
     case '日':
       return DateTime.sunday; // 7
     default:
-      print('⚠️ [RepeatConvert] 알 수 없는 요일: $jpDay');
       return null;
   }
 }
@@ -31,7 +30,6 @@ String? convertRepeatRuleToRRule(String? repeatRuleJson, DateTime dtstart) {
   try {
     // 새 형식: {"value":"daily:月,火,水","display":"月火\n水"}
     if (!repeatRuleJson.contains('"value":"')) {
-      print('⚠️ [RepeatConvert] 알 수 없는 형식: $repeatRuleJson');
       return null;
     }
 
@@ -39,22 +37,18 @@ String? convertRepeatRuleToRRule(String? repeatRuleJson, DateTime dtstart) {
     final endIndex = repeatRuleJson.indexOf('"', startIndex);
     final value = repeatRuleJson.substring(startIndex, endIndex);
 
-    print('🔍 [RepeatConvert] value 추출: $value');
 
     // daily: 요일 기반 반복
     if (value.startsWith('daily:')) {
       final daysStr = value.substring(6); // "月,火,水"
       final days = daysStr.split(',');
 
-      print('🔍 [RepeatConvert] days split: $days');
 
       // 일본어 요일 → DateTime.weekday
       final weekdays = days.map(_jpDayToWeekday).whereType<int>().toList();
 
-      print('🔍 [RepeatConvert] weekdays 변환: $weekdays');
 
       if (weekdays.isEmpty) {
-        print('⚠️ [RepeatConvert] 유효한 요일 없음');
         return null;
       }
 
@@ -67,66 +61,48 @@ String? convertRepeatRuleToRRule(String? repeatRuleJson, DateTime dtstart) {
       final rruleString = rrule.toString();
       final result = rruleString.replaceFirst('RRULE:', '');
 
-      print('✅ [RepeatConvert] RRULE 생성: $result');
       return result;
     }
 
     return null;
   } catch (e) {
-    print('❌ [RepeatConvert] 에러: $e');
     return null;
   }
 }
 
 void main() {
-  print('=== 토요일만 선택 테스트 ===\n');
 
   // 사용자가 UI에서 토요일만 선택했을 때 저장되는 JSON
   final saturdayJson = '{"value":"daily:土","display":"土"}';
-  print('입력 JSON: $saturdayJson');
 
   final dtstart = DateTime(2025, 10, 20);
   final rrule = convertRepeatRuleToRRule(saturdayJson, dtstart);
 
-  print('\n결과 RRULE: $rrule');
 
   if (rrule != null) {
     final parsed = RecurrenceRule.fromString('RRULE:$rrule');
-    print('Parsed byWeekDays: ${parsed.byWeekDays}');
 
     final instances = parsed.getInstances(start: dtstart);
-    print('\n첫 5개 발생 날짜:');
     var count = 0;
     for (final instance in instances) {
-      print(
-        '  ${instance.year}-${instance.month.toString().padLeft(2, '0')}-${instance.day.toString().padLeft(2, '0')} (${_weekdayName(instance.weekday)})',
-      );
       count++;
       if (count >= 5) break;
     }
   }
 
-  print('\n\n=== 토일 선택 테스트 ===\n');
 
   // 사용자가 UI에서 토일 선택했을 때
   final weekendJson = '{"value":"daily:土,日","display":"土日"}';
-  print('입력 JSON: $weekendJson');
 
   final rrule2 = convertRepeatRuleToRRule(weekendJson, dtstart);
 
-  print('\n결과 RRULE: $rrule2');
 
   if (rrule2 != null) {
     final parsed2 = RecurrenceRule.fromString('RRULE:$rrule2');
-    print('Parsed byWeekDays: ${parsed2.byWeekDays}');
 
     final instances2 = parsed2.getInstances(start: dtstart);
-    print('\n첫 5개 발생 날짜:');
     var count2 = 0;
     for (final instance in instances2) {
-      print(
-        '  ${instance.year}-${instance.month.toString().padLeft(2, '0')}-${instance.day.toString().padLeft(2, '0')} (${_weekdayName(instance.weekday)})',
-      );
       count2++;
       if (count2 >= 5) break;
     }

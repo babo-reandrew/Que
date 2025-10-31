@@ -100,21 +100,14 @@ class SlidableScheduleCard extends StatelessWidget {
                   context,
                   onDeleteThis: () async {
                     confirmed = true;
-                    print(
-                      '🗑️ [SlidableSchedule] 반복 일정 ID=$scheduleId 이 일정만 삭제',
-                    );
                     await onDelete();
                   },
                   onDeleteFuture: () async {
                     confirmed = true;
-                    print(
-                      '🗑️ [SlidableSchedule] 반복 일정 ID=$scheduleId 이후 일정 삭제',
-                    );
                     await onDelete();
                   },
                   onDeleteAll: () async {
                     confirmed = true;
-                    print('🗑️ [SlidableSchedule] 반복 일정 ID=$scheduleId 전체 삭제');
                     await onDelete();
                   },
                 );
@@ -123,7 +116,6 @@ class SlidableScheduleCard extends StatelessWidget {
                   context,
                   onDelete: () async {
                     confirmed = true;
-                    print('🗑️ [SlidableSchedule] 일정 ID=$scheduleId 삭제 확인됨');
                     await onDelete();
                   },
                 );
@@ -134,48 +126,28 @@ class SlidableScheduleCard extends StatelessWidget {
               return true;
             }
           },
-          onDismissed: () {
-            print('🗑️ [SlidableSchedule] 일정 ID=$scheduleId 삭제 스와이프 완료');
-          },
+          onDismissed: () {},
         ),
 
         // 슬라이드 정도에 따라 버튼 선택 가능하도록
         children: [
           CustomSlidableAction(
             onPressed: (context) async {
-              print('🔴 [DEBUG] 삭제 버튼 클릭됨!'); // 디버그 로그
-              // 삭제 버튼 클릭 시 Figma 모달 표시
               if (showConfirmDialog) {
-                // 🔄 반복 규칙이 있으면 반복 삭제 모달, 없으면 일반 삭제 모달
-                bool hasRepeat =
-                    repeatRule != null &&
-                    repeatRule!.isNotEmpty &&
-                    repeatRule != '{}' &&
-                    repeatRule != '[]';
-
-                if (hasRepeat) {
+                if (repeatRule != null) {
                   await showDeleteRepeatConfirmationModal(
                     context,
                     onDeleteThis: () async {
                       await HapticFeedback.mediumImpact();
-                      print(
-                        '🗑️ [Slidable] 반복 일정 ID=$scheduleId 이 일정만 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                      );
                       await onDelete();
                     },
                     onDeleteFuture: () async {
                       await HapticFeedback.mediumImpact();
-                      print(
-                        '🗑️ [Slidable] 반복 일정 ID=$scheduleId 이후 일정 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                      );
                       // TODO: DB에 이후 삭제 함수 추가 필요
                       await onDelete();
                     },
                     onDeleteAll: () async {
                       await HapticFeedback.mediumImpact();
-                      print(
-                        '🗑️ [Slidable] 반복 일정 ID=$scheduleId 전체 삭제 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                      );
                       await onDelete();
                     },
                   );
@@ -184,18 +156,12 @@ class SlidableScheduleCard extends StatelessWidget {
                     context,
                     onDelete: () async {
                       await HapticFeedback.mediumImpact();
-                      print(
-                        '🗑️ [Slidable] 일정 ID=$scheduleId 삭제 확인됨 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                      );
                       await onDelete();
                     },
                   );
                 }
               } else {
                 await HapticFeedback.mediumImpact();
-                print(
-                  '🗑️ [Slidable] 일정 ID=$scheduleId 삭제 버튼 클릭 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-                );
                 await onDelete();
               }
             },
@@ -273,17 +239,11 @@ class SlidableScheduleCard extends StatelessWidget {
             // 이유: 사용자에게 즉각적인 촉각 피드백 제공
             // 조건: mediumImpact는 완료 같은 중간 중요도 액션에 적합
             await HapticFeedback.mediumImpact();
-            print(
-              '✅ [Slidable] 일정 ID=$scheduleId 완료 스와이프 감지 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-            );
 
             // 2. 완료 액션 실행
             // 이유: DB에서 일정을 완료 처리하고 UI 갱신
             // 조건: onComplete 콜백이 제공되어야 함
             await onComplete();
-            print(
-              '✅ [Slidable] 일정 ID=$scheduleId 완료 처리 완료 - DB 업데이트 및 이벤트 로그 기록됨',
-            );
           },
         ),
 
@@ -293,9 +253,6 @@ class SlidableScheduleCard extends StatelessWidget {
           CustomSlidableAction(
             onPressed: (context) async {
               await HapticFeedback.lightImpact();
-              print(
-                '✅ [Slidable] 일정 ID=$scheduleId 완료 버튼 클릭 - 타임스탬프: ${DateTime.now().millisecondsSinceEpoch}',
-              );
               await onComplete();
             },
             backgroundColor: Colors.transparent, // 배경을 투명하게

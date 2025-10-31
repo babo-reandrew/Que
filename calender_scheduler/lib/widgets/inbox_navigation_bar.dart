@@ -67,9 +67,7 @@ class InboxNavigationBar extends StatelessWidget {
   Widget _buildCloseButton() {
     return GestureDetector(
       onTap: () {
-        print('⬅️ [Inbox 네비] 뒤로가기 버튼 클릭');
         onClose();
-        print('✅ [Inbox 네비] onClose 콜백 실행 완료');
       },
       child: Container(
         width: 36, // 피그마: 36×36px

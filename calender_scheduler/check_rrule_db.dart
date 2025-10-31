@@ -33,15 +33,11 @@ void main() async {
     'schedule.db'
   );
   
-  print('🔍 데이터베이스 경로: $dbPath');
   
   if (!File(dbPath).existsSync()) {
-    print('❌ 데이터베이스 파일 없음!');
-    print('\n다른 경로 시도...');
     
     // iOS Simulator 경로 찾기
     final libraryPath = path.join(home, 'Library', 'Developer', 'CoreSimulator');
-    print('Simulator 경로: $libraryPath');
     
     return;
   }
@@ -51,18 +47,11 @@ void main() async {
   try {
     final patterns = await db.select(db.recurringPatterns).get();
     
-    print('\n📊 저장된 반복 패턴:');
-    print('총 ${patterns.length}개\n');
     
     for (var pattern in patterns) {
-      print('ID: ${pattern.id}');
-      print('Schedule ID: ${pattern.scheduleId}');
-      print('RRULE: ${pattern.rrule}');
-      print('---');
     }
     
   } catch (e) {
-    print('❌ 쿼리 실패: $e');
   } finally {
     await db.close();
   }

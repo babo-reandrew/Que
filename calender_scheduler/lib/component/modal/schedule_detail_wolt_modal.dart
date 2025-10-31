@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // ✅ TextInputFormatter
 import 'package:provider/provider.dart';
 import 'package:smooth_sheets/smooth_sheets.dart';
 import 'package:drift/drift.dart' hide Column;
@@ -627,7 +628,6 @@ Widget _buildTextField(BuildContext context) {
 
   return Container(
     width: 393,
-    height: 51,
     padding: const EdgeInsets.only(
       top: 16,
       bottom: 12,
@@ -659,7 +659,18 @@ Widget _buildTextField(BuildContext context) {
           isDense: true,
           contentPadding: EdgeInsets.zero,
         ),
-        maxLines: 1,
+        minLines: 1, // ✅ 최소 1행
+        maxLines: 2, // ✅ 최대 2행까지 입력 가능
+        inputFormatters: [
+          // ✅ 개행 문자를 1개로 제한 (2행까지만 가능)
+          TextInputFormatter.withFunction((oldValue, newValue) {
+            final newLineCount = '\n'.allMatches(newValue.text).length;
+            if (newLineCount > 1) {
+              return oldValue;
+            }
+            return newValue;
+          }),
+        ],
       ),
     ),
   );

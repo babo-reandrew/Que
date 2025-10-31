@@ -56,7 +56,6 @@ class _DateTimePickerSheetState extends State<DateTimePickerSheet> {
 
     // 초기 시간 차이 계산
     _timeDifference = _endDateTime.difference(_startDateTime);
-    print('⏰ [DateTimePicker] 초기 시간 차이: ${_timeDifference?.inMinutes}분');
   }
 
   @override
@@ -283,11 +282,6 @@ class _DateTimePickerSheetState extends State<DateTimePickerSheet> {
                 // 종료 시간도 같이 이동 (시간 차이 유지)
                 if (_timeDifference != null) {
                   _endDateTime = _startDateTime.add(_timeDifference!);
-                  print('⏰ [DateTimePicker] 시작 변경 → 종료도 자동 조정');
-                  print('   시작: $oldStart → $_startDateTime');
-                  print(
-                    '   종료: $_endDateTime (차이: ${_timeDifference?.inMinutes}분 유지)',
-                  );
                 }
               } else {
                 // 종료 시간 변경
@@ -295,9 +289,6 @@ class _DateTimePickerSheetState extends State<DateTimePickerSheet> {
 
                 // 새로운 시간 차이 계산 및 저장
                 _timeDifference = _endDateTime.difference(_startDateTime);
-                print(
-                  '⏰ [DateTimePicker] 종료 변경 → 새 시간 차이 저장: ${_timeDifference?.inMinutes}분',
-                );
               }
             });
           },
