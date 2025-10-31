@@ -16,6 +16,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get_it/get_it.dart';
 import 'package:animations/animations.dart'; // ✅ OpenContainer (월뷰→디테일뷰와 동일)
+import 'package:figma_squircle/figma_squircle.dart'; // 🍎 애플 스타일 둥근 모서리
 import '../design_system/wolt_design_tokens.dart';
 import '../design_system/wolt_typography.dart';
 import '../Database/schedule_database.dart';
@@ -27,12 +28,14 @@ class DateDetailHeader extends StatefulWidget {
   final DateTime selectedDate; // 선택된 날짜
   final VoidCallback? onSettingsTap; // 설정 버튼 탭 콜백
   final Function(DateTime)? onDateChanged; // 날짜 변경 콜백
+  final VoidCallback? onPickerTap; // 날짜 피커 탭 콜백
 
   const DateDetailHeader({
     super.key,
     required this.selectedDate,
     this.onSettingsTap,
     this.onDateChanged,
+    this.onPickerTap,
   });
 
   @override
@@ -94,7 +97,7 @@ class _DateDetailHeaderState extends State<DateDetailHeader> {
             left: 0,
             top: 0,
             child: GestureDetector(
-              onTap: () => _showDatePicker(context),
+              onTap: widget.onPickerTap,
               behavior: HitTestBehavior.opaque,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -197,7 +200,7 @@ class _DateDetailHeaderState extends State<DateDetailHeader> {
         barrierColor: Colors.transparent, // 투명 배경
         barrierDismissible: true,
         pageBuilder: (context, animation, secondaryAnimation) {
-          return _DatePickerModal(
+          return DatePickerModal(
             initialDate: widget.selectedDate,
             onDateChanged: (date) {
               widget.onDateChanged!(date);
@@ -456,20 +459,23 @@ class _DateDetailHeaderState extends State<DateDetailHeader> {
 // 날짜 피커 모달 위젯
 // ========================================
 
-class _DatePickerModal extends StatefulWidget {
+class DatePickerModal extends StatefulWidget {
   final DateTime initialDate;
   final Function(DateTime) onDateChanged;
+  final VoidCallback? onClose;
 
-  const _DatePickerModal({
+  const DatePickerModal({
+    super.key,
     required this.initialDate,
     required this.onDateChanged,
+    this.onClose,
   });
 
   @override
-  State<_DatePickerModal> createState() => _DatePickerModalState();
+  State<DatePickerModal> createState() => _DatePickerModalState();
 }
 
-class _DatePickerModalState extends State<_DatePickerModal> {
+class _DatePickerModalState extends State<DatePickerModal> {
   late FixedExtentScrollController _yearController;
   late FixedExtentScrollController _monthController;
   late FixedExtentScrollController _dayController;
@@ -528,22 +534,86 @@ class _DatePickerModalState extends State<_DatePickerModal> {
     return '$month. $day. $weekday';
   }
 
+  // 오늘로 가기 버튼
+  Widget _buildTodayButton() {
+    final today = DateTime.now();
+    final isNotToday = _selectedYear != today.year ||
+        _selectedMonth != today.month ||
+        _selectedDay != today.day;
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      transitionBuilder: (child, animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: animation,
+            child: child,
+          ),
+        );
+      },
+      child: isNotToday
+          ? Material(
+              key: const ValueKey('today-button'),
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  widget.onDateChanged(today);
+                  if (widget.onClose != null) {
+                    widget.onClose!();
+                  }
+                },
+                customBorder: SmoothRectangleBorder(
+                  borderRadius: SmoothBorderRadius(
+                    cornerRadius: 12,
+                    cornerSmoothing: 0.6,
+                  ),
+                ),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: ShapeDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    shape: SmoothRectangleBorder(
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        width: 1.5,
+                      ),
+                      borderRadius: SmoothBorderRadius(
+                        cornerRadius: 12,
+                        cornerSmoothing: 0.6,
+                      ),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '${today.day}',
+                    style: const TextStyle(
+                      fontFamily: 'LINE Seed JP App_TTF',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: -0.06,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : const SizedBox(width: 36), // 빈 공간 유지
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final statusBarHeight = MediaQuery.of(context).padding.top; // 상태바 높이
 
-    return GestureDetector(
-      onTap: () => Navigator.of(context).pop(),
+    return Container(
+      width: double.infinity,
+      height: 280 + statusBarHeight, // 전체 높이 = 피커 높이 + 상태바
       child: Material(
         color: Colors.transparent,
-        child: Stack(
-          children: [
-            // 상단 드롭다운 피커
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Container(
+        child: Container(
                 padding: EdgeInsets.only(
                   top: statusBarHeight,
                 ), // 상태바 높이만큼 padding
@@ -556,43 +626,57 @@ class _DatePickerModalState extends State<_DatePickerModal> {
                   children: [
                     // 상단 날짜 헤더 (월. 일. 요일)
                     GestureDetector(
-                      onTap: () => Navigator.of(context).pop(),
+                      onTap: () {
+                        if (widget.onClose != null) {
+                          widget.onClose!();
+                        } else {
+                          Navigator.of(context).pop();
+                        }
+                      },
                       child: Container(
-                        height: 52, // 52px로 변경
+                        height: 52,
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Hero(
-                              tag:
-                                  'date-picker-header-${widget.initialDate.year}-${widget.initialDate.month}-${widget.initialDate.day}',
-                              child: Material(
-                                color: Colors.transparent,
-                                child: Text(
-                                  _formatDateHeader(),
-                                  style: const TextStyle(
-                                    fontFamily: 'LINE Seed JP App_TTF',
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                    letterSpacing: -0.41,
+                            const SizedBox(width: 36), // 왼쪽 여백
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Hero(
+                                  tag:
+                                      'date-picker-header-${widget.initialDate.year}-${widget.initialDate.month}-${widget.initialDate.day}',
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: Text(
+                                      _formatDateHeader(),
+                                      style: const TextStyle(
+                                        fontFamily: 'LINE Seed JP App_TTF',
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                        letterSpacing: -0.41,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Transform.rotate(
-                              angle: 3.14159, // 180도 회전 (up 아이콘)
-                              child: SvgPicture.asset(
-                                'asset/icon/down_icon.svg',
-                                width: 16,
-                                height: 16,
-                                colorFilter: const ColorFilter.mode(
-                                  Colors.white,
-                                  BlendMode.srcIn,
+                                const SizedBox(width: 8),
+                                Transform.rotate(
+                                  angle: 3.14159,
+                                  child: SvgPicture.asset(
+                                    'asset/icon/down_icon.svg',
+                                    width: 16,
+                                    height: 16,
+                                    colorFilter: const ColorFilter.mode(
+                                      Colors.white,
+                                      BlendMode.srcIn,
+                                    ),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
+                            // 오늘로 가기 버튼 - 조건부 표시
+                            _buildTodayButton(),
                           ],
                         ),
                       ),
@@ -603,7 +687,7 @@ class _DatePickerModalState extends State<_DatePickerModal> {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 80,
-                        ), // 좌우 여백 80px
+                        ),
                         child: Row(
                           children: [
                             // 년
@@ -757,9 +841,6 @@ class _DatePickerModalState extends State<_DatePickerModal> {
                     const SizedBox(height: 20),
                   ],
                 ),
-              ),
-            ),
-          ],
         ),
       ),
     );

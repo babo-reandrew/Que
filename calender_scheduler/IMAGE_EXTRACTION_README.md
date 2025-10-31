@@ -129,25 +129,24 @@ Drift Database 저장
       "end": "2025-10-26T16:00:00",
       "description": "",
       "location": "○○치과",
+      "colorId": "gray",
       "repeatRule": ""
     }
   ],
-  "todos": [
+  "tasks": [
     {
-      "summary": "보고서 작성",
-      "start": "2025-10-30T23:59:59",
-      "end": "2025-10-30T23:59:59",
-      "description": "분기별 실적 보고서",
-      "location": ""
+      "title": "보고서 작성",
+      "dueDate": "2025-10-30T23:59:59",
+      "executionDate": null,
+      "colorId": "gray",
+      "listId": "inbox"
     }
   ],
   "habits": [
     {
-      "summary": "아침 7시 기상",
-      "start": "2025-10-26T07:00:00",
-      "end": "2025-10-26T08:00:00",
+      "title": "아침 7시 기상",
       "repeatRule": "RRULE:FREQ=DAILY",
-      "description": ""
+      "colorId": "gray"
     }
   ]
 }
@@ -189,7 +188,7 @@ class ImageAnalysisProvider extends ChangeNotifier {
   
   // 타입별 필터링
   List<ExtractedSchedule> get schedules;
-  List<ExtractedSchedule> get todos;
+  List<ExtractedSchedule> get tasks;
   List<ExtractedSchedule> get habits;
   
   // 분석 시작

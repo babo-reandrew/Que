@@ -4,7 +4,6 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:flutter_svg/flutter_svg.dart'; // SVG 아이콘용
 import '../component/modal/delete_confirmation_modal.dart'; // 🗑️ 삭제 확인 모달 추가
 import '../component/modal/delete_repeat_confirmation_modal.dart'; // 🔄 반복 삭제 확인 모달 추가
-import '../component/toast/save_toast.dart'; // 📥 인박스 토스트 추가
 
 /// 애플 네이티브 스타일의 재사용 가능한 Slidable 할일 카드 컴포넌트
 ///
@@ -237,14 +236,6 @@ class SlidableTaskCard extends StatelessWidget {
 
                       // 인박스로 이동 (executionDate만 제거)
                       await onInbox!();
-
-                      // Slidable이 닫힌 후 토스트 표시 (300ms 대기)
-                      await Future.delayed(const Duration(milliseconds: 300));
-
-                      if (context.mounted) {
-                        showSaveToast(context, toInbox: true);
-                        print('📥 [DEBUG] 인박스 토스트 표시 완료');
-                      }
                     },
                     backgroundColor: Colors.transparent,
                     foregroundColor: const Color(0xFF566099),

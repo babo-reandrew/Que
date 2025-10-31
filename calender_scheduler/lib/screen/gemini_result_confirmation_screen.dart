@@ -94,7 +94,9 @@ class GeminiItem {
               const Duration(hours: 1),
             ),
             colorId: task.colorId,
-            repeatRule: '',
+            repeatRule: task.repeatRule, // ✅ 반복 규칙 보존
+            description: '', // ✅ description은 기본값
+            location: '', // ✅ location은 기본값
           );
         } else if (type == GeminiItemType.habit) {
           final habit = data as ExtractedHabit;
@@ -103,7 +105,9 @@ class GeminiItem {
             start: defaultTime,
             end: defaultTime.add(const Duration(hours: 1)),
             colorId: habit.colorId,
-            repeatRule: habit.repeatRule,
+            repeatRule: habit.repeatRule, // ✅ 반복 규칙 보존
+            description: '', // ✅ description은 기본값
+            location: '', // ✅ location은 기본값
           );
         }
         break;
@@ -117,6 +121,8 @@ class GeminiItem {
             executionDate: schedule.start,
             colorId: schedule.colorId,
             listId: 'inbox',
+            repeatRule: schedule.repeatRule, // ✅ 반복 규칙 보존
+            reminder: '', // ✅ 리마인더는 기본값
           );
         } else if (type == GeminiItemType.habit) {
           final habit = data as ExtractedHabit;
@@ -126,6 +132,8 @@ class GeminiItem {
             executionDate: defaultTime,
             colorId: habit.colorId,
             listId: 'inbox',
+            repeatRule: habit.repeatRule, // ✅ 반복 규칙 보존
+            reminder: habit.reminder, // ✅ 리마인더 보존
           );
         }
         break;
@@ -136,14 +144,16 @@ class GeminiItem {
           return ExtractedHabit(
             title: schedule.summary,
             colorId: schedule.colorId,
-            repeatRule: schedule.repeatRule,
+            repeatRule: schedule.repeatRule, // ✅ 반복 규칙 보존
+            reminder: '', // ✅ reminder는 기본값
           );
         } else if (type == GeminiItemType.task) {
           final task = data as ExtractedTask;
           return ExtractedHabit(
             title: task.title,
             colorId: task.colorId,
-            repeatRule: '',
+            repeatRule: task.repeatRule, // ✅ 반복 규칙 보존
+            reminder: task.reminder, // ✅ 리마인더 보존
           );
         }
         break;
@@ -264,8 +274,9 @@ class _GeminiResultConfirmationScreenState
                     // 파기 확인 모달 표시
                     final confirmed = await showDiscardChangesModal(context);
                     if (confirmed == true && mounted) {
-                      // 확인 시 화면 나가기
-                      Navigator.of(context).pop();
+                      // 확인 시 화면 나가기 - 원래 화면(월뷰/디테일뷰)으로 돌아가기
+                      // ImagePickerSmoothSheet는 이미 onClose로 닫혔으므로 한 번만 pop
+                      Navigator.of(context).pop(); // GeminiResultConfirmationScreen 닫기
                     }
                   },
                   child: Container(
@@ -1088,6 +1099,8 @@ class _GeminiResultConfirmationScreenState
                     listId: Value(task.listId),
                     dueDate: Value(task.dueDate),
                     executionDate: Value(task.executionDate),
+                    repeatRule: Value(task.repeatRule), // ✅ 반복 규칙 저장
+                    reminder: Value(task.reminder), // ✅ 리마인더 저장
                   ),
                 );
             savedCount++;
@@ -1103,6 +1116,7 @@ class _GeminiResultConfirmationScreenState
                     repeatRule: habit.repeatRule,
                     colorId: Value(habit.colorId),
                     createdAt: DateTime.now(),
+                    reminder: Value(habit.reminder), // ✅ 리마인더 저장
                   ),
                 );
             savedCount++;

@@ -175,6 +175,7 @@ Future<void> showHabitDetailWoltModal(
     barrierColor: Colors.black.withOpacity(0.3), // ✅ 약간 어둡게 (터치 감지용)
     isDismissible: false, // ✅ 기본 드래그 닫기 비활성화
     enableDrag: false, // ✅ 기본 드래그 비활성화 (수동으로 처리)
+    useRootNavigator: false, // ✅ 현재 네비게이터 사용 (부모 화면과 제스처 충돌 방지)
     builder: (sheetContext) => WillPopScope(
       onWillPop: () async {
         // ✅ 변경사항 감지

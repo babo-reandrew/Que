@@ -28,7 +28,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   DateTime focusedDay = DateTime.now(); //
   DateTime? selectedDay = DateTime(
     DateTime.now().year,
@@ -58,15 +58,31 @@ class _HomeScreenState extends State<HomeScreen> {
   // 이거는 이래서 → 순차적인 애니메이션을 만든다
   final bool _showDrawerIcons = false;
 
+  // 🗓️ 월-연도 피커 표시 상태
+  bool _showMonthYearPickerVisible = false;
+  late AnimationController _pickerAnimationController;
+
   @override
   void initState() {
     super.initState();
+    
+    // 피커 애니메이션 컨트롤러 초기화
+    _pickerAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
 
     // 🔧 dtstart 정규화 마이그레이션 (1회 실행)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _runMigration();
       _preloadKeyboard();
     });
+  }
+
+  @override
+  void dispose() {
+    _pickerAnimationController.dispose();
+    super.dispose();
   }
 
   /// 🔧 데이터베이스 마이그레이션 실행
@@ -651,6 +667,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               // 🎯 smooth_sheets 애니메이션과 함께 시트 표시
                               Navigator.of(context).push(
                                 ModalSheetRoute(
+                                  barrierColor: const Color(0xFF656565).withOpacity(0.5), // 회색 배경
+                                  transitionDuration: const Duration(milliseconds: 200), // 빠른 닫힘
                                   builder: (context) => ImagePickerSmoothSheet(
                                     onClose: () {
                                       Navigator.of(context).pop();
@@ -677,6 +695,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             },
                           ),
                         ),
+
+                      // 🗓️ 월-연도 피커 오버레이
+                      if (_showMonthYearPickerVisible)
+                        _buildMonthYearPickerOverlay(schedules, tasks),
                     ],
                   ),
                 ); // Scaffold 닫기
@@ -1506,29 +1528,34 @@ class _HomeScreenState extends State<HomeScreen> {
                   '🎯 [DismissiblePage] 생성 - 현재 인박스 모드: $_isDateDetailInboxMode',
                 );
 
-                // 🔄 인박스 모드 변경을 감지하기 위한 ValueNotifier
+                // 🔄 인박스 모드 및 피커 상태 변경을 감지하기 위한 ValueNotifier
                 final inboxModeNotifier = ValueNotifier<bool>(
                   _isDateDetailInboxMode,
                 );
+                final pickerOpenNotifier = ValueNotifier<bool>(false); // 🗓️ 날짜 피커 상태
 
                 context.pushTransparentRoute(
                   ValueListenableBuilder<bool>(
                     valueListenable: inboxModeNotifier,
                     builder: (context, isInboxMode, _) {
-                      // 🔥 수정: key를 제거하여 DismissiblePage가 재생성되지 않도록 함
-                      // 이렇게 하면 인박스 모드가 변경되어도 DateDetailView의 상태(현재 날짜)가 유지됨
-                      return DismissiblePage(
-                        onDismissed: () {
-                          print('🚪 [DismissiblePage] onDismissed 호출됨!');
-                          setState(() {
-                            _isDateDetailInboxMode = false; // 🔥 닫힐 때만 리셋
-                          });
-                          Navigator.of(context).pop();
-                        },
-                        // 🎯 일반 모드: down (위→아래로만) / 인박스 모드: none (완전 차단)
-                        direction: isInboxMode
-                            ? DismissiblePageDismissDirection.none
-                            : DismissiblePageDismissDirection.down,
+                      // 🗓️ 피커 상태도 감지
+                      return ValueListenableBuilder<bool>(
+                        valueListenable: pickerOpenNotifier,
+                        builder: (context, isPickerOpen, _) {
+                          // 🔥 수정: key를 제거하여 DismissiblePage가 재생성되지 않도록 함
+                          // 이렇게 하면 인박스 모드가 변경되어도 DateDetailView의 상태(현재 날짜)가 유지됨
+                          return DismissiblePage(
+                            onDismissed: () {
+                              print('🚪 [DismissiblePage] onDismissed 호출됨!');
+                              setState(() {
+                                _isDateDetailInboxMode = false; // 🔥 닫힐 때만 리셋
+                              });
+                              Navigator.of(context).pop();
+                            },
+                            // 🎯 일반 모드: down (위→아래로만) / 인박스 모드 or 피커 열림: none (완전 차단)
+                            direction: (isInboxMode || isPickerOpen)
+                                ? DismissiblePageDismissDirection.none
+                                : DismissiblePageDismissDirection.down,
                         backgroundColor: Colors.black,
                         startingOpacity: 0.5, // 시작 배경 투명도
                         minRadius: 36, // Border radius (작아질 때)
@@ -1555,7 +1582,16 @@ class _HomeScreenState extends State<HomeScreen> {
                               '🎯 [HomeScreen] DateDetailView 인박스 모드 변경: $newInboxMode',
                             );
                           },
+                          onPickerStateChanged: (isPickerOpen) {
+                            // 🗓️ DateDetailView의 피커 상태 변경 추적 (날짜 피커 + 이미지 피커)
+                            pickerOpenNotifier.value = isPickerOpen;
+                            print(
+                              '🎯 [HomeScreen] DateDetailView 피커 상태 변경: $isPickerOpen (날짜/이미지 피커)',
+                            );
+                          },
                         ),
+                      );
+                        },
                       );
                     },
                   ),
@@ -2403,38 +2439,88 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
     return finalFiltered;
   }
 
-  // 월-연도 피커 표시
+  // 월-연도 피커 표시/숨김
   void _showMonthYearPicker() {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        opaque: false,
-        barrierDismissible: true,
-        barrierColor: Colors.transparent,
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return _MonthYearPickerModal(
-            initialDate: focusedDay,
-            onDateChanged: (newDate) {
-              setState(() {
-                focusedDay = newDate;
-              });
-            },
-          );
-        },
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          const begin = Offset(0.0, -1.0);
-          const end = Offset.zero;
-          final tween = Tween(begin: begin, end: end);
-          final curvedAnimation = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-            reverseCurve: Curves.easeInCubic,
-          );
-          final offsetAnimation = tween.animate(curvedAnimation);
+    if (_showMonthYearPickerVisible) {
+      // 피커 닫기
+      _pickerAnimationController.reverse().then((_) {
+        if (mounted) {
+          setState(() {
+            _showMonthYearPickerVisible = false;
+          });
+        }
+      });
+    } else {
+      // 피커 열기
+      setState(() {
+        _showMonthYearPickerVisible = true;
+      });
+      _pickerAnimationController.forward();
+    }
+  }
 
-          return SlideTransition(position: offsetAnimation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 500),
-        reverseTransitionDuration: const Duration(milliseconds: 400),
+  // 월-연도 피커 오버레이 빌드
+  Widget _buildMonthYearPickerOverlay(
+    Map<DateTime, List<ScheduleData>> schedules,
+    Map<DateTime, List<TaskData>> tasks,
+  ) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: Stack(
+        children: [
+          // 배경 - 터치 시 피커 닫기 (피커 아래 영역만)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () {
+                _pickerAnimationController.reverse().then((_) {
+                  if (mounted) {
+                    setState(() {
+                      _showMonthYearPickerVisible = false;
+                    });
+                  }
+                });
+              },
+            ),
+          ),
+          // 피커 - 슬라이드 애니메이션
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, -1),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: _pickerAnimationController,
+                curve: Curves.easeOutCubic,
+                reverseCurve: Curves.easeInCubic,
+              )),
+              child: _MonthYearPickerModal(
+                key: ValueKey('${focusedDay.year}-${focusedDay.month}'), // 월/년이 변경되면 피커 재생성
+                initialDate: focusedDay,
+                onDateChanged: (newDate) {
+                  setState(() {
+                    focusedDay = newDate;
+                  });
+                },
+                onClose: () {
+                  _pickerAnimationController.reverse().then((_) {
+                    if (mounted) {
+                      setState(() {
+                        _showMonthYearPickerVisible = false;
+                      });
+                    }
+                  });
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2444,10 +2530,13 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
 class _MonthYearPickerModal extends StatefulWidget {
   final DateTime initialDate;
   final Function(DateTime) onDateChanged;
+  final VoidCallback? onClose;
 
   const _MonthYearPickerModal({
+    super.key,
     required this.initialDate,
     required this.onDateChanged,
+    this.onClose,
   });
 
   @override
@@ -2492,21 +2581,78 @@ class _MonthYearPickerModalState extends State<_MonthYearPickerModal> {
     return '$_selectedMonth月 $_selectedYear';
   }
 
+  // 다크모드용 오늘로 가기 버튼 (피커 내부용)
+  Widget _buildDarkModeTodayButton(DateTime today) {
+    return Hero(
+      key: const ValueKey('dark-today-button'),
+      tag: 'today-button-${today.toString()}',
+      createRectTween: (begin, end) {
+        return AppleStyleRectTween(begin: begin, end: end);
+      },
+      flightShuttleBuilder: appleStyleHeroFlightShuttleBuilder,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            // 앱바의 오늘로 가기 버튼과 동일한 동작 (setState로 상태 변경)
+            widget.onDateChanged(today);
+            // 피커를 닫기
+            if (widget.onClose != null) {
+              widget.onClose!();
+            }
+          },
+          customBorder: SmoothRectangleBorder(
+            borderRadius: SmoothBorderRadius(
+              cornerRadius: 12,
+              cornerSmoothing: 0.6,
+            ),
+          ),
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: ShapeDecoration(
+              color: Colors.white.withOpacity(0.15), // 다크모드: 반투명 흰색 배경
+              shape: SmoothRectangleBorder(
+                side: BorderSide(
+                  color: Colors.white.withOpacity(0.3), // 다크모드: 흰색 테두리
+                  width: 1.5,
+                ),
+                borderRadius: SmoothBorderRadius(
+                  cornerRadius: 12,
+                  cornerSmoothing: 0.6,
+                ),
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '${today.day}',
+              style: const TextStyle(
+                fontFamily: 'LINE Seed JP App_TTF',
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: Colors.white, // 다크모드: 흰색 텍스트
+                letterSpacing: -0.06,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final statusBarHeight = MediaQuery.of(context).padding.top;
+    final today = DateTime.now();
+    final isNotCurrentMonth =
+        _selectedMonth != today.month || _selectedYear != today.year;
 
-    return GestureDetector(
-      onTap: () => Navigator.of(context).pop(),
-      child: Container(
-        color: Colors.transparent,
-        child: GestureDetector(
-          onTap: () {},
-          child: Column(
-            children: [
-              Container(
-                color: const Color(0xFF3B3B3B),
-                padding: EdgeInsets.only(top: statusBarHeight),
+    return Column(
+      children: [
+        Container(
+          color: const Color(0xFF3B3B3B),
+          padding: EdgeInsets.only(top: statusBarHeight),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -2515,30 +2661,52 @@ class _MonthYearPickerModalState extends State<_MonthYearPickerModal> {
                       height: 52,
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            _formatDateHeader(),
-                            style: const TextStyle(
-                              fontFamily: 'LINE Seed JP App_TTF',
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              letterSpacing: -0.41,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Transform.rotate(
-                            angle: 3.14159,
-                            child: SvgPicture.asset(
-                              'asset/icon/down_icon.svg',
-                              width: 16,
-                              height: 16,
-                              colorFilter: const ColorFilter.mode(
-                                Colors.white,
-                                BlendMode.srcIn,
+                          const SizedBox(width: 36), // 왼쪽 여백 (버튼 너비만큼)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                _formatDateHeader(),
+                                style: const TextStyle(
+                                  fontFamily: 'LINE Seed JP App_TTF',
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  letterSpacing: -0.41,
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 8),
+                              Transform.rotate(
+                                angle: 3.14159,
+                                child: SvgPicture.asset(
+                                  'asset/icon/down_icon.svg',
+                                  width: 16,
+                                  height: 16,
+                                  colorFilter: const ColorFilter.mode(
+                                    Colors.white,
+                                    BlendMode.srcIn,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          // 오늘로 가기 버튼 (다크모드 스타일) - 조건부 표시
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            transitionBuilder: (child, animation) {
+                              return FadeTransition(
+                                opacity: animation,
+                                child: ScaleTransition(
+                                  scale: animation,
+                                  child: child,
+                                ),
+                              );
+                            },
+                            child: isNotCurrentMonth
+                                ? _buildDarkModeTodayButton(today)
+                                : const SizedBox(width: 36), // 빈 공간 유지
                           ),
                         ],
                       ),
@@ -2647,10 +2815,7 @@ class _MonthYearPickerModalState extends State<_MonthYearPickerModal> {
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+      ],
     );
   }
 }

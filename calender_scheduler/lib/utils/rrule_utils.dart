@@ -22,6 +22,7 @@ class RRuleUtils {
     required DateTime dtstart,
     required DateTime rangeStart,
     required DateTime rangeEnd,
+    List<DateTime>? exdates,
   }) {
     try {
       // 1. RRULE: 접두사 제거 (파싱용)
@@ -101,6 +102,25 @@ class RRuleUtils {
         return !instance.isBefore(dtstartLocal);
       }).toList();
 
+      // 8. ✅ EXDATE 필터링 (삭제된 날짜 제외)
+      if (exdates != null && exdates.isNotEmpty) {
+        final exdateNormalized = exdates.map((d) => DateTime(d.year, d.month, d.day)).toSet();
+        final finalInstances = filteredInstances.where((instance) {
+          final instanceDate = DateTime(instance.year, instance.month, instance.day);
+          return !exdateNormalized.contains(instanceDate);
+        }).toList();
+
+        print('✅ [RRuleUtils] EXDATE 필터링: ${exdates.length}개 날짜 제외');
+        print('   생성된 인스턴스 개수: ${finalInstances.length}');
+        if (finalInstances.isNotEmpty) {
+          print('   첫 번째: ${finalInstances.first.toString().split(' ')[0]}');
+          if (finalInstances.length > 1) {
+            print('   마지막: ${finalInstances.last.toString().split(' ')[0]}');
+          }
+        }
+        return finalInstances;
+      }
+
       print('✅ [RRuleUtils] 생성된 인스턴스 개수: ${filteredInstances.length}');
       if (filteredInstances.isNotEmpty) {
         print('   첫 번째: ${filteredInstances.first.toString().split(' ')[0]}');
@@ -124,14 +144,17 @@ class RRuleUtils {
     required DateTime rangeStart,
     required DateTime rangeEnd,
   }) {
-    // EXDATE는 나중에 예외 처리에 사용 (현재는 사용 안 함)
-    // final exdates = pattern.exdate.isEmpty ? <DateTime>[] : ...;
+    // EXDATE 파싱 (쉼표로 구분된 ISO 8601 날짜)
+    final exdates = pattern.exdate.isEmpty
+        ? <DateTime>[]
+        : parseExdate(pattern.exdate);
 
     return generateInstances(
       rruleString: pattern.rrule,
       dtstart: pattern.dtstart,
       rangeStart: rangeStart,
       rangeEnd: rangeEnd,
+      exdates: exdates,
     );
   }
 

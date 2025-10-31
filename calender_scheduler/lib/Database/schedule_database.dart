@@ -190,6 +190,7 @@ class AppDatabase extends _$AppDatabase {
                         })
                         .whereType<DateTime>()
                         .toList(),
+              until: pattern.until, // ✅ UNTIL 전달
             );
 
             // 예외 처리 (취소된 인스턴스 제외)
@@ -839,15 +840,17 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// 날짜 포맷 헬퍼 (iCalendar 형식)
+  /// ✅ 로컬 날짜 사용 (UTC 변환하지 않음)
   String _formatDateTime(DateTime dt) {
-    final utc = dt.toUtc();
-    return '${utc.year}'
-        '${utc.month.toString().padLeft(2, '0')}'
-        '${utc.day.toString().padLeft(2, '0')}'
+    // 🔥 중요: 날짜만 사용하므로 로컬 날짜 그대로 포맷
+    // UTC 변환하면 시간대 차이로 날짜가 밀리는 문제 발생
+    return '${dt.year}'
+        '${dt.month.toString().padLeft(2, '0')}'
+        '${dt.day.toString().padLeft(2, '0')}'
         'T'
-        '${utc.hour.toString().padLeft(2, '0')}'
-        '${utc.minute.toString().padLeft(2, '0')}'
-        '${utc.second.toString().padLeft(2, '0')}'
+        '${dt.hour.toString().padLeft(2, '0')}'
+        '${dt.minute.toString().padLeft(2, '0')}'
+        '${dt.second.toString().padLeft(2, '0')}'
         'Z';
   }
 
@@ -1565,6 +1568,7 @@ class AppDatabase extends _$AppDatabase {
     required DateTime rangeStart,
     required DateTime rangeEnd,
     List<DateTime>? exdates,
+    DateTime? until, // ✅ UNTIL 파라미터 추가
   }) async {
     // RRuleUtils 사용 (이미 구현된 유틸리티)
     try {
@@ -1576,6 +1580,7 @@ class AppDatabase extends _$AppDatabase {
           rangeStart: rangeStart,
           rangeEnd: rangeEnd,
           exdates: exdates,
+          until: until, // ✅ UNTIL 전달
         ),
       );
     } catch (e) {
@@ -1591,14 +1596,26 @@ class AppDatabase extends _$AppDatabase {
     required DateTime rangeStart,
     required DateTime rangeEnd,
     List<DateTime>? exdates,
+    DateTime? until, // ✅ UNTIL 파라미터 추가
   }) {
     try {
-      // RRuleUtils.generateInstances() 호출
+      // ✅ UNTIL이 있으면 RRULE 문자열에 추가
+      String rruleWithUntil = rrule;
+      if (until != null && !rrule.contains('UNTIL=')) {
+        final untilStr = _formatDateTime(until);
+        rruleWithUntil = rrule.contains(';')
+            ? '$rrule;UNTIL=$untilStr'
+            : '$rrule;UNTIL=$untilStr';
+        print('🔍 [DB] RRULE에 UNTIL 추가: $untilStr');
+      }
+
+      // RRuleUtils.generateInstances() 호출 (EXDATE 전달)
       return RRuleUtils.generateInstances(
-        rruleString: rrule,
+        rruleString: rruleWithUntil,
         dtstart: dtstart,
         rangeStart: rangeStart,
         rangeEnd: rangeEnd,
+        exdates: exdates,
       );
     } catch (e) {
       print('⚠️ [RRULE] 파싱 실패: $e');

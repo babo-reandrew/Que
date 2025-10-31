@@ -80,7 +80,7 @@ class _DateTimePickerSheetState extends State<DateTimePickerSheet> {
           _buildDetailView(),
           const SizedBox(height: 16),
           _buildCTAButton(),
-          const SizedBox(height: 32),
+          const SizedBox(height: 20), // ✅ 버튼 하단 20px
         ],
       ),
     );

@@ -1588,17 +1588,19 @@ void _handleSave(
           await showEditRepeatConfirmationModal(
             context,
             onEditThis: () async {
-              // ✅ この回のみ 수정: RecurringException 생성
+              // ✅ この回のみ 수정: 완전한 포크 (EXDATE + 새 Schedule 생성)
               try {
                 debugPrint(
-                  '🔥 [ScheduleWolt] updateScheduleThisOnly 호출 - selectedDate: $selectedDate',
+                  '🔥 [ScheduleWolt] updateScheduleThisOnly 호출 (완전한 포크) - selectedDate: $selectedDate',
                 );
-                await RecurringHelpers.updateScheduleThisOnly(
+                
+                // 새로운 Schedule 생성 및 ID 받기
+                final newScheduleId = await RecurringHelpers.updateScheduleThisOnly(
                   db: db,
                   schedule: schedule,
-                  selectedDate: selectedDate, // ✅ 수정: 사용자가 선택한 날짜 사용
+                  selectedDate: selectedDate,
                   updatedSchedule: ScheduleCompanion(
-                    id: Value(schedule.id),
+                    id: Value(schedule.id), // 원본 참조용
                     summary: Value(scheduleController.title.trim()),
                     start: Value(scheduleController.startDateTime!),
                     end: Value(scheduleController.endDateTime!),
@@ -1608,18 +1610,28 @@ void _handleSave(
                     location: Value(schedule.location),
                   ),
                 );
-                debugPrint('✅ [ScheduleWolt] この回のみ 수정 완료');
+                debugPrint('✅ [ScheduleWolt] この回のみ 수정 완료 (포크)');
+                debugPrint('   - 원본 Schedule ID: ${schedule.id} (EXDATE 추가됨)');
+                debugPrint('   - 새 Schedule ID: $newScheduleId (단일 일정)');
+                
+                // ✅ 완벽한 모달 닫기 로직: 순차적으로 안전하게 닫기
                 if (context.mounted) {
-                  // ✅ 1. 확인 모달 닫기
-                  Navigator.pop(context);
-                  // ✅ 2. Detail modal 닫기 (변경 신호 전달)
-                  Navigator.pop(context, true);
+                  // 1. 먼저 스낵바 표시
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('この回のみ変更しました'),
                       duration: Duration(seconds: 2),
                     ),
                   );
+                  
+                  // 2. 확인 모달을 먼저 닫고 완료될 때까지 대기
+                  Navigator.of(context).pop();
+                  
+                  // 3. 프레임 렌더링 완료 후 Detail 모달 닫기
+                  await Future.delayed(const Duration(milliseconds: 100));
+                  if (context.mounted) {
+                    Navigator.of(context).pop(true); // 변경 신호 전달
+                  }
                 }
               } catch (e, stackTrace) {
                 debugPrint('❌ [ScheduleWolt] この回のみ 수정 실패: $e');
@@ -1668,17 +1680,25 @@ void _handleSave(
                   newRRule: newRRule,
                 );
                 debugPrint('✅ [ScheduleWolt] この予定以降 수정 완료');
+                
+                // ✅ 완벽한 모달 닫기 로직: 순차적으로 안전하게 닫기
                 if (context.mounted) {
-                  // ✅ 1. 확인 모달 닫기
-                  Navigator.pop(context);
-                  // ✅ 2. Detail modal 닫기 (변경 신호 전달)
-                  Navigator.pop(context, true);
+                  // 1. 먼저 스낵바 표시
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('この予定以降を変更しました'),
                       duration: Duration(seconds: 2),
                     ),
                   );
+                  
+                  // 2. 확인 모달을 먼저 닫고 완료될 때까지 대기
+                  Navigator.of(context).pop();
+                  
+                  // 3. 프레임 렌더링 완료 후 Detail 모달 닫기
+                  await Future.delayed(const Duration(milliseconds: 100));
+                  if (context.mounted) {
+                    Navigator.of(context).pop(true); // 변경 신호 전달
+                  }
                 }
               } catch (e, stackTrace) {
                 debugPrint('❌ [ScheduleWolt] この予定以降 수정 실패: $e');
@@ -1775,16 +1795,24 @@ void _handleSave(
                   debugPrint('🗑️ [ScheduleWolt] RecurringPattern 삭제 완료');
                 }
 
-                // ✅ 모달 닫기
+                // ✅ 완벽한 모달 닫기 로직: 순차적으로 안전하게 닫기
                 if (context.mounted) {
-                  Navigator.pop(context); // 확인 모달 닫기
-                  Navigator.pop(context, true); // Detail modal 닫기
+                  // 1. 먼저 스낵바 표시
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('すべての回を変更しました'),
                       duration: Duration(seconds: 2),
                     ),
                   );
+                  
+                  // 2. 확인 모달을 먼저 닫고 완료될 때까지 대기
+                  Navigator.of(context).pop();
+                  
+                  // 3. 프레임 렌더링 완료 후 Detail 모달 닫기
+                  await Future.delayed(const Duration(milliseconds: 100));
+                  if (context.mounted) {
+                    Navigator.of(context).pop(true); // 변경 신호 전달
+                  }
                 }
               } catch (e, stackTrace) {
                 debugPrint('❌ [ScheduleWolt] すべての回 수정 실패: $e');
@@ -1993,36 +2021,43 @@ void _handleDelete(
   );
 
   if (hasRepeat) {
-    // ✅ 반복 있으면 → 반복 삭제 모달
+    // 반복 있으면 → 반복 삭제 모달
     await showDeleteRepeatConfirmationModal(
       context,
       onDeleteThis: () async {
-        // ✅ この回のみ 삭제: RecurringException 생성
+        // この回のみ 削除: RecurringException 생성
         try {
           debugPrint(
-            '🔥 [ScheduleWolt] deleteScheduleThisOnly 호출 - selectedDate: $selectedDate',
+            ' [ScheduleWolt] deleteScheduleThisOnly 호출 - selectedDate: $selectedDate',
           );
           await RecurringHelpers.deleteScheduleThisOnly(
             db: db,
             schedule: schedule,
-            selectedDate: selectedDate, // ✅ 수정: 사용자가 선택한 날짜 사용
+            selectedDate: selectedDate, // 수정: 사용자가 선택한 날짜 사용
           );
+          
+          // 완벽한 모달 닫기 로직: 순차적으로 안전하게 닫기
           if (context.mounted) {
-            // ✅ 1. 확인 모달 닫기
-            Navigator.pop(context);
-            // ✅ 2. Detail modal 닫기 (변경 신호 전달)
-            Navigator.pop(context, true);
-            // Toast 표시
+            // 1. 먼저 스낵바 표시
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('この回のみ削除しました'),
                 duration: Duration(seconds: 2),
               ),
             );
+            
+            // 2. 확인 모달을 먼저 닫고 완료될 때까지 대기
+            Navigator.of(context).pop();
+            
+            // 3. 프레임 렌더링 완료 후 Detail 모달 닫기
+            await Future.delayed(const Duration(milliseconds: 100));
+            if (context.mounted) {
+              Navigator.of(context).pop(true); // 변경 신호 전달
+            }
           }
         } catch (e, stackTrace) {
-          debugPrint('❌ [ScheduleWolt] この回のみ 삭제 실패: $e');
-          debugPrint('❌ 스택: $stackTrace');
+          debugPrint(' [ScheduleWolt] この回のみ 삭제 실패: $e');
+          debugPrint(' 스택: $stackTrace');
           if (context.mounted) {
             Navigator.pop(context); // 확인 모달 닫기
             ScaffoldMessenger.of(context).showSnackBar(
@@ -2045,18 +2080,25 @@ void _handleDelete(
             schedule: schedule,
             selectedDate: selectedDate, // ✅ 수정: 사용자가 선택한 날짜 사용
           );
+          
+          // ✅ 완벽한 모달 닫기 로직: 순차적으로 안전하게 닫기
           if (context.mounted) {
-            // ✅ 1. 확인 모달 닫기
-            Navigator.pop(context);
-            // ✅ 2. Detail modal 닫기 (변경 신호 전달)
-            Navigator.pop(context, true);
-            // Toast 표시
+            // 1. 먼저 스낵바 표시
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('この予定以降を削除しました'),
                 duration: Duration(seconds: 2),
               ),
             );
+            
+            // 2. 확인 모달을 먼저 닫고 완료될 때까지 대기
+            Navigator.of(context).pop();
+            
+            // 3. 프레임 렌더링 완료 후 Detail 모달 닫기
+            await Future.delayed(const Duration(milliseconds: 100));
+            if (context.mounted) {
+              Navigator.of(context).pop(true); // 변경 신호 전달
+            }
           }
         } catch (e, stackTrace) {
           debugPrint('❌ [ScheduleWolt] この予定以降 삭제 실패: $e');
@@ -2074,19 +2116,40 @@ void _handleDelete(
       },
       onDeleteAll: () async {
         // すべての回 삭제 (전체 삭제)
-        await RecurringHelpers.deleteScheduleAll(db: db, schedule: schedule);
-        if (context.mounted) {
-          // ✅ 1. 확인 모달 닫기
-          Navigator.pop(context);
-          // ✅ 2. Detail modal 닫기 (변경 신호 전달)
-          Navigator.pop(context, true);
-          // Toast 표시
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('すべての回を削除しました'),
-              duration: Duration(seconds: 2),
-            ),
-          );
+        try {
+          await RecurringHelpers.deleteScheduleAll(db: db, schedule: schedule);
+          
+          // ✅ 완벽한 모달 닫기 로직: 순차적으로 안전하게 닫기
+          if (context.mounted) {
+            // 1. 먼저 스낵바 표시
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('すべての回を削除しました'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+            
+            // 2. 확인 모달을 먼저 닫고 완료될 때까지 대기
+            Navigator.of(context).pop();
+            
+            // 3. 프레임 렌더링 완료 후 Detail 모달 닫기
+            await Future.delayed(const Duration(milliseconds: 100));
+            if (context.mounted) {
+              Navigator.of(context).pop(true); // 변경 신호 전달
+            }
+          }
+        } catch (e, stackTrace) {
+          debugPrint('❌ [ScheduleWolt] すべての回 삭제 실패: $e');
+          debugPrint('❌ 스택: $stackTrace');
+          if (context.mounted) {
+            Navigator.pop(context); // 확인 모달 닫기
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('削除に失敗しました: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       },
     );

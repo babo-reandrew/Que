@@ -66,7 +66,7 @@ class _DeadlinePickerSheetState extends State<DeadlinePickerSheet> {
           _buildWheelPickerSection(),
           const SizedBox(height: 42), // ✅ 피커와 완료 버튼 사이 42px
           _buildCTAButton(),
-          const SizedBox(height: 32),
+          const SizedBox(height: 20), // ✅ 버튼 하단 20px
         ],
       ),
     );

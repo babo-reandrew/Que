@@ -105,7 +105,10 @@ class _DeleteRepeatConfirmationModalState
         padding: const EdgeInsets.only(bottom: 16), // 하단 여백 16px
         child: Container(
           width: 370, // Figma: 370px
-          height: 438, // Figma: 438px
+          constraints: const BoxConstraints(
+            minHeight: 400,
+            maxHeight: 480,
+          ), // 고정 높이 대신 constraints 사용 (오버플로우 방지)
           decoration: ShapeDecoration(
             color: const Color(0xFFFCFCFC), // #FCFCFC
             shape: SmoothRectangleBorder(

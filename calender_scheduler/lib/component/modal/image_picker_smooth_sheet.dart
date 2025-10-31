@@ -74,7 +74,17 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
 
   bool _isClosing = false; // 중복 호출 방지
 
-  /// Sheet extent 변화 감지 - 0.25 (25%) 이하로 내려가면 바로 닫기
+  /// 🎯 버튼 클릭 시 즉시 닫기 (배경과 함께 사라지도록)
+  void _closeSheetImmediately() {
+    if (_isClosing) return;
+    _isClosing = true;
+    
+    if (mounted && widget.onClose != null) {
+      widget.onClose!();
+    }
+  }
+
+  /// Sheet extent 변화 감지 - 임계값 이하로 내려가면 즉시 닫기
   void _onSheetExtentChanged() {
     if (_isClosing) return; // 이미 닫는 중이면 무시
 
@@ -85,8 +95,8 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
     if (maxExtent > 0) {
       final ratio = currentExtent / maxExtent;
 
-      // 25% 이하로 내려가면 X 버튼처럼 바로 닫기
-      if (ratio < 0.25 && mounted) {
+      // 🎯 5% 이하로 내려가면 즉시 닫기 (배경과 함께 사라지도록)
+      if (ratio < 0.05 && mounted) {
         _isClosing = true;
         if (widget.onClose != null) {
           widget.onClose!();
@@ -185,6 +195,7 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
             parent: SnappingSheetPhysics(
               snappingBehavior: SnapToNearest(
                 snapTo: [
+                  Extent.proportional(0.0), // 닫기 0% - 자연스러운 dismiss
                   Extent.proportional(0.45), // 중간 45%
                   Extent.proportional(0.90), // 최대 90%
                 ],
@@ -308,19 +319,26 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
   Widget _buildSelectionPreviewButton() {
     return GestureDetector(
       onTap: () async {
-        // 시트 닫기
-        if (widget.onClose != null) {
+        if (_isClosing) return;
+        _isClosing = true;
+
+        // 시트 닫기 (배경과 함께)
+        if (mounted && widget.onClose != null) {
           widget.onClose!();
         }
 
         // 🔍 LoadingScreen으로 이동
         if (mounted) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) =>
-                  LoadingScreen(selectedImages: _selectedImages),
-            ),
-          );
+          // 약간의 딜레이 후 이동 (닫히는 애니메이션 완료 대기)
+          await Future.delayed(const Duration(milliseconds: 100));
+          if (mounted) {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) =>
+                    LoadingScreen(selectedImages: _selectedImages),
+              ),
+            );
+          }
         }
       },
       child: Container(
@@ -397,9 +415,8 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
           // 닫기 버튼
           GestureDetector(
             onTap: () {
-              if (widget.onClose != null) {
-                widget.onClose!();
-              }
+              // 🎯 즉시 닫기 (배경과 함께)
+              _closeSheetImmediately();
             },
             child: Container(
               width: 36,

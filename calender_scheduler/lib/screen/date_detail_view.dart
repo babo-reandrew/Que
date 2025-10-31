@@ -42,6 +42,7 @@ class DateDetailView extends StatefulWidget {
   final Function(DateTime)? onClose; // 🚀 Pull-to-dismiss 완료 시 날짜 전달 콜백
   final bool isInboxMode; // 📋 인박스 모드 여부
   final Function(bool)? onInboxModeChanged; // 📋 인박스 모드 변경 콜백
+  final Function(bool)? onPickerStateChanged; // 🗓️ 날짜 피커 상태 변경 콜백
 
   const DateDetailView({
     super.key,
@@ -49,6 +50,7 @@ class DateDetailView extends StatefulWidget {
     this.onClose, // ✅ 상태 업데이트용 콜백
     this.isInboxMode = false, // 기본값: false (일반 모드)
     this.onInboxModeChanged, // 📋 인박스 모드 변경 콜백
+    this.onPickerStateChanged, // 🗓️ 날짜 피커 상태 변경 콜백
   });
 
   @override
@@ -106,6 +108,13 @@ class _DateDetailViewState extends State<DateDetailView>
 
   // 🎯 Elevation Overlay: 스크롤 오프셋 추적 (iOS Settings 스타일)
   double _scrollOffset = 0.0;
+
+  // 🗓️ 날짜 피커 표시 상태
+  bool _showDatePicker = false;
+  late AnimationController _datePickerAnimationController;
+
+  // 🖼️ 이미지 피커 표시 상태 (DismissiblePage 비활성화용)
+  bool _showImagePicker = false;
 
   // ✅ 완료 섹션 상태 관리
   bool _isCompletedExpanded = false; // 완료 섹션 확장 여부
@@ -178,6 +187,13 @@ class _DateDetailViewState extends State<DateDetailView>
       curve: Curves.easeInOutCubicEmphasized, // iOS 스타일 강조 곡선
     );
 
+    // 🗓️ 날짜 피커 애니메이션 컨트롤러 초기화
+    // 월뷰(200px)와 체감 속도를 맞추기 위해 높이에 비례하여 duration 조정
+    _datePickerAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700), // 280px + statusBar ≈ 1.7배 높이
+    );
+
     print('✅ [LIFECYCLE] initState 완료');
     print('');
   }
@@ -218,6 +234,7 @@ class _DateDetailViewState extends State<DateDetailView>
     // _dismissController.dispose(); // ⚠️ 제거됨
     // _entryController.dispose(); // ⚠️ 제거됨
     _completedExpandController.dispose(); // ✅ 완료 섹션 애니메이션 컨트롤러 정리
+    _datePickerAnimationController.dispose(); // 🗓️ 날짜 피커 애니메이션 컨트롤러 정리
     _saveOrderDebounceTimer?.cancel(); // ⏱️ 디바운스 타이머 정리
     print('🗑️ [DateDetailView] 리소스 정리 완료');
     super.dispose();
@@ -341,10 +358,22 @@ class _DateDetailViewState extends State<DateDetailView>
                     },
                     onImageAddTap: () {
                       print('🖼️ [하단 네비] 이미지 추가 버튼 클릭 → 이미지 선택 모달 오픈');
+                      
+                      // 🎯 이미지 피커 열기 전: DismissiblePage 비활성화
+                      setState(() {
+                        _showImagePicker = true;
+                      });
+                      widget.onPickerStateChanged?.call(true);
+                      
                       Navigator.push(
                         context,
                         ModalSheetRoute(
+                          barrierColor: const Color(0xFF656565).withOpacity(0.5), // 회색 배경
+                          transitionDuration: const Duration(milliseconds: 200), // 빠른 닫힘
                           builder: (context) => ImagePickerSmoothSheet(
+                            onClose: () {
+                              Navigator.of(context).pop();
+                            },
                             onImagesSelected: (selectedImages) {
                               print(
                                 '✅ [DateDetailView] 선택된 이미지: ${selectedImages.length}개',
@@ -355,7 +384,15 @@ class _DateDetailViewState extends State<DateDetailView>
                             },
                           ),
                         ),
-                      );
+                      ).then((_) {
+                        // 🎯 이미지 피커 닫힌 후: DismissiblePage 재활성화
+                        if (mounted) {
+                          setState(() {
+                            _showImagePicker = false;
+                          });
+                          widget.onPickerStateChanged?.call(false);
+                        }
+                      });
                     },
                     onAddTap: () {
                       showModalBottomSheet(
@@ -411,6 +448,12 @@ class _DateDetailViewState extends State<DateDetailView>
                 ),
               ),
             ),
+
+
+          // 🗓️ 날짜 피커 오버레이 (AppBar 위로 렌더링)
+          if (_showDatePicker)
+            _buildDatePickerOverlay(),
+
           // 📋 인박스 오버레이 (바텀시트) - 조건부 표시
           if (_showInboxOverlay)
             Positioned(
@@ -530,6 +573,73 @@ class _DateDetailViewState extends State<DateDetailView>
   // void _handleDragUpdate(...) → 삭제
   // void _handleDragEnd(...) → 삭제
   // void _runSpringAnimation(...) → 삭제
+
+  // 날짜 피커 닫기 헬퍼 메서드
+  void _closeDatePicker() {
+    _datePickerAnimationController.reverse().then((_) {
+      if (mounted) {
+        setState(() {
+          _showDatePicker = false;
+        });
+        // 🗓️ 부모에게 피커 닫힘 알림 (DismissiblePage 활성화)
+        if (widget.onPickerStateChanged != null) {
+          widget.onPickerStateChanged!(false);
+        }
+      }
+    });
+  }
+
+  // 날짜 피커 오버레이 빌드
+  Widget _buildDatePickerOverlay() {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: Stack(
+        children: [
+          // 배경 - 터치 시 피커 닫기
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closeDatePicker,
+            ),
+          ),
+          // 피커 - 슬라이드 애니메이션
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, -1),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: _datePickerAnimationController,
+                curve: Curves.easeOutCubic,
+                reverseCurve: Curves.easeInCubic,
+              )),
+              child: DatePickerModal(
+                key: ValueKey('${_currentDate.year}-${_currentDate.month}-${_currentDate.day}'),
+                initialDate: _currentDate,
+                onDateChanged: (newDate) {
+                  final daysDiff = newDate.difference(widget.selectedDate).inDays;
+                  final targetIndex = _centerIndex + daysDiff;
+
+                  _pageController.animateToPage(
+                    targetIndex,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                },
+                onClose: _closeDatePicker,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   // ========================================
   // ✅ PageView 구현 (좌우 스와이프 날짜 변경)
@@ -851,7 +961,7 @@ class _DateDetailViewState extends State<DateDetailView>
                       width: 44, // 피그마: Frame 686 크기
                       height: 44,
                       padding: const EdgeInsets.all(4), // 피그마: 4px 패딩
-                      margin: const EdgeInsets.only(right: 12),
+                      margin: const EdgeInsets.only(right: 18), // ✅ 월뷰와 동일하게 18px
                       child: _buildTodayButton(DateTime.now()),
                     ),
                   ],
@@ -1940,13 +2050,42 @@ class _DateDetailViewState extends State<DateDetailView>
           child: DateDetailHeader(
             selectedDate: headerDate,
             onDateChanged: (newDate) {
-              // 날짜 피커에서 선택한 날짜로 이동
-              setState(() {
-                _currentDate = newDate;
-                final daysDiff = newDate.difference(widget.selectedDate).inDays;
-                final targetIndex = _centerIndex + daysDiff;
-                _pageController.jumpToPage(targetIndex);
-              });
+              // 날짜 피커에서 선택한 날짜로 이동 (앱바의 오늘 버튼과 동일한 애니메이션)
+              final daysDiff = newDate.difference(widget.selectedDate).inDays;
+              final targetIndex = _centerIndex + daysDiff;
+              
+              _pageController.animateToPage(
+                targetIndex,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+            },
+            onPickerTap: () {
+              if (_showDatePicker) {
+                // 피커 닫기
+                _datePickerAnimationController.reverse().then((_) {
+                  if (mounted) {
+                    setState(() {
+                      _showDatePicker = false;
+                    });
+                    // 🗓️ 부모에게 피커 닫힘 알림 (DismissiblePage 활성화)
+                    if (widget.onPickerStateChanged != null) {
+                      widget.onPickerStateChanged!(false);
+                    }
+                  }
+                });
+              } else {
+                // 피커 열기
+                _datePickerAnimationController.reset();
+                setState(() {
+                  _showDatePicker = true;
+                });
+                // 🗓️ 부모에게 피커 열림 알림 (DismissiblePage 비활성화)
+                if (widget.onPickerStateChanged != null) {
+                  widget.onPickerStateChanged!(true);
+                }
+                _datePickerAnimationController.forward();
+              }
             },
           ),
         );
@@ -2201,8 +2340,10 @@ class _DateDetailViewState extends State<DateDetailView>
                         );
                         print('📥 [TaskCard] 인박스로 이동: ${task.title}');
 
-                        // 📥 인박스 토스트 표시 (이미 SlidableTaskCard에서 처리됨)
-                        // showSaveToast는 slidable_task_card.dart에서 호출
+                        // 📥 인박스 토스트 표시
+                        if (context.mounted) {
+                          showActionToast(context, type: ToastType.inbox);
+                        }
                       },
                       child: TaskCard(
                         task: task,

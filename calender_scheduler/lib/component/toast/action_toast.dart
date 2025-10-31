@@ -24,6 +24,7 @@ enum ToastType {
   delete, // 削除されました (빨간색)
   save, // 保存されました (검은색)
   change, // 変更されました (파란색)
+  inbox, // ヒキダシに保存されました (보라색)
 }
 
 class ActionToast extends StatefulWidget {
@@ -96,6 +97,8 @@ class _ActionToastState extends State<ActionToast>
     switch (widget.type) {
       case ToastType.delete:
         return RichText(
+          maxLines: 2,
+          softWrap: true,
           textAlign: TextAlign.center,
           text: TextSpan(
             children: [
@@ -115,12 +118,44 @@ class _ActionToastState extends State<ActionToast>
           '保存されました',
           style: baseStyle.copyWith(color: const Color(0xFF111111)),
           textAlign: TextAlign.center,
+          maxLines: 2,
+          softWrap: true,
         );
       case ToastType.change:
-        return Text(
-          '変更されました',
-          style: baseStyle.copyWith(color: const Color(0xFF0000FF)),
+        return RichText(
+          maxLines: 2,
+          softWrap: true,
           textAlign: TextAlign.center,
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: '変更',
+                style: baseStyle.copyWith(color: const Color(0xFF0000FF)),
+              ),
+              TextSpan(
+                text: 'されました',
+                style: baseStyle.copyWith(color: const Color(0xFF111111)),
+              ),
+            ],
+          ),
+        );
+      case ToastType.inbox:
+        return RichText(
+          maxLines: 2,
+          softWrap: true,
+          textAlign: TextAlign.center,
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: 'ヒキダシに',
+                style: baseStyle.copyWith(color: const Color(0xFF566099)),
+              ),
+              TextSpan(
+                text: '\n保存されました',
+                style: baseStyle.copyWith(color: const Color(0xFF111111)),
+              ),
+            ],
+          ),
         );
     }
   }
@@ -181,7 +216,12 @@ class _ActionToastState extends State<ActionToast>
                   ),
 
                   // 텍스트
-                  Center(child: _messageWidget),
+                  Center(
+                    child: SizedBox(
+                      width: 120, // 텍스트 영역만 좁혀 2줄 고정 개행
+                      child: _messageWidget,
+                    ),
+                  ),
                 ],
               ),
             ),

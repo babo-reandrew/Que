@@ -147,18 +147,23 @@ class _SaveToastState extends State<SaveToast>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // 메인 텍스트
-                    Text(
-                      widget.toInbox ? 'ヒキダシに\n保存されました' : '保存されました',
-                      style: const TextStyle(
-                        fontFamily: 'LINE Seed JP App_TTF',
-                        fontWeight: FontWeight.w700, // bold
-                        fontSize: 13,
-                        height: 1.4, // 140%
-                        letterSpacing: -0.005 * 13, // -0.5%
-                        color: Color(0xFF111111),
-                        decoration: TextDecoration.none,
+                    SizedBox(
+                      width: widget.toInbox ? 162 - 72 : 169 - 72,
+                      child: Text(
+                        widget.toInbox ? 'ヒキダシに\n保存されました' : '保存されました',
+                        style: const TextStyle(
+                          fontFamily: 'LINE Seed JP App_TTF',
+                          fontWeight: FontWeight.w700, // bold
+                          fontSize: 13,
+                          height: 1.4, // 140%
+                          letterSpacing: -0.005 * 13, // -0.5%
+                          color: Color(0xFF111111),
+                          decoration: TextDecoration.none,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        softWrap: true,
                       ),
-                      textAlign: TextAlign.center,
                     ),
 
                     // 서브 텍스트 (캘린더 저장일 때만)
@@ -176,6 +181,8 @@ class _SaveToastState extends State<SaveToast>
                           decoration: TextDecoration.none,
                         ),
                         textAlign: TextAlign.center,
+                        maxLines: 1,
+                        softWrap: true,
                       ),
                     ],
                   ],
