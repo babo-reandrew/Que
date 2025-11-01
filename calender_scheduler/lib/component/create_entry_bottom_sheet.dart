@@ -714,7 +714,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
                           onShowTypePopup: () {
                             setState(() {
                               _showQuickAddTypePopup = true;
-                              _isKeyboardLocked = true;
+                              _isKeyboardLocked = true; // 즉시 하단 고정 모드 활성화
                             });
                             debugPrint(
                               '🔒 [CreateEntry] 타입 선택 팝업 표시! isLocked: $_isKeyboardLocked',

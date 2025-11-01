@@ -90,7 +90,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
     // 이거를 해서 → 높이 확장 애니메이션을 제어한다
     _heightAnimationController = AnimationController(
       vsync: this,
-      duration: QuickAddConfig.heightExpandDuration, // 600ms (Spring)
+      duration: Duration.zero, // 애니메이션 없이 즉시 전환
     );
 
     // 이거를 설정하고 → 초기 높이를 설정해서
@@ -1237,44 +1237,43 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   /// DirectAddButton 클릭 처리 (타입별 분기)
   void _handleDirectAdd() {
     final text = _textController.text.trim();
-    if (text.isEmpty) {
-      return;
-    }
 
-    // 🔥 추가 버튼 누르면 항상 키보드 숨기기
-    _focusNode.unfocus();
-
-    // 🔥 중요: 팝업이 이미 표시된 상태면 닫기만 함
+    // 🔥 "追加↑" 버튼의 핵심 동작:
+    // 1. 팝업이 떠있는 상태에서 누르면: 키보드만 내리고 현재 UI를 고정한다.
     if (widget.showTypePopup) {
-      widget.onInputFocused?.call();
+      _focusNode.unfocus(); // 키보드만 내린다.
+      // onInputFocused를 호출하지 않음으로써, 부모의 isKeyboardLocked 상태를 true로 유지.
+      // -> QuickAddKeyboardTracker가 UI 위치를 현재 상단 위치에 고정시킨다.
       return;
     }
 
-    // ✅ 타입이 선택되지 않은 경우 → 타입 선택 팝업 표시
+    // 2. 텍스트가 없는 상태에서 누르면: 타입 선택 팝업을 띄운다.
+    if (text.isEmpty) {
+      if (_selectedType == null) {
+        widget.onShowTypePopup?.call();
+      }
+      return;
+    }
+
+    // 3. 텍스트가 있는 상태에서 누르면:
+    _focusNode.unfocus(); // 일단 키보드를 내린다.
+
+    // 3a. 타입이 아직 선택되지 않았다면: 타입 선택 팝업을 띄운다.
     if (_selectedType == null) {
-      // 부모에게 팝업 표시 신호
       widget.onShowTypePopup?.call();
-
       return;
     }
 
-    // ✅ 타입이 선택된 경우 → 해당 타입으로 직접 저장
-
+    // 3b. 타입이 선택되었다면: 해당 타입으로 데이터를 저장한다.
     switch (_selectedType!) {
       case QuickAddType.schedule:
-        // 일정: 텍스트만 있으면 저장 (시간은 자동 설정)
-        if (_startDateTime != null && _endDateTime != null) {
-        } else {}
         _saveDirectSchedule();
         break;
-
       case QuickAddType.task:
-        // 할일: 텍스트만 있으면 저장 가능 (마감일 선택사항)
         _saveDirectTask();
         break;
-
       case QuickAddType.habit:
-        // 습관: 여기 도달하면 안됨 (타입 선택 시 즉시 모달 표시)
+        // 습관은 이 경로로 저장되지 않음.
         break;
     }
   }

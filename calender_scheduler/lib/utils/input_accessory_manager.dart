@@ -23,7 +23,6 @@ class QuickAddKeyboardTracker extends StatefulWidget {
 class _QuickAddKeyboardTrackerState extends State<QuickAddKeyboardTracker> {
   final KeyboardHeightPlugin _keyboardPlugin = KeyboardHeightPlugin();
   double _currentKeyboardHeight = 0;
-  double? _lockedTopPosition; // 🔥 고정된 상단 위치 (화면 상단부터 박스 상단까지)
 
   @override
   void initState() {
@@ -44,55 +43,38 @@ class _QuickAddKeyboardTrackerState extends State<QuickAddKeyboardTracker> {
   void didUpdateWidget(QuickAddKeyboardTracker oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // 🔥 고정 상태로 전환되면 현재 박스 상단의 절대 위치를 저장!
+    // 🔥 고정/해제 상태 변경 로그
     if (!oldWidget.isLocked && widget.isLocked) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
-        if (renderBox != null && mounted) {
-          final position = renderBox.localToGlobal(Offset.zero);
-          setState(() {
-            _lockedTopPosition = position.dy; // 화면 상단부터 박스 상단까지의 거리
-          });
-          debugPrint(
-            '🔒 [KeyboardTracker] 박스 상단 위치 고정! top: $_lockedTopPosition',
-          );
-        }
-      });
+      debugPrint('🔒 [KeyboardTracker] 위치 고정 모드 활성화');
     }
 
-    // 🔥 고정 해제 시 위치 초기화
     if (oldWidget.isLocked && !widget.isLocked) {
-      setState(() {
-        _lockedTopPosition = null;
-      });
-      debugPrint('🔓 [KeyboardTracker] 위치 고정 해제!');
+      debugPrint('🔓 [KeyboardTracker] 위치 고정 모드 해제');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // 🔥 고정 상태일 때: 절대 top 위치로 배치
-    if (widget.isLocked && _lockedTopPosition != null) {
-      debugPrint('📍 [KeyboardTracker] 고정 모드 - top: $_lockedTopPosition');
+    // 🔥 항상 하단 기준으로 배치
+    // 일반 모드: 키보드 높이만큼 위로 올림
+    // 고정 모드: 키보드 높이 - 184px (타입 선택기 높이)
+    final bottomDistance = widget.isLocked
+        ? (_currentKeyboardHeight - 184.0).clamp(0.0, double.infinity)
+        : _currentKeyboardHeight;
 
-      return Positioned(
-        left: 0,
-        right: 0,
-        top: _lockedTopPosition, // 화면 상단에서 고정된 위치 유지
-        child: widget.child,
-      );
-    }
-
-    // 🔥 일반 상태: 키보드 위에 배치 (여백 없이 순수 키보드 높이만)
-    final bottomDistance = _currentKeyboardHeight;
-    debugPrint('📍 [KeyboardTracker] 일반 모드 - bottom: $bottomDistance');
+    debugPrint(
+      '📍 [KeyboardTracker] ${widget.isLocked ? "고정" : "일반"} 모드 - bottom: $bottomDistance',
+    );
 
     return Positioned(
       left: 0,
       right: 0,
       bottom: bottomDistance,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
+        // 고정 모드로 전환될 때는 애니메이션 없이 즉시 이동
+        duration: widget.isLocked
+            ? Duration.zero
+            : const Duration(milliseconds: 250),
         curve: Curves.easeOutCubic,
         child: widget.child,
       ),
