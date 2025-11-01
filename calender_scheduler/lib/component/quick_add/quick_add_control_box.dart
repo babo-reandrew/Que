@@ -59,9 +59,8 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   bool _isAddButtonActive = false; // ✅ 追加버튼 활성화 상태 (텍스트 입력 시 활성화)
   double _textFieldHeight = 20.0; // ✅ TextField 높이 추적 (개행 감지용)
 
-  // ✅ 반복/리마인더 설정 상태 변수
-  final String _repeatRule = ''; // 반복 규칙 (JSON 문자열)
-  final String _reminder = ''; // 리마인더 설정 (JSON 문자열)
+  // ✅ 반복/리마인더 설정은 BottomSheetController에서 가져옴
+  // (final 제거 - 사용하지 않음)
 
   // ========================================
   // 애니메이션 컨트롤러
@@ -105,7 +104,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
             curve: QuickAddConfig.heightExpandCurve, // Spring curve
           ),
         );
-
   }
 
   @override
@@ -204,7 +202,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
     final extraHeight = _textFieldHeight > 20 ? (_textFieldHeight - 20) : 0;
     final targetHeight = baseHeight + extraHeight;
 
-
     // 이거를 설정하고 → 애니메이션 범위를 업데이트해서
     // 이거를 해서 → 부드럽게 높이가 변경된다 (하단 고정, 상단이 올라감)
     _heightAnimation =
@@ -248,7 +245,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
         );
 
     _heightAnimationController.forward(from: 0.0);
-
   }
 
   // ========================================
@@ -310,7 +306,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   // 색상 선택 모달 표시 (Figma 2372-26840)
   // ========================================
   void _showColorPicker() async {
-
     // 이거를 설정하고 → showModalBottomSheet로 하단에 모달 표시해서
     // 이거를 해서 → 키보드가 내려가고 Wolt ColorPicker가 표시된다
     // 이거는 이래서 → helper 함수로 간결하게 처리된다
@@ -354,7 +349,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
       } catch (e) {
         debugPrint('⚠️ [Quick Add] 임시 색상 복원 중 Provider 업데이트 실패: $e');
       }
-
     }
 
     if (mounted && cachedDateTime != null) {
@@ -459,7 +453,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
         }
       }
 
-
       // 타입별 개별 데이터 복원
       if (type == QuickAddType.schedule) {
         final scheduleData = await TempInputCache.getScheduleData();
@@ -484,7 +477,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   // 날짜/시간 선택 모달 표시 (일정용)
   // ========================================
   void _showDateTimePicker() async {
-
     await showDateTimePickerModal(
       context,
       initialStartDateTime: _startDateTime ?? widget.selectedDate,
@@ -503,7 +495,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   // 데드라인 선택 모달 표시 (할일용)
   // ========================================
   void _showDeadlinePicker() async {
-
     await showDeadlinePickerModal(
       context,
       initialDeadline: _startDateTime ?? widget.selectedDate,
@@ -519,7 +510,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   // 전체 일정 Wolt 모달 표시
   // ========================================
   void _showFullScheduleBottomSheet() async {
-
     final currentTitle = _textController.text.trim();
     final controller = context.read<BottomSheetController>();
 
@@ -563,7 +553,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   // 전체 할일 Wolt 모달 표시
   // ========================================
   void _showFullTaskBottomSheet() async {
-
     final currentTitle = _textController.text.trim();
     final controller = context.read<BottomSheetController>();
 
@@ -606,7 +595,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   // 전체 습관 Wolt 모달 표시
   // ========================================
   void _showFullHabitBottomSheet() async {
-
     final currentTitle = _textController.text.trim();
     final controller = context.read<BottomSheetController>();
 
@@ -659,7 +647,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
 
   @override
   Widget build(BuildContext context) {
-
     return AnimatedBuilder(
       animation: _heightAnimation,
       builder: (context, child) {
@@ -830,7 +817,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
             maxLines: 2, // ✅✅✅ 최대 2행까지만 입력 가능
             minLines: 1, // ✅ 최소 1행
             onTap: () {
-
               // 🔥 팝업이 떠있으면 닫고, 키보드 고정 해제!
               if (_showDetailPopup) {
                 setState(() {
@@ -841,7 +827,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
               }
             },
             onChanged: (text) {
-
               // ✅✅✅ 2행 초과 입력 방지
               final textPainter = TextPainter(
                 text: TextSpan(text: text, style: QuickAddTextStyles.inputText),
@@ -1207,7 +1192,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
 
   /// DirectAddButton 클릭 처리 (타입별 분기)
   void _handleDirectAdd() {
-
     final text = _textController.text.trim();
     if (text.isEmpty) {
       return;
@@ -1223,7 +1207,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
 
     // ✅ 타입이 선택되지 않은 경우 → 타입 선택 팝업 표시
     if (_selectedType == null) {
-
       // 1단계: 키보드 내리기
       _focusNode.unfocus();
 
@@ -1247,8 +1230,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
       case QuickAddType.schedule:
         // 일정: 텍스트만 있으면 저장 (시간은 자동 설정)
         if (_startDateTime != null && _endDateTime != null) {
-        } else {
-        }
+        } else {}
         _saveDirectSchedule();
         break;
 
@@ -1261,7 +1243,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
         // 습관: 여기 도달하면 안됨 (타입 선택 시 즉시 모달 표시)
         break;
     }
-
   }
 
   // ========================================
@@ -1293,11 +1274,24 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
         0, // 분은 00으로
       );
       endTime = startTime.add(const Duration(hours: 1)); // +1시간
-
     }
 
     // 🔥 1단계: 키보드 즉시 내리기
     _focusNode.unfocus();
+
+    // 🔥 BottomSheetController에서 반복/알림 가져오기
+    final controller = context.read<BottomSheetController>();
+    final repeatRule = controller.repeatRule;
+    final reminder = controller.reminder;
+
+    // 🔥 디버그 로그: 전달할 데이터 확인
+    debugPrint('📤 [QuickAddControl] 일정 데이터 전달');
+    debugPrint('   - 제목: $title');
+    debugPrint('   - 색상: $_selectedColorId');
+    debugPrint('   - 시작: $startTime');
+    debugPrint('   - 종료: $endTime');
+    debugPrint('   - 반복: ${repeatRule.isEmpty ? "(없음)" : repeatRule}');
+    debugPrint('   - 알림: ${reminder.isEmpty ? "(없음)" : reminder}');
 
     // 🔥 2단계: 저장 콜백 호출 (부모가 바텀시트를 닫고 토스트 표시)
     widget.onSave?.call({
@@ -1306,8 +1300,8 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
       'colorId': _selectedColorId,
       'startDateTime': startTime,
       'endDateTime': endTime,
-      'repeatRule': _repeatRule,
-      'reminder': _reminder,
+      'repeatRule': repeatRule,
+      'reminder': reminder,
     });
   }
 
@@ -1317,9 +1311,21 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   void _saveDirectTask() {
     final title = _textController.text.trim();
 
-
     // 🔥 1단계: 키보드 즉시 내리기
     _focusNode.unfocus();
+
+    // 🔥 BottomSheetController에서 반복/알림 가져오기
+    final controller = context.read<BottomSheetController>();
+    final repeatRule = controller.repeatRule;
+    final reminder = controller.reminder;
+
+    // 🔥 디버그 로그: 전달할 데이터 확인
+    debugPrint('📤 [QuickAddControl] 할일 데이터 전달');
+    debugPrint('   - 제목: $title');
+    debugPrint('   - 색상: $_selectedColorId');
+    debugPrint('   - 마감일: ${_startDateTime ?? "(없음)"}');
+    debugPrint('   - 반복: ${repeatRule.isEmpty ? "(없음)" : repeatRule}');
+    debugPrint('   - 알림: ${reminder.isEmpty ? "(없음)" : reminder}');
 
     // 🔥 2단계: 저장 콜백 호출 (부모가 바텀시트를 닫고 토스트 표시)
     widget.onSave?.call({
@@ -1327,8 +1333,8 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
       'title': title,
       'colorId': _selectedColorId,
       'dueDate': _startDateTime, // ✅ 사용자가 선택한 마감일 (없을 수도 있음)
-      'repeatRule': _repeatRule,
-      'reminder': _reminder,
+      'repeatRule': repeatRule,
+      'reminder': reminder,
     });
   }
 

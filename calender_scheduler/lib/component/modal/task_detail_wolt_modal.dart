@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // ✅ TextInputFormatter
 import 'package:provider/provider.dart';
-import 'package:smooth_sheets/smooth_sheets.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:get_it/get_it.dart';
 import 'package:figma_squircle/figma_squircle.dart';
@@ -16,15 +15,18 @@ import '../../design_system/wolt_helpers.dart';
 import '../../utils/temp_input_cache.dart'; // ✅ 임시 캐시
 import '../../utils/recurring_event_helpers.dart'
     as RecurringHelpers; // ✅ 반복 이벤트 헬퍼
+import '../../utils/rrule_utils.dart'; // ✅ RRULE 유틸리티
 import 'package:flutter_svg/flutter_svg.dart'; // ✅ SVG 지원
 import '../../const/color.dart'; // ✅ 색상 맵핑
 import 'deadline_picker_modal.dart'; // ✅ 마감일 선택 바텀시트
+import 'task_reminder_picker_modal.dart'; // ✅ 할일 전용 리마인더 선택 (시간 피커)
 import 'discard_changes_modal.dart'; // ✅ 변경 취소 확인 모달
 import 'delete_confirmation_modal.dart'; // ✅ 삭제 확인 모달
 import 'delete_repeat_confirmation_modal.dart'; // ✅ 반복 삭제 확인 모달
 import 'edit_repeat_confirmation_modal.dart'; // ✅ 반복 수정 확인 모달
 import '../toast/action_toast.dart'; // ✅ 변경 토스트
 import '../toast/save_toast.dart'; // ✅ 저장 토스트
+import 'animated_sheet_content.dart';
 
 /// 할일 상세 Wolt Modal Sheet
 ///
@@ -172,11 +174,6 @@ Future<void> showTaskDetailWoltModal(
   final initialReminder = bottomSheetController.reminder;
   final initialRepeatRule = bottomSheetController.repeatRule;
 
-
-  // ✅ 드래그 방향 추적 변수
-  double? previousExtent;
-  bool isDismissing = false; // 팝업 중복 방지
-
   await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -185,162 +182,135 @@ Future<void> showTaskDetailWoltModal(
     isDismissible: false, // ✅ 기본 드래그 닫기 비활성화
     enableDrag: false, // ✅ 기본 드래그 비활성화 (수동으로 처리)
     useRootNavigator: false, // ✅ 현재 네비게이터 사용 (부모 화면과 제스처 충돌 방지)
-    builder: (sheetContext) => WillPopScope(
-      onWillPop: () async {
-        // ✅ 변경사항 감지
-        final hasChanges =
-            initialTitle != taskController.titleController.text ||
-            initialDueDate != taskController.dueDate ||
-            initialExecutionDate != taskController.executionDate ||
-            initialColor != bottomSheetController.selectedColor ||
-            initialReminder != bottomSheetController.reminder ||
-            initialRepeatRule != bottomSheetController.repeatRule;
+    builder: (sheetContext) {
+      final keyboardHeight = MediaQuery.of(sheetContext).viewInsets.bottom;
+      final isKeyboardVisible = keyboardHeight > 0;
 
-        if (hasChanges) {
-          // ✅ 변경사항 있으면 확인 모달
-          final confirmed = await showDiscardChangesModal(context);
-          return confirmed == true;
-        }
-        // ✅ 변경사항 없으면 바로 닫기
-        return true;
-      },
-      child: Stack(
-        children: [
-          // ✅ 배리어 영역 (전체 화면)
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () async {
-                // ✅ 배리어 영역 터치 시
-                debugPrint('🐛 [TaskWolt] 배리어 터치 감지');
+      return WillPopScope(
+        onWillPop: () async {
+          // ✅ 변경사항 감지
+          final hasChanges =
+              initialTitle != taskController.titleController.text ||
+              initialDueDate != taskController.dueDate ||
+              initialExecutionDate != taskController.executionDate ||
+              initialColor != bottomSheetController.selectedColor ||
+              initialReminder != bottomSheetController.reminder ||
+              initialRepeatRule != bottomSheetController.repeatRule;
 
-                final hasChanges =
-                    initialTitle != taskController.titleController.text ||
-                    initialDueDate != taskController.dueDate ||
-                    initialExecutionDate != taskController.executionDate ||
-                    initialColor != bottomSheetController.selectedColor ||
-                    initialReminder != bottomSheetController.reminder ||
-                    initialRepeatRule != bottomSheetController.repeatRule;
-
-
-                if (hasChanges) {
-                  // ✅ 변경사항 있으면 확인 모달
-                  final confirmed = await showDiscardChangesModal(context);
-                  if (confirmed == true && sheetContext.mounted) {
-                    Navigator.of(sheetContext).pop();
-                  } else {
-                  }
-                } else {
-                  // ✅ 변경사항 없으면 바로 닫기
-                  if (sheetContext.mounted) {
-                    Navigator.of(sheetContext).pop();
-                  }
-                }
-              },
-            ),
-          ),
-          // ✅ 바텀시트 (배리어 위에)
-          NotificationListener<DraggableScrollableNotification>(
-            onNotification: (notification) {
-              // ✅ 바텀시트를 minChildSize 이하로 내릴 때 감지
-              // ✅ 드래그 방향 감지 (아래로만)
-              final isMovingDown =
-                  previousExtent != null &&
-                  notification.extent < previousExtent!;
-              previousExtent = notification.extent;
-
-              // ✅ 바텀시트를 아래로 드래그하여 minChildSize 이하로 내릴 때만
-              if (isMovingDown &&
-                  notification.extent <= notification.minExtent + 0.05 &&
-                  !isDismissing) {
-                debugPrint('🐛 [TaskWolt] 아래로 드래그 닫기 감지');
-
-                isDismissing = true; // ✅ 즉시 플래그 설정하여 중복 호출 방지
-
-                // ✅ 변경사항 확인
-                final hasChanges =
-                    initialTitle != taskController.titleController.text ||
-                    initialDueDate != taskController.dueDate ||
-                    initialExecutionDate != taskController.executionDate ||
-                    initialColor != bottomSheetController.selectedColor ||
-                    initialReminder != bottomSheetController.reminder ||
-                    initialRepeatRule != bottomSheetController.repeatRule;
-
-
-                if (hasChanges) {
-                  // ✅ 변경사항 있으면 확인 모달 띄우기
-                  WidgetsBinding.instance.addPostFrameCallback((_) async {
-                    if (sheetContext.mounted) {
-                      final confirmed = await showDiscardChangesModal(context);
-                      if (confirmed == true && sheetContext.mounted) {
-                        Navigator.of(sheetContext).pop();
-                      } else {
-                        // ✅ 사용자가 취소한 경우에만 플래그 리셋
-                        isDismissing = false;
-                      }
-                    }
-                  });
-                  return true; // ✅ 드래그 이벤트 소비 (닫기 방지)
-                } else {
-                  // ✅ 변경사항 없으면 바로 닫기
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (sheetContext.mounted) {
-                      try {
-                        Navigator.of(sheetContext, rootNavigator: false).pop();
-                        // ✅ pop 성공 후에는 리셋하지 않음 (이미 dispose됨)
-                      } catch (e) {
-                        debugPrint('❌ 바텀시트 닫기 실패: $e');
-                        isDismissing = false; // ✅ 실패한 경우에만 리셋
-                      }
-                    }
-                  });
-                  return false;
-                }
-              }
-              return false;
-            },
-            child: DraggableScrollableSheet(
-              initialChildSize: 0.7,
-              minChildSize: 0.5,
-              maxChildSize: 0.95,
-              snap: true,
-              snapSizes: const [0.5, 0.7, 0.95],
-              builder: (context, scrollController) => GestureDetector(
+          if (hasChanges) {
+            // ✅ 변경사항 있으면 확인 모달
+            final confirmed = await showDiscardChangesModal(context);
+            return confirmed == true;
+          }
+          // ✅ 변경사항 없으면 바로 닫기
+          return true;
+        },
+        child: Stack(
+          children: [
+            // ✅ 배리어 영역 (전체 화면)
+            Positioned.fill(
+              child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  // ✅ 바텀시트 내부 터치는 아무것도 안함 (포커스 해제 등)
-                  debugPrint('🐛 [TaskWolt] 바텀시트 내부 터치');
+                onTap: () async {
+                  // ✅ 배리어 영역 터치 시
+                  debugPrint('🐛 [TaskWolt] 배리어 터치 감지');
+
+                  final hasChanges =
+                      initialTitle != taskController.titleController.text ||
+                      initialDueDate != taskController.dueDate ||
+                      initialExecutionDate != taskController.executionDate ||
+                      initialColor != bottomSheetController.selectedColor ||
+                      initialReminder != bottomSheetController.reminder ||
+                      initialRepeatRule != bottomSheetController.repeatRule;
+
+                  if (hasChanges) {
+                    // ✅ 변경사항 있으면 확인 모달
+                    final confirmed = await showDiscardChangesModal(context);
+                    if (confirmed == true && sheetContext.mounted) {
+                      Navigator.of(sheetContext).pop();
+                    } else {}
+                  } else {
+                    // ✅ 변경사항 없으면 바로 닫기
+                    if (sheetContext.mounted) {
+                      Navigator.of(sheetContext).pop();
+                    }
+                  }
                 },
-                child: Container(
-                  decoration: ShapeDecoration(
-                    color: const Color(0xFFFCFCFC),
-                    shape: SmoothRectangleBorder(
-                      borderRadius: SmoothBorderRadius(
-                        cornerRadius: 36,
-                        cornerSmoothing: 0.6,
-                      ),
+              ),
+            ),
+            // ✅ 바텀시트 (배리어 위에) - 하단 고정, 상단으로만 확장
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOut,
+                padding: EdgeInsets.only(
+                  bottom: isKeyboardVisible
+                      ? (keyboardHeight - 80).clamp(0, double.infinity)
+                      : 0,
+                ),
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(sheetContext).size.height * 0.9,
+                  minHeight: 450,
+                ),
+                decoration: ShapeDecoration(
+                  color: const Color(0xFFFCFCFC),
+                  shape: SmoothRectangleBorder(
+                    borderRadius: SmoothBorderRadius(
+                      cornerRadius: 36,
+                      cornerSmoothing: 0.6,
                     ),
                   ),
-                  child: _buildTaskDetailPage(
-                    context,
-                    scrollController: scrollController,
-                    task: task,
-                    selectedDate: selectedDate,
-                    initialTitle: initialTitle,
-                    initialExecutionDate: initialExecutionDate,
-                    initialDueDate: initialDueDate,
-                    initialColor: initialColor,
-                    initialReminder: initialReminder,
-                    initialRepeatRule: initialRepeatRule,
+                ),
+                child: AnimatedSheetContent(
+                  child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    child: _buildTaskDetailPage(
+                      context,
+                      scrollController: null,
+                      task: task,
+                      selectedDate: selectedDate,
+                      initialTitle: initialTitle,
+                      initialExecutionDate: initialExecutionDate,
+                      initialDueDate: initialDueDate,
+                      initialColor: initialColor,
+                      initialReminder: initialReminder,
+                      initialRepeatRule: initialRepeatRule,
+                      isKeyboardVisible: isKeyboardVisible,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-    ),
+            // ✅ 키보드가 올라올 때 DetailOptions를 키보드 상단 12px 위에 중앙 정렬
+            if (isKeyboardVisible)
+              Positioned(
+                bottom: keyboardHeight + 12, // ✅ 키보드와의 여백 12px
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Hero(
+                    tag: 'detail-options-hero',
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: _buildDetailOptions(
+                        context,
+                        selectedDate: selectedDate,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    },
   );
+
+  // ✅ 리스너 제거
+  taskController.titleController.removeListener(autoSaveTitle);
+  taskController.removeListener(autoSaveTaskData);
+  bottomSheetController.removeListener(autoSaveTitle);
 }
 
 // ========================================
@@ -349,7 +319,7 @@ Future<void> showTaskDetailWoltModal(
 
 Widget _buildTaskDetailPage(
   BuildContext context, {
-  required ScrollController scrollController,
+  required ScrollController? scrollController,
   required TaskData? task,
   required DateTime selectedDate,
   required String initialTitle,
@@ -358,13 +328,15 @@ Widget _buildTaskDetailPage(
   required String initialColor,
   required String initialReminder,
   required String initialRepeatRule,
+  required bool isKeyboardVisible,
 }) {
-  return ListView(
-    controller: scrollController,
-    padding: EdgeInsets.zero,
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      // ========== TopNavi (60px) ==========
-      _buildTopNavi(
+      const SizedBox(height: 32),
+      // ========== 드래그 가능한 영역 (TopNavi + TextField + 여백) ==========
+      _buildDraggableHeader(
         context,
         task: task,
         selectedDate: selectedDate,
@@ -376,16 +348,31 @@ Widget _buildTaskDetailPage(
         initialRepeatRule: initialRepeatRule,
       ),
 
-      // ========== TextField (51px) ==========
-      _buildTextField(context),
-
-      const SizedBox(height: 24), // gap
+      const SizedBox(height: 10), // gap
       // ========== Date Selection Section (締切 + 実行日) ==========
-      _buildDateSelectionSection(context),
+      Padding(
+        padding: const EdgeInsets.only(left: 28),
+        child: _buildDateSelectionSection(context),
+      ),
 
       const SizedBox(height: 36), // gap
       // ========== DetailOptions (64px) ==========
-      _buildDetailOptions(context, selectedDate: selectedDate),
+      Visibility(
+        visible: !isKeyboardVisible,
+        maintainState: true,
+        maintainAnimation: true,
+        maintainSize: true,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 52), // ✅ 바텀시트 내부일 때는 52px
+          child: Hero(
+            tag: 'detail-options-hero',
+            child: Material(
+              type: MaterialType.transparency,
+              child: _buildDetailOptions(context, selectedDate: selectedDate),
+            ),
+          ),
+        ),
+      ),
 
       const SizedBox(height: 48), // gap
       // ========== Delete Button (52px) ==========
@@ -396,8 +383,101 @@ Widget _buildTaskDetailPage(
           selectedDate: selectedDate,
         ), // ✅ 수정
 
-      const SizedBox(height: 20), // ✅ 하단 패딩 20px (최대 확장 시 바텀시트 끝에서 20px 여백)
+      const SizedBox(height: 56), // ✅ 하단 패딩 56px (키보드 없을 때 기본값)
     ],
+  );
+}
+
+// ========================================
+// Draggable Header (TopNavi + TextField)
+// ========================================
+
+Widget _buildDraggableHeader(
+  BuildContext context, {
+  required TaskData? task,
+  required DateTime selectedDate,
+  required String initialTitle,
+  required DateTime? initialExecutionDate,
+  required DateTime? initialDueDate,
+  required String initialColor,
+  required String initialReminder,
+  required String initialRepeatRule,
+}) {
+  final taskController = Provider.of<TaskFormController>(
+    context,
+    listen: false,
+  );
+
+  return ValueListenableBuilder<TextEditingValue>(
+    valueListenable: taskController.titleController,
+    builder: (context, titleValue, child) {
+      return Consumer2<TaskFormController, BottomSheetController>(
+        builder: (context, taskController, bottomSheetController, child) {
+          // 🎯 키보드 상태 감지
+          final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+          final isKeyboardVisible = keyboardHeight > 0;
+
+          // ✅ 변경사항 감지
+          final hasChanges =
+              initialTitle != titleValue.text ||
+              initialExecutionDate != taskController.executionDate ||
+              initialDueDate != taskController.dueDate ||
+              initialColor != bottomSheetController.selectedColor.toString() ||
+              initialReminder != bottomSheetController.reminder ||
+              initialRepeatRule != bottomSheetController.repeatRule;
+
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragUpdate: (details) {
+              if (details.primaryDelta != null && details.primaryDelta! > 0) {
+                if (isKeyboardVisible) {
+                  FocusScope.of(context).unfocus();
+                }
+              }
+            },
+            onVerticalDragEnd: (details) {
+              if (details.primaryVelocity != null &&
+                  details.primaryVelocity! > 500) {
+                if (isKeyboardVisible) {
+                  FocusScope.of(context).unfocus();
+                  return;
+                }
+
+                if (hasChanges) {
+                  showDiscardChangesModal(context).then((confirmed) {
+                    if (confirmed == true && context.mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  });
+                } else {
+                  Navigator.of(context).pop();
+                }
+              }
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // TopNavi
+                _buildTopNavi(
+                  context,
+                  task: task,
+                  selectedDate: selectedDate,
+                  initialTitle: initialTitle,
+                  initialExecutionDate: initialExecutionDate,
+                  initialDueDate: initialDueDate,
+                  initialColor: initialColor,
+                  initialReminder: initialReminder,
+                  initialRepeatRule: initialRepeatRule,
+                ),
+                const SizedBox(height: 12),
+                // TextField
+                _buildTextField(context, task: task),
+              ],
+            ),
+          );
+        },
+      );
+    },
   );
 }
 
@@ -445,111 +525,109 @@ Widget _buildTopNavi(
               ? hasRequiredFields // 새 항목
               : (hasRequiredFields && hasChanges); // 기존 항목
 
-          // 텍스트 입력 여부에 따라 색상 변경
-          final hasTitle = taskController.hasTitle;
-          final titleColor = hasTitle
-              ? const Color(0xFF7A7A7A)
-              : const Color(0xFF505050);
-
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(28, 28, 28, 9),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Title
-                Text(
-                  'タスク',
-                  style: TextStyle(
-                    fontFamily: 'LINE Seed JP App_TTF',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    height: 1.4,
-                    letterSpacing: -0.08,
-                    color: titleColor,
+          return SizedBox(
+            height: 60,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Title
+                  const Text(
+                    'タスク',
+                    style: TextStyle(
+                      fontFamily: 'LINE Seed JP App_TTF',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      height: 1.4,
+                      letterSpacing: -0.08,
+                      color: Color(0xFF7A7A7A),
+                    ),
                   ),
-                ),
 
-                // 🎯 조건부 버튼: 조건 충족하면 完了, 아니면 X 아이콘
-                showSaveButton
-                    ? GestureDetector(
-                        onTap: () => _handleSave(
-                          context,
-                          task: task,
-                          selectedDate: selectedDate,
-                        ),
-                        child: Container(
-                          width: 74,
-                          height: 42,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
+                  // 🎯 조건부 버튼: 조건 충족하면 完了, 아니면 X 아이콘
+                  showSaveButton
+                      ? GestureDetector(
+                          onTap: () => _handleSave(
+                            context,
+                            task: task,
+                            selectedDate: selectedDate,
                           ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF111111),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color.fromRGBO(186, 186, 186, 0.08),
-                                offset: Offset(0, -2),
-                                blurRadius: 8,
+                          child: Container(
+                            width: 74,
+                            height: 42,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF111111),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color.fromRGBO(186, 186, 186, 0.08),
+                                  offset: Offset(0, -2),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            alignment: Alignment.center,
+                            child: const Text(
+                              '完了',
+                              style: TextStyle(
+                                fontFamily: 'LINE Seed JP App_TTF',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                height: 1.4,
+                                letterSpacing: -0.065,
+                                color: Color(0xFFFAFAFA),
                               ),
-                            ],
+                            ),
                           ),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            '完了',
-                            style: TextStyle(
-                              fontFamily: 'LINE Seed JP App_TTF',
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              height: 1.4,
-                              letterSpacing: -0.065,
-                              color: Color(0xFFFAFAFA),
+                        )
+                      : GestureDetector(
+                          onTap: () => Navigator.of(context).pop(),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE4E4E4).withOpacity(0.9),
+                              border: Border.all(
+                                color: const Color(
+                                  0xFF111111,
+                                ).withOpacity(0.02),
+                                width: 1,
+                              ),
+                              borderRadius: BorderRadius.circular(100),
+                            ),
+                            alignment: Alignment.center,
+                            child: SvgPicture.asset(
+                              'asset/icon/X_icon.svg',
+                              width: 20,
+                              height: 20,
+                              colorFilter: const ColorFilter.mode(
+                                Color(0xFF111111),
+                                BlendMode.srcIn,
+                              ),
                             ),
                           ),
                         ),
-                      )
-                    : GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE4E4E4).withOpacity(0.9),
-                            border: Border.all(
-                              color: const Color(0xFF111111).withOpacity(0.02),
-                              width: 1,
-                            ),
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                          alignment: Alignment.center,
-                          child: SvgPicture.asset(
-                            'asset/icon/X_icon.svg',
-                            width: 20,
-                            height: 20,
-                            colorFilter: const ColorFilter.mode(
-                              Color(0xFF111111),
-                              BlendMode.srcIn,
-                            ),
-                          ),
-                        ),
-                      ),
-              ],
+                ],
+              ),
             ),
           );
         },
       );
     },
   );
-
 }
 
 // ========================================
 // TextField Component (51px)
 // ========================================
 
-Widget _buildTextField(BuildContext context) {
+Widget _buildTextField(BuildContext context, {required TaskData? task}) {
   final taskController = Provider.of<TaskFormController>(
     context,
     listen: false,
@@ -563,7 +641,7 @@ Widget _buildTextField(BuildContext context) {
       ), // 🎯 28px (일정은 24px!)
       child: TextField(
         controller: taskController.titleController,
-        autofocus: false,
+        autofocus: task == null, // ✅ 새로 만들 때만 키보드 자동 활성화
         style: const TextStyle(
           fontFamily: 'LINE Seed JP App_TTF',
           fontSize: 19,
@@ -577,10 +655,10 @@ Widget _buildTextField(BuildContext context) {
           hintStyle: TextStyle(
             fontFamily: 'LINE Seed JP App_TTF',
             fontSize: 19,
-            fontWeight: FontWeight.w700, // Bold (placeholder)
+            fontWeight: FontWeight.w800, // ExtraBold (placeholder)
             height: 1.4,
             letterSpacing: -0.095,
-            color: Color(0xFFAAAAAA),
+            color: Color(0xFFA5A5A5),
           ),
           border: InputBorder.none,
           isDense: true,
@@ -608,31 +686,36 @@ Widget _buildTextField(BuildContext context) {
 // ========================================
 
 Widget _buildDateSelectionSection(BuildContext context) {
-  return Padding(
-    padding: const EdgeInsets.only(right: 32), // ✅ 우측 32px 여백
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 期間 라벨 (아이콘 + 텍스트)
-        _buildDeadlineLabel(context),
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _buildDeadlineLabel(context),
 
-        const SizedBox(height: 12),
+      const SizedBox(height: 12),
 
-        // Row: 실행일(좌) + 마감일(우)
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      Padding(
+        padding: const EdgeInsets.only(left: 26),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // 좌측: 実行日만 표시
-            Expanded(child: _buildExecutionDatePicker(context)),
+            _buildExecutionDatePicker(context),
 
             const SizedBox(width: 32),
 
-            // 우측: 締め切り만 표시
-            Expanded(child: _buildDeadlinePicker(context)),
+            SvgPicture.asset(
+              'asset/icon/Date_Picker_arrow.svg',
+              width: 8,
+              height: 46,
+            ),
+
+            const SizedBox(width: 32),
+
+            _buildDeadlinePicker(context),
           ],
         ),
-      ],
-    ),
+      ),
+    ],
   );
 }
 
@@ -641,33 +724,29 @@ Widget _buildDateSelectionSection(BuildContext context) {
 // ========================================
 
 Widget _buildDeadlineLabel(BuildContext context) {
-  return Padding(
-    padding: const EdgeInsets.fromLTRB(24, 4, 0, 4), // ✅ 좌측 24px만
-    child: Row(
-      children: [
-        SvgPicture.asset(
-          'asset/icon/calender-time.svg', // ✅ calender-time 아이콘
-          width: 19,
-          height: 19,
-          colorFilter: const ColorFilter.mode(
-            Color(0xFFFF5555), // ✅ 빨간색으로 변경해서 확실히 보이도록
-            BlendMode.srcIn,
-          ),
+  return Row(
+    children: [
+      SvgPicture.string(
+        '''<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M6.5 17H17.5M12 12C10.4087 12 8.88258 12.6321 7.75736 13.7574C6.63214 14.8826 6 16.4087 6 18V20C6 20.2652 6.10536 20.5196 6.29289 20.7071C6.48043 20.8946 6.73478 21 7 21H17C17.2652 21 17.5196 20.8946 17.7071 20.7071C17.8946 20.5196 18 20.2652 18 20V18C18 16.4087 17.3679 14.8826 16.2426 13.7574C15.1174 12.6321 13.5913 12 12 12ZM12 12C10.4087 12 8.88258 11.3679 7.75736 10.2426C6.63214 9.11742 6 7.5913 6 6V4C6 3.73478 6.10536 3.48043 6.29289 3.29289C6.48043 3.10536 6.73478 3 7 3H17C17.2652 3 17.5196 3.10536 17.7071 3.29289C17.8946 3.48043 18 3.73478 18 4V6C18 7.5913 17.3679 9.11742 16.2426 10.2426C15.1174 11.3679 13.5913 12 12 12Z" stroke="#111111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+''',
+        width: 19,
+        height: 19,
+      ),
+      const SizedBox(width: 6), // ✅ 6px
+      const Text(
+        '期間',
+        style: TextStyle(
+          fontFamily: 'LINE Seed JP App_TTF',
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          height: 1.4,
+          letterSpacing: -0.065,
+          color: Color(0xFF111111),
         ),
-        const SizedBox(width: 8),
-        const Text(
-          '期間',
-          style: TextStyle(
-            fontFamily: 'LINE Seed JP App_TTF',
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            height: 1.4,
-            letterSpacing: -0.065,
-            color: Color(0xFF111111),
-          ),
-        ),
-      ],
-    ),
+      ),
+    ],
   );
 }
 
@@ -703,95 +782,85 @@ Widget _buildDeadlinePicker(BuildContext context) {
 Widget _buildEmptyDeadline(BuildContext context) {
   // ✅ Figma: Frame 782 (padding 0px 24px)
   // DetailView_Object: width 64px, height 94px
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 24), // ✅ 좌우 24px
-    child: SizedBox(
-      width: 64, // ✅ Figma: 64px
-      height: 94, // ✅ Figma: 94px
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // ✅ 締め切り label (회색)
-          Positioned(
-            top: 0,
-            left: 3,
-            child: Text(
-              '締め切り', // ✅ 締め切り
-              style: TextStyle(
-                fontFamily: 'LINE Seed JP App_TTF',
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                height: 1.4,
-                letterSpacing: -0.08,
-                color: Color(0xFFBBBBBB), // ✅ 회색 #BBBBBB
-              ),
+  return SizedBox(
+    width: 64, // ✅ Figma: 64px
+    height: 94, // ✅ Figma: 94px
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        // ✅ 締め切り label (회색)
+        Positioned(
+          top: 0,
+          left: 3,
+          child: Text(
+            '締め切り', // ✅ 締め切り
+            style: TextStyle(
+              fontFamily: 'LINE Seed JP App_TTF',
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              height: 1.4,
+              letterSpacing: -0.08,
+              color: Color(0xFFBBBBBB), // ✅ 회색 #BBBBBB
             ),
           ),
+        ),
 
-          // ✅ Figma: 배경 숫자 "10" (50px, #EEEEEE)
-          const Positioned(
-            bottom: 0,
-            child: Text(
-              '10',
-              style: TextStyle(
-                fontFamily: 'LINE Seed JP App_TTF',
-                fontSize: 50,
-                fontWeight: FontWeight.w800,
-                height: 1.2,
-                letterSpacing: -0.25,
-                color: Color(0xFFEEEEEE),
-              ),
+        // ✅ Figma: 배경 숫자 "10" (50px, #EEEEEE)
+        const Positioned(
+          bottom: 0,
+          child: Text(
+            '10',
+            style: TextStyle(
+              fontFamily: 'LINE Seed JP App_TTF',
+              fontSize: 50,
+              fontWeight: FontWeight.w800,
+              height: 1.2,
+              letterSpacing: -0.25,
+              color: Color(0xFFEEEEEE),
             ),
           ),
+        ),
 
-          // ✅ + 버튼 (32x32px) - 가로세로 중앙 정렬
-          Center(
-            // ✅ Stack의 alignment.center와 함께 완전 중앙
-            child: GestureDetector(
-              onTap: () => _handleDueDatePicker(context), // ✅ 締め切り는 DueDate
-              child: Container(
-                width: 32,
-                height: 32,
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF262626),
-                  border: Border.all(
-                    color: const Color.fromRGBO(17, 17, 17, 0.06),
-                    width: 1,
+        // ✅ + 버튼 (32x32px) - 가로세로 중앙 정렬
+        Center(
+          // ✅ Stack의 alignment.center와 함께 완전 중앙
+          child: GestureDetector(
+            onTap: () => _handleDueDatePicker(context), // ✅ 締め切り는 DueDate
+            child: Container(
+              width: 32,
+              height: 32,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF262626),
+                border: Border.all(
+                  color: const Color.fromRGBO(17, 17, 17, 0.06),
+                  width: 1,
+                ),
+                shape: BoxShape.circle,
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color.fromRGBO(186, 186, 186, 0.08),
+                    offset: Offset(0, -2),
+                    blurRadius: 8,
                   ),
-                  shape: BoxShape.circle,
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color.fromRGBO(186, 186, 186, 0.08),
-                      offset: Offset(0, -2),
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.add,
-                  size: 24,
-                  color: Color(0xFFFFFFFF),
-                ),
+                ],
               ),
+              child: const Icon(Icons.add, size: 24, color: Color(0xFFFFFFFF)),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
 
 Widget _buildSelectedDeadline(BuildContext context, DateTime dueDate) {
   // ✅ 締め切り만 표시
-  return Padding(
-    padding: const EdgeInsets.only(left: 24, right: 0),
-    child: _buildDeadlineCompactObject(
-      context,
-      label: '締め切り',
-      date: dueDate,
-      onTap: () => _handleDueDatePicker(context),
-    ),
+  return _buildDeadlineCompactObject(
+    context,
+    label: '締め切り',
+    date: dueDate,
+    onTap: () => _handleDueDatePicker(context),
   );
 }
 
@@ -975,80 +1044,73 @@ Widget _buildExecutionDatePicker(BuildContext context) {
 }
 
 Widget _buildEmptyExecutionDate(BuildContext context) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 24), // ✅ 좌우 24px
-    child: SizedBox(
-      width: 64,
-      height: 94,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // 実行日 라벨
-          Positioned(
-            top: 0,
-            left: 3,
-            child: Text(
-              '実行日', // ✅ 実行日
-              style: TextStyle(
-                fontFamily: 'LINE Seed JP App_TTF',
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                height: 1.4,
-                letterSpacing: -0.08,
-                color: Color(0xFFBBBBBB),
-              ),
+  return SizedBox(
+    width: 64,
+    height: 94,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        // 実行日 라벨
+        Positioned(
+          top: 0,
+          left: 3,
+          child: Text(
+            '実行日', // ✅ 実行日
+            style: TextStyle(
+              fontFamily: 'LINE Seed JP App_TTF',
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              height: 1.4,
+              letterSpacing: -0.08,
+              color: Color(0xFFBBBBBB),
             ),
           ),
+        ),
 
-          // 배경 숫자 "10"
-          const Positioned(
-            bottom: 0,
-            child: Text(
-              '10',
-              style: TextStyle(
-                fontFamily: 'LINE Seed JP App_TTF',
-                fontSize: 50,
-                fontWeight: FontWeight.w800,
-                height: 1.2,
-                letterSpacing: -0.25,
-                color: Color(0xFFEEEEEE),
-              ),
+        // 배경 숫자 "10"
+        const Positioned(
+          bottom: 0,
+          child: Text(
+            '10',
+            style: TextStyle(
+              fontFamily: 'LINE Seed JP App_TTF',
+              fontSize: 50,
+              fontWeight: FontWeight.w800,
+              height: 1.2,
+              letterSpacing: -0.25,
+              color: Color(0xFFEEEEEE),
             ),
           ),
+        ),
 
-          // ✅ + 버튼 - 가로세로 중앙 정렬
-          Center(
-            child: GestureDetector(
-              onTap: () => _handleExecutionDatePicker(context),
-              child: Container(
-                width: 32,
-                height: 32,
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF262626),
-                  border: Border.all(
-                    color: const Color.fromRGBO(17, 17, 17, 0.06),
-                    width: 1,
+        // ✅ + 버튼 - 가로세로 중앙 정렬
+        Center(
+          child: GestureDetector(
+            onTap: () => _handleExecutionDatePicker(context),
+            child: Container(
+              width: 32,
+              height: 32,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF262626),
+                border: Border.all(
+                  color: const Color.fromRGBO(17, 17, 17, 0.06),
+                  width: 1,
+                ),
+                shape: BoxShape.circle,
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color.fromRGBO(186, 186, 186, 0.08),
+                    offset: Offset(0, -2),
+                    blurRadius: 8,
                   ),
-                  shape: BoxShape.circle,
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color.fromRGBO(186, 186, 186, 0.08),
-                      offset: Offset(0, -2),
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.add,
-                  size: 24,
-                  color: Color(0xFFFFFFFF),
-                ),
+                ],
               ),
+              child: const Icon(Icons.add, size: 24, color: Color(0xFFFFFFFF)),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -1058,57 +1120,54 @@ Widget _buildSelectedExecutionDate(
   DateTime executionDate,
 ) {
   // ✅ 実行日 라벨 + 날짜 + 연도
-  return Padding(
-    padding: const EdgeInsets.only(left: 28, right: 0), // ✅ 좌측 28px
-    child: GestureDetector(
-      onTap: () => _handleExecutionDatePicker(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 실행일 라벨
-          const Text(
-            '実行日',
-            style: TextStyle(
-              fontFamily: 'LINE Seed JP App_TTF',
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              height: 1.4,
-              letterSpacing: -0.08,
-              color: Color(0xFF7A7A7A),
-            ),
+  return GestureDetector(
+    onTap: () => _handleExecutionDatePicker(context),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 실행일 라벨
+        const Text(
+          '実行日',
+          style: TextStyle(
+            fontFamily: 'LINE Seed JP App_TTF',
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            height: 1.4,
+            letterSpacing: -0.08,
+            color: Color(0xFF7A7A7A),
           ),
+        ),
 
-          const SizedBox(height: 8),
+        const SizedBox(height: 8),
 
-          // 날짜 (M.DD 형식)
-          Text(
-            '${executionDate.month}.${executionDate.day}',
-            style: const TextStyle(
-              fontFamily: 'LINE Seed JP App_TTF',
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              height: 1.2,
-              letterSpacing: -0.12,
-              color: Color(0xFF111111),
-            ),
+        // 날짜 (M.DD 형식)
+        Text(
+          '${executionDate.month}.${executionDate.day}',
+          style: const TextStyle(
+            fontFamily: 'LINE Seed JP App_TTF',
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            height: 1.2,
+            letterSpacing: -0.12,
+            color: Color(0xFF111111),
           ),
+        ),
 
-          const SizedBox(height: 4),
+        const SizedBox(height: 4),
 
-          // 연도 (빨간색)
-          Text(
-            executionDate.year.toString(),
-            style: const TextStyle(
-              fontFamily: 'LINE Seed JP App_TTF',
-              fontSize: 19,
-              fontWeight: FontWeight.w800,
-              height: 1.2,
-              letterSpacing: -0.005,
-              color: Color(0xFFE75858), // ✅ 빨간색
-            ),
+        // 연도 (빨간색)
+        Text(
+          executionDate.year.toString(),
+          style: const TextStyle(
+            fontFamily: 'LINE Seed JP App_TTF',
+            fontSize: 19,
+            fontWeight: FontWeight.w800,
+            height: 1.2,
+            letterSpacing: -0.005,
+            color: Color(0xFFE75858), // ✅ 빨간색
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -1214,23 +1273,21 @@ Widget _buildDetailOptions(
   BuildContext context, {
   required DateTime selectedDate,
 }) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 48),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.start,
-      children: [
-        // 반복
-        _buildRepeatOptionButton(context),
-        const SizedBox(width: 8),
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min, // ✅ 최소 크기로
+    children: [
+      // 반복
+      _buildRepeatOptionButton(context),
+      const SizedBox(width: 8),
 
-        // 리마인더
-        _buildReminderOptionButton(context),
-        const SizedBox(width: 8),
+      // 리마인더
+      _buildReminderOptionButton(context),
+      const SizedBox(width: 8),
 
-        // 색상
-        _buildColorOptionButton(context),
-      ],
-    ),
+      // 색상
+      _buildColorOptionButton(context),
+    ],
   );
 }
 
@@ -1267,23 +1324,14 @@ Widget _buildDetailOptionButton(
   );
 }
 
-// ✅ 리마인더 버튼 (선택된 리마인더 텍스트 표시)
+// ✅ 리마인더 버튼 (선택된 리마인더 시간 표시)
 Widget _buildReminderOptionButton(BuildContext context) {
   return Consumer<BottomSheetController>(
     builder: (context, controller, _) {
-      // 선택된 리마인더 표시 텍스트 추출
+      // 선택된 리마인더 시간 표시 (HH:MM 형식)
       String? displayText;
       if (controller.reminder.isNotEmpty) {
-        try {
-          final reminderData = controller.reminder;
-          if (reminderData.contains('"display":"')) {
-            final startIndex = reminderData.indexOf('"display":"') + 11;
-            final endIndex = reminderData.indexOf('"', startIndex);
-            displayText = reminderData.substring(startIndex, endIndex);
-          }
-        } catch (e) {
-          debugPrint('리마인더 파싱 오류: $e');
-        }
+        displayText = controller.reminder; // "HH:MM" 형식 그대로 사용
       }
 
       return GestureDetector(
@@ -1491,27 +1539,25 @@ Widget _buildDeleteButton(
   required TaskData task,
   required DateTime selectedDate,
 }) {
-  // ✅ 추가
   return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 24),
+    padding: const EdgeInsets.only(left: 28),
     child: GestureDetector(
-      onTap: () => _handleDelete(
-        context,
-        task: task,
-        selectedDate: selectedDate,
-      ), // ✅ 수정
+      onTap: () =>
+          _handleDelete(context, task: task, selectedDate: selectedDate),
       child: Container(
         width: 100,
         height: 52,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         decoration: BoxDecoration(
           color: const Color(0xFFFAFAFA),
-          border: Border.all(color: const Color.fromRGBO(186, 186, 186, 0.08)),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
+          border: Border.all(
+            color: const Color(0xFFBABABA).withOpacity(0.08),
+            width: 1,
+          ),
+          boxShadow: [
             BoxShadow(
-              color: Color.fromRGBO(17, 17, 17, 0.03),
-              offset: Offset(0, 4),
+              color: const Color(0xFF111111).withOpacity(0.04),
+              offset: const Offset(0, 4),
               blurRadius: 20,
             ),
           ],
@@ -1519,14 +1565,16 @@ Widget _buildDeleteButton(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Icon
-            const Icon(
-              Icons.delete_outline,
-              size: 20,
-              color: Color(0xFFF74A4A),
+            SvgPicture.asset(
+              'asset/icon/trash_icon.svg',
+              width: 20,
+              height: 20,
+              colorFilter: const ColorFilter.mode(
+                Color(0xFFF74A4A),
+                BlendMode.srcIn,
+              ),
             ),
             const SizedBox(width: 6),
-            // Text
             const Text(
               '削除',
               style: TextStyle(
@@ -1576,19 +1624,8 @@ void _handleSave(
     return;
   }
 
-  // 실행일과 마감일 관계 검증 (둘 다 있을 때만)
-  if (taskController.executionDate != null && taskController.dueDate != null) {
-    if (taskController.executionDate!.isAfter(taskController.dueDate!)) {
-      debugPrint('⚠️ [TaskWolt] 실행일이 마감일보다 늦음');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('実行日は締め切りより前である必要があります'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-  }
+  // ✅ 실행일/마감일 관계는 자동 조정되므로 검증 불필요
+  // setExecutionDate()에서 마감일이 자동으로 +1일 조정됨
 
   // ========== 2단계: 캐시에서 최신 데이터 읽기 ==========
   final cachedColor = await TempInputCache.getTempColor();
@@ -1597,8 +1634,10 @@ void _handleSave(
   final cachedExecutionDate = await TempInputCache.getTempExecutionDate();
   final cachedDueDate = await TempInputCache.getTempDueDate();
 
-  // ========== 3단계: Provider 우선, 캐시는 보조 (반복/리마인더는 Provider 최신값 사용) ==========
-  final finalColor = cachedColor ?? bottomSheetController.selectedColor;
+  // ========== 3단계: Provider 우선, 캐시는 보조 (색상/반복/리마인더 모두 Provider 최신값 사용) ==========
+  final finalColor = bottomSheetController.selectedColor.isNotEmpty
+      ? bottomSheetController.selectedColor
+      : (cachedColor ?? 'gray');
   // ✅ 반복 규칙은 Provider 우선 (사용자가 선택한 최신 값)
   final finalRepeatRule = bottomSheetController.repeatRule.isNotEmpty
       ? bottomSheetController.repeatRule
@@ -1610,6 +1649,20 @@ void _handleSave(
   final finalExecutionDate =
       cachedExecutionDate ?? taskController.executionDate;
   final finalDueDate = cachedDueDate ?? taskController.dueDate;
+
+  // 🔥 디버그: Provider와 캐시 값 확인
+  debugPrint('📊 [TaskWolt] 저장 데이터 확인');
+  debugPrint('   - Provider 색상: ${bottomSheetController.selectedColor}');
+  debugPrint('   - Provider 반복: ${bottomSheetController.repeatRule}');
+  debugPrint('   - Provider 알림: ${bottomSheetController.reminder}');
+  debugPrint('   - 캐시 색상: ${cachedColor ?? "(없음)"}');
+  debugPrint('   - 캐시 반복: ${cachedRepeatRule ?? "(없음)"}');
+  debugPrint('   - 캐시 알림: ${cachedReminder ?? "(없음)"}');
+  debugPrint('   - 최종 색상: $finalColor');
+  debugPrint('   - 최종 반복: $finalRepeatRule');
+  debugPrint('   - 최종 알림: $finalReminder');
+  debugPrint('   - 최종 실행일: $finalExecutionDate');
+  debugPrint('   - 최종 마감일: $finalDueDate');
 
   // ========== 4단계: 빈 문자열 → null 변환 ==========
   String? safeRepeatRule = finalRepeatRule.trim().isEmpty
@@ -1652,6 +1705,18 @@ void _handleSave(
             task.repeatRule != (safeRepeatRule ?? '');
 
         if (hasChanges) {
+          // ✅ 실행일 변경 여부 확인 (원본과 현재 값 비교)
+          final executionDateChanged = task.executionDate != finalExecutionDate;
+
+          // ✅ 실행일이 변경되지 않았다면 selectedDate 사용 (반복 패턴 유지)
+          final effectiveExecutionDate = executionDateChanged
+              ? finalExecutionDate
+              : selectedDate;
+
+          debugPrint(
+            '🔍 [TaskWolt] 실행일 변경 확인: ${executionDateChanged ? "변경됨" : "유지"} → ${executionDateChanged ? finalExecutionDate : "selectedDate($selectedDate) 사용"}',
+          );
+
           // ✅ 반복 할일 수정 확인 모달 표시
           await showEditRepeatConfirmationModal(
             context,
@@ -1668,7 +1733,7 @@ void _handleSave(
                   id: Value(task.id),
                   title: Value(taskController.title.trim()),
                   dueDate: Value(finalDueDate),
-                  executionDate: Value(finalExecutionDate),
+                  executionDate: Value(effectiveExecutionDate),
                   colorId: Value(finalColor),
                   reminder: Value(safeReminder ?? ''),
                 ),
@@ -1710,7 +1775,7 @@ void _handleSave(
                   completed: const Value(false),
                   listId: Value(task.listId),
                   dueDate: Value(finalDueDate),
-                  executionDate: Value(finalExecutionDate),
+                  executionDate: Value(effectiveExecutionDate), // ✅ 실행일 자동 설정
                   colorId: Value(finalColor),
                   reminder: Value(safeReminder ?? ''),
                   repeatRule: Value(safeRepeatRule ?? ''),
@@ -1788,7 +1853,43 @@ void _handleSave(
 
       // ========== RecurringPattern 업데이트 ==========
       if (safeRepeatRule != null && safeRepeatRule.isNotEmpty) {
-        final dtstart = finalExecutionDate ?? task.createdAt;
+        // 🔥 반복 규칙이 있는데 executionDate가 없으면 자동으로 첫 인스턴스 날짜 설정
+        DateTime? autoExecutionDate = finalExecutionDate;
+        if (finalExecutionDate == null) {
+          final dtstart = task.createdAt;
+          final rrule = convertRepeatRuleToRRule(safeRepeatRule, dtstart);
+          if (rrule != null) {
+            try {
+              final dtstartDateOnly = DateTime(
+                dtstart.year,
+                dtstart.month,
+                dtstart.day,
+              );
+              final instances = RRuleUtils.generateInstances(
+                rruleString: rrule,
+                dtstart: dtstartDateOnly,
+                rangeStart: dtstartDateOnly,
+                rangeEnd: dtstartDateOnly.add(const Duration(days: 365)),
+              );
+              if (instances.isNotEmpty) {
+                autoExecutionDate = instances.first;
+                debugPrint(
+                  '🔥 [TaskWolt] 반복 할일 수정 시 자동 실행일 설정: $autoExecutionDate',
+                );
+                // executionDate 업데이트
+                await (db.update(
+                  db.task,
+                )..where((tbl) => tbl.id.equals(task.id))).write(
+                  TaskCompanion(executionDate: Value(autoExecutionDate)),
+                );
+              }
+            } catch (e) {
+              debugPrint('⚠️ [TaskWolt] 수정 시 자동 실행일 설정 실패: $e');
+            }
+          }
+        }
+
+        final dtstart = autoExecutionDate ?? task.createdAt;
         final rrule = convertRepeatRuleToRRule(safeRepeatRule, dtstart);
 
         // 🔥 날짜만 추출 (시간은 00:00:00으로 통일)
@@ -1850,19 +1951,74 @@ void _handleSave(
       await TempInputCache.clearCacheForType('task');
       debugPrint('🗑️ [TaskWolt] 할일 통합 캐시 클리어 완료');
 
+      // ✅ 실행일과 리마인더가 모두 있으면 알림 시간 계산
+      if (finalExecutionDate != null &&
+          safeReminder != null &&
+          safeReminder.isNotEmpty) {
+        try {
+          final parts = safeReminder.split(':');
+          if (parts.length == 2) {
+            final hour = int.parse(parts[0]);
+            final minute = int.parse(parts[1]);
+            final notificationTime = DateTime(
+              finalExecutionDate.year,
+              finalExecutionDate.month,
+              finalExecutionDate.day,
+              hour,
+              minute,
+            );
+            debugPrint('🔔 [TaskWolt] 알림 예정 시간 (수정): $notificationTime');
+            // TODO: flutter_local_notifications로 알림 스케줄링
+          }
+        } catch (e) {
+          debugPrint('⚠️ [TaskWolt] 알림 시간 파싱 실패: $e');
+        }
+      }
+
       // ✅ 변경 토스트 표시
       if (context.mounted) {
         showActionToast(context, type: ToastType.change);
       }
     } else {
       // ========== 5단계: 새 할일 생성 (createdAt 명시) ==========
+      // 🔥 반복 규칙이 있는데 executionDate가 없으면 자동으로 첫 인스턴스 날짜 설정
+      DateTime? autoExecutionDate = finalExecutionDate;
+      if (finalExecutionDate == null &&
+          safeRepeatRule != null &&
+          safeRepeatRule.isNotEmpty) {
+        final dtstart = DateTime.now();
+        final rrule = convertRepeatRuleToRRule(safeRepeatRule, dtstart);
+        if (rrule != null) {
+          try {
+            // RRULE의 첫 번째 인스턴스 날짜를 가져옴
+            final dtstartDateOnly = DateTime(
+              dtstart.year,
+              dtstart.month,
+              dtstart.day,
+            );
+            final instances = RRuleUtils.generateInstances(
+              rruleString: rrule,
+              dtstart: dtstartDateOnly,
+              rangeStart: dtstartDateOnly,
+              rangeEnd: dtstartDateOnly.add(const Duration(days: 365)),
+            );
+            if (instances.isNotEmpty) {
+              autoExecutionDate = instances.first;
+              debugPrint('🔥 [TaskWolt] 반복 할일 자동 실행일 설정: $autoExecutionDate');
+            }
+          } catch (e) {
+            debugPrint('⚠️ [TaskWolt] 자동 실행일 설정 실패: $e');
+          }
+        }
+      }
+
       final newId = await db.createTask(
         TaskCompanion.insert(
           title: taskController.title.trim(),
           createdAt: DateTime.now(), // ✅ 명시적 생성 시간 (로컬 시간)
           listId: const Value('default'), // 기본 리스트
           dueDate: Value(finalDueDate),
-          executionDate: Value(finalExecutionDate),
+          executionDate: Value(autoExecutionDate),
           colorId: Value(finalColor),
           reminder: Value(safeReminder ?? ''),
           repeatRule: Value(safeRepeatRule ?? ''),
@@ -1871,17 +2027,41 @@ void _handleSave(
       debugPrint('✅ [TaskWolt] 새 할일 생성 완료');
       debugPrint('   - 제목: ${taskController.title}');
       debugPrint('   - 색상: $finalColor');
-      debugPrint('   - 실행일: $finalExecutionDate');
+      debugPrint('   - 실행일: $autoExecutionDate');
       debugPrint('   - 마감일: $finalDueDate');
       debugPrint('   - 반복: $safeRepeatRule');
       debugPrint('   - 리마인더: $safeReminder');
       debugPrint(
-        '   ⚠️ executionDate가 ${finalExecutionDate == null ? "NULL → Inbox에 표시됨" : "설정됨 → DetailView에 표시됨"}',
+        '   ⚠️ executionDate가 ${autoExecutionDate == null ? "NULL → Inbox에 표시됨" : "설정됨 → DetailView에 표시됨"}',
       );
+
+      // ✅ 실행일과 리마인더가 모두 있으면 알림 시간 계산
+      if (finalExecutionDate != null &&
+          safeReminder != null &&
+          safeReminder.isNotEmpty) {
+        try {
+          final parts = safeReminder.split(':');
+          if (parts.length == 2) {
+            final hour = int.parse(parts[0]);
+            final minute = int.parse(parts[1]);
+            final notificationTime = DateTime(
+              finalExecutionDate.year,
+              finalExecutionDate.month,
+              finalExecutionDate.day,
+              hour,
+              minute,
+            );
+            debugPrint('🔔 [TaskWolt] 알림 예정 시간: $notificationTime');
+            // TODO: flutter_local_notifications로 알림 스케줄링
+          }
+        } catch (e) {
+          debugPrint('⚠️ [TaskWolt] 알림 시간 파싱 실패: $e');
+        }
+      }
 
       // ========== 5.5단계: RecurringPattern 생성 (반복 규칙이 있으면) ==========
       if (safeRepeatRule != null && safeRepeatRule.isNotEmpty) {
-        final dtstart = finalExecutionDate ?? DateTime.now();
+        final dtstart = autoExecutionDate ?? DateTime.now();
         final rrule = convertRepeatRuleToRRule(safeRepeatRule, dtstart);
 
         // 🔥 날짜만 추출 (시간은 00:00:00으로 통일)
@@ -2097,7 +2277,8 @@ void _handleReminderPicker(BuildContext context) {
     context,
     listen: false,
   );
-  showWoltReminderOption(
+  // ✅ 할일 전용 시간 피커 모달 표시
+  showTaskReminderPickerModal(
     context,
     initialReminder: bottomSheetController.reminder.isNotEmpty
         ? bottomSheetController.reminder

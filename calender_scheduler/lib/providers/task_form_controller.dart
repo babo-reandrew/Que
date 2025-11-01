@@ -39,6 +39,31 @@ class TaskFormController extends ChangeNotifier {
   void setExecutionDate(DateTime? date) {
     if (_executionDate == date) return;
     _executionDate = date;
+
+    // ✅ 실행일이 설정되고 마감일이 있으면, 마감일을 항상 실행일 + 1일로 설정
+    // (실행일은 반드시 마감일보다 앞에 있어야 함)
+    if (date != null && _dueDate != null) {
+      // 날짜만 비교 (시간 제외)
+      final executionDateOnly = DateTime(date.year, date.month, date.day);
+      final dueDateOnly = DateTime(
+        _dueDate!.year,
+        _dueDate!.month,
+        _dueDate!.day,
+      );
+
+      // 실행일이 마감일보다 뒤에 있거나 같으면 마감일을 실행일 + 1일로 조정
+      if (!executionDateOnly.isBefore(dueDateOnly)) {
+        _dueDate = DateTime(
+          date.year,
+          date.month,
+          date.day + 1,
+          _dueDate!.hour,
+          _dueDate!.minute,
+          _dueDate!.second,
+        );
+      }
+    }
+
     notifyListeners();
   }
 

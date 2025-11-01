@@ -276,7 +276,9 @@ class _GeminiResultConfirmationScreenState
                     if (confirmed == true && mounted) {
                       // 확인 시 화면 나가기 - 원래 화면(월뷰/디테일뷰)으로 돌아가기
                       // ImagePickerSmoothSheet는 이미 onClose로 닫혔으므로 한 번만 pop
-                      Navigator.of(context).pop(); // GeminiResultConfirmationScreen 닫기
+                      Navigator.of(
+                        context,
+                      ).pop(); // GeminiResultConfirmationScreen 닫기
                     }
                   },
                   child: Container(
@@ -495,6 +497,9 @@ class _GeminiResultConfirmationScreenState
             visibility: 'default',
             completed: false,
             completedAt: null,
+            timezone: 'Asia/Seoul',
+            originalHour: schedule.start.hour,
+            originalMinute: schedule.start.minute,
           );
           await showScheduleDetailWoltModal(
             context,
@@ -590,8 +595,7 @@ class _GeminiResultConfirmationScreenState
             _deleteItem(item);
             return true;
           },
-          onDismissed: () {
-          },
+          onDismissed: () {},
         ),
         children: [
           // 삭제 버튼
@@ -657,11 +661,9 @@ class _GeminiResultConfirmationScreenState
 
   /// 재정렬 핸들러
   void _handleReorder(int oldIndex, int newIndex) {
-
     // 섹션 헤더 정보 출력
     for (int i = 0; i < _items.length; i++) {
-      if (_items[i].type == GeminiItemType.sectionHeader) {
-      }
+      if (_items[i].type == GeminiItemType.sectionHeader) {}
     }
 
     final targetIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
@@ -675,19 +677,14 @@ class _GeminiResultConfirmationScreenState
       if (targetIndex > 0) {
         final prev = _items[targetIndex - 1];
         if (prev.type == GeminiItemType.sectionHeader) {
-        } else {
-        }
-      } else {
-      }
-
+        } else {}
+      } else {}
 
       if (targetIndex < _items.length - 1) {
         final next = _items[targetIndex + 1];
         if (next.type == GeminiItemType.sectionHeader) {
-        } else {
-        }
-      } else {
-      }
+        } else {}
+      } else {}
 
       // 섹션 경계를 넘어서 이동한 경우 타입 변환
       _checkAndConvertType(targetIndex);
@@ -702,7 +699,6 @@ class _GeminiResultConfirmationScreenState
     if (item.type == GeminiItemType.sectionHeader) {
       return;
     }
-
 
     // ==========================================
     // 핵심: 이 아이템이 속한 섹션 찾기
@@ -748,8 +744,7 @@ class _GeminiResultConfirmationScreenState
       targetType = GeminiItemType.task;
     } else if (currentSection == 'ルーティン') {
       targetType = GeminiItemType.habit;
-    } else {
-    }
+    } else {}
 
     // 타입이 다르면 변환
     if (targetType != null && item.type != targetType) {
@@ -763,8 +758,7 @@ class _GeminiResultConfirmationScreenState
       // 🎯 변환 후 올바른 섹션으로 재배치 + 섹션 재정렬
       _reorganizeSections();
     } else if (targetType == null) {
-    } else {
-    }
+    } else {}
   }
 
   /// 섹션 재정렬: 내용이 있는 섹션을 위로, 순서는 스케줄 → 타스크 → 습관
@@ -783,7 +777,6 @@ class _GeminiResultConfirmationScreenState
         habits.add(item);
       }
     }
-
 
     // 2. 새로운 리스트 구성
     _items.clear();
@@ -812,12 +805,10 @@ class _GeminiResultConfirmationScreenState
     if (habits.isEmpty) {
       _items.add(GeminiItem.header('ルーティン'));
     }
-
   }
 
   /// Provider에서 변경사항을 가져와 특정 인덱스의 아이템만 업데이트 (메모리만 업데이트, DB 저장 X)
   void _updateItemAtIndex(int index) {
-
     if (index < 0 || index >= _items.length) {
       return;
     }
@@ -826,7 +817,6 @@ class _GeminiResultConfirmationScreenState
     if (item.type == GeminiItemType.sectionHeader) {
       return;
     }
-
 
     final scheduleController = Provider.of<ScheduleFormController>(
       context,
@@ -844,7 +834,6 @@ class _GeminiResultConfirmationScreenState
       context,
       listen: false,
     );
-
 
     setState(() {
       switch (item.type) {
@@ -913,7 +902,6 @@ class _GeminiResultConfirmationScreenState
           break;
       }
     });
-
   }
 
   /// 하단 버튼
@@ -1008,6 +996,11 @@ class _GeminiResultConfirmationScreenState
                     description: Value(schedule.description),
                     location: Value(schedule.location),
                     repeatRule: Value(schedule.repeatRule),
+                    timezone: Value(
+                      'Asia/Seoul',
+                    ), // Default timezone for Gemini-extracted events
+                    originalHour: Value(schedule.start.hour),
+                    originalMinute: Value(schedule.start.minute),
                   ),
                 );
             savedCount++;

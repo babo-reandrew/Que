@@ -118,28 +118,40 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
       int? savedId; // 🔥 저장된 ID 추적
 
       if (type == QuickAddType.schedule) {
+        // ========================================
         // 일정 저장
+        // ========================================
         final startDateTime = data['startDateTime'] as DateTime;
         final endDateTime = data['endDateTime'] as DateTime;
         final repeatRule = data['repeatRule'] as String? ?? '';
         final reminder = data['reminder'] as String? ?? '';
 
+        // 🔥 디버그 로그: 저장 전 데이터 확인
+        debugPrint('💾 [QuickAdd] 일정 저장 시작');
+        debugPrint('   - 제목: $title');
+        debugPrint('   - 시작: $startDateTime');
+        debugPrint('   - 종료: $endDateTime');
+        debugPrint('   - 색상: $colorId');
+        debugPrint('   - 반복: ${repeatRule.isEmpty ? "(없음)" : repeatRule}');
+        debugPrint('   - 알림: ${reminder.isEmpty ? "(없음)" : reminder}');
+
         final companion = ScheduleCompanion.insert(
           start: startDateTime,
           end: endDateTime,
           summary: title,
-          // ✅ description, location 제거 (기본값 '' 자동 적용)
           colorId: colorId,
+          // ✅ description, location은 기본값 '' 자동 적용
           repeatRule: repeatRule.isNotEmpty
               ? Value(repeatRule)
-              : const Value.absent(), // ✅ 반복 규칙: 사용자가 설정한 경우에만 저장
+              : const Value.absent(), // ✅ 빈 문자열이면 absent (기본값 '' 사용)
           alertSetting: reminder.isNotEmpty
               ? Value(reminder)
-              : const Value.absent(), // ✅ 리마인더: 사용자가 설정한 경우에만 저장
+              : const Value.absent(), // ✅ 빈 문자열이면 absent (기본값 '' 사용)
         );
 
         final database = GetIt.I<AppDatabase>();
         savedId = await database.createSchedule(companion);
+        debugPrint('✅ [QuickAdd] 일정 저장 완료: ID=$savedId');
       } else if (type == QuickAddType.task) {
         // ========================================
         // 할일 저장
@@ -147,6 +159,14 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         final dueDate = data['dueDate'] as DateTime?;
         final repeatRule = data['repeatRule'] as String? ?? '';
         final reminder = data['reminder'] as String? ?? '';
+
+        // 🔥 디버그 로그: 저장 전 데이터 확인
+        debugPrint('💾 [QuickAdd] 할일 저장 시작');
+        debugPrint('   - 제목: $title');
+        debugPrint('   - 색상: $colorId');
+        debugPrint('   - 마감일: ${dueDate ?? "(없음)"}');
+        debugPrint('   - 반복: ${repeatRule.isEmpty ? "(없음)" : repeatRule}');
+        debugPrint('   - 알림: ${reminder.isEmpty ? "(없음)" : reminder}');
 
         // 1. 검증
         final validationResult = EntityValidators.validateCompleteTask(
@@ -159,6 +179,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
 
         if (!validationResult['isValid']) {
           // 🔥 검증 실패 시 사용자 피드백
+          debugPrint('⚠️ [QuickAdd] 할일 검증 실패');
           if (context.mounted) {
             ScaffoldMessenger.of(
               context,
@@ -175,19 +196,43 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
           completed: const Value(false),
           dueDate: Value(dueDate),
           listId: const Value('inbox'),
-          repeatRule: Value(repeatRule), // ✅ 반복 규칙 포함
-          reminder: Value(reminder), // ✅ 리마인더 포함
+          repeatRule: repeatRule.isNotEmpty
+              ? Value(repeatRule)
+              : const Value.absent(), // ✅ 빈 문자열이면 absent (기본값 '' 사용)
+          reminder: reminder.isNotEmpty
+              ? Value(reminder)
+              : const Value.absent(), // ✅ 빈 문자열이면 absent (기본값 '' 사용)
         );
 
         final database = GetIt.I<AppDatabase>();
         savedId = await database.createTask(companion);
+        debugPrint('✅ [QuickAdd] 할일 저장 완료: ID=$savedId');
       } else if (type == QuickAddType.habit) {
         // ========================================
         // 습관 저장
         // ========================================
-        final repeatRule =
-            data['repeatRule'] as String? ?? ''; // ✅ 기본값 강제 설정 제거
+        final repeatRule = data['repeatRule'] as String? ?? '';
         final reminder = data['reminder'] as String? ?? '';
+
+        // 🔥 디버그 로그: 저장 전 데이터 확인
+        debugPrint('💾 [QuickAdd] 습관 저장 시작');
+        debugPrint('   - 제목: $title');
+        debugPrint('   - 색상: $colorId');
+        debugPrint(
+          '   - 반복: ${repeatRule.isEmpty ? "(없음 - 오류!)" : repeatRule}',
+        );
+        debugPrint('   - 알림: ${reminder.isEmpty ? "(없음)" : reminder}');
+
+        // 🔥 핵심 검증: repeatRule이 비어있으면 저장 불가
+        if (repeatRule.isEmpty) {
+          debugPrint('⚠️ [QuickAdd] 습관 저장 실패: repeatRule이 비어있음');
+          if (context.mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('繰り返し設定を選択してください')));
+          }
+          return;
+        }
 
         // 1. 검증
         final validationResult = EntityValidators.validateCompleteHabit(
@@ -200,6 +245,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
 
         if (!validationResult['isValid']) {
           // 🔥 검증 실패 시 사용자 피드백
+          debugPrint('⚠️ [QuickAdd] 습관 검증 실패');
           if (context.mounted) {
             ScaffoldMessenger.of(
               context,
@@ -212,13 +258,16 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         final companion = HabitCompanion.insert(
           title: title,
           createdAt: DateTime.now(),
-          repeatRule: repeatRule,
+          repeatRule: repeatRule, // ✅ 필수 필드 (이미 검증됨)
           colorId: Value(colorId),
-          reminder: Value(reminder), // ✅ 리마인더 포함
+          reminder: reminder.isNotEmpty
+              ? Value(reminder)
+              : const Value.absent(), // ✅ 빈 문자열이면 absent (기본값 '' 사용)
         );
 
         final database = GetIt.I<AppDatabase>();
         savedId = await database.createHabit(companion);
+        debugPrint('✅ [QuickAdd] 습관 저장 완료: ID=$savedId');
       }
 
       // 이거를 설정하고 → 저장이 성공했으므로 임시 캐시를 삭제해서
@@ -275,7 +324,11 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         }
       }
     } catch (e, stackTrace) {
-      // 🔥 에러 발생 시 사용자 피드백
+      // 🔥 에러 발생 시 상세 로그와 사용자 피드백
+      debugPrint('❌ [QuickAdd] 저장 중 에러 발생');
+      debugPrint('   - 에러: $e');
+      debugPrint('   - 스택: $stackTrace');
+
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,

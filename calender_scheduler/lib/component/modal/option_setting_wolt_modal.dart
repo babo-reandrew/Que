@@ -98,7 +98,7 @@ class _OptionSettingContentState extends State<_OptionSettingContent> {
         bottom: 60, // Figma CSS: padding-bottom: 60px
       ),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFFFF), // Figma: background: #FFFFFF
+        color: const Color(0xFFFCFCFC), // Figma: background: #FFFFFF
         borderRadius: BorderRadius.circular(42), // Corner radius: 42pt
       ),
       child: Column(

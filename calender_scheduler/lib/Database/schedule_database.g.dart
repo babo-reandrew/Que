@@ -170,6 +170,40 @@ class $ScheduleTable extends Schedule
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _timezoneMeta = const VerificationMeta(
+    'timezone',
+  );
+  @override
+  late final GeneratedColumn<String> timezone = GeneratedColumn<String>(
+    'timezone',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _originalHourMeta = const VerificationMeta(
+    'originalHour',
+  );
+  @override
+  late final GeneratedColumn<int> originalHour = GeneratedColumn<int>(
+    'original_hour',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _originalMinuteMeta = const VerificationMeta(
+    'originalMinute',
+  );
+  @override
+  late final GeneratedColumn<int> originalMinute = GeneratedColumn<int>(
+    'original_minute',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     start,
@@ -186,6 +220,9 @@ class $ScheduleTable extends Schedule
     visibility,
     completed,
     completedAt,
+    timezone,
+    originalHour,
+    originalMinute,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -297,6 +334,30 @@ class $ScheduleTable extends Schedule
         ),
       );
     }
+    if (data.containsKey('timezone')) {
+      context.handle(
+        _timezoneMeta,
+        timezone.isAcceptableOrUnknown(data['timezone']!, _timezoneMeta),
+      );
+    }
+    if (data.containsKey('original_hour')) {
+      context.handle(
+        _originalHourMeta,
+        originalHour.isAcceptableOrUnknown(
+          data['original_hour']!,
+          _originalHourMeta,
+        ),
+      );
+    }
+    if (data.containsKey('original_minute')) {
+      context.handle(
+        _originalMinuteMeta,
+        originalMinute.isAcceptableOrUnknown(
+          data['original_minute']!,
+          _originalMinuteMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -362,6 +423,18 @@ class $ScheduleTable extends Schedule
         DriftSqlType.dateTime,
         data['${effectivePrefix}completed_at'],
       ),
+      timezone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}timezone'],
+      )!,
+      originalHour: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}original_hour'],
+      ),
+      originalMinute: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}original_minute'],
+      ),
     );
   }
 
@@ -386,6 +459,9 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
   final String visibility;
   final bool completed;
   final DateTime? completedAt;
+  final String timezone;
+  final int? originalHour;
+  final int? originalMinute;
   const ScheduleData({
     required this.start,
     required this.end,
@@ -401,6 +477,9 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     required this.visibility,
     required this.completed,
     this.completedAt,
+    required this.timezone,
+    this.originalHour,
+    this.originalMinute,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -420,6 +499,13 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     map['completed'] = Variable<bool>(completed);
     if (!nullToAbsent || completedAt != null) {
       map['completed_at'] = Variable<DateTime>(completedAt);
+    }
+    map['timezone'] = Variable<String>(timezone);
+    if (!nullToAbsent || originalHour != null) {
+      map['original_hour'] = Variable<int>(originalHour);
+    }
+    if (!nullToAbsent || originalMinute != null) {
+      map['original_minute'] = Variable<int>(originalMinute);
     }
     return map;
   }
@@ -442,6 +528,13 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
       completedAt: completedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(completedAt),
+      timezone: Value(timezone),
+      originalHour: originalHour == null && nullToAbsent
+          ? const Value.absent()
+          : Value(originalHour),
+      originalMinute: originalMinute == null && nullToAbsent
+          ? const Value.absent()
+          : Value(originalMinute),
     );
   }
 
@@ -465,6 +558,9 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
       visibility: serializer.fromJson<String>(json['visibility']),
       completed: serializer.fromJson<bool>(json['completed']),
       completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
+      timezone: serializer.fromJson<String>(json['timezone']),
+      originalHour: serializer.fromJson<int?>(json['originalHour']),
+      originalMinute: serializer.fromJson<int?>(json['originalMinute']),
     );
   }
   @override
@@ -485,6 +581,9 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
       'visibility': serializer.toJson<String>(visibility),
       'completed': serializer.toJson<bool>(completed),
       'completedAt': serializer.toJson<DateTime?>(completedAt),
+      'timezone': serializer.toJson<String>(timezone),
+      'originalHour': serializer.toJson<int?>(originalHour),
+      'originalMinute': serializer.toJson<int?>(originalMinute),
     };
   }
 
@@ -503,6 +602,9 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     String? visibility,
     bool? completed,
     Value<DateTime?> completedAt = const Value.absent(),
+    String? timezone,
+    Value<int?> originalHour = const Value.absent(),
+    Value<int?> originalMinute = const Value.absent(),
   }) => ScheduleData(
     start: start ?? this.start,
     end: end ?? this.end,
@@ -518,6 +620,11 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     visibility: visibility ?? this.visibility,
     completed: completed ?? this.completed,
     completedAt: completedAt.present ? completedAt.value : this.completedAt,
+    timezone: timezone ?? this.timezone,
+    originalHour: originalHour.present ? originalHour.value : this.originalHour,
+    originalMinute: originalMinute.present
+        ? originalMinute.value
+        : this.originalMinute,
   );
   ScheduleData copyWithCompanion(ScheduleCompanion data) {
     return ScheduleData(
@@ -545,6 +652,13 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
       completedAt: data.completedAt.present
           ? data.completedAt.value
           : this.completedAt,
+      timezone: data.timezone.present ? data.timezone.value : this.timezone,
+      originalHour: data.originalHour.present
+          ? data.originalHour.value
+          : this.originalHour,
+      originalMinute: data.originalMinute.present
+          ? data.originalMinute.value
+          : this.originalMinute,
     );
   }
 
@@ -564,7 +678,10 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
           ..write('status: $status, ')
           ..write('visibility: $visibility, ')
           ..write('completed: $completed, ')
-          ..write('completedAt: $completedAt')
+          ..write('completedAt: $completedAt, ')
+          ..write('timezone: $timezone, ')
+          ..write('originalHour: $originalHour, ')
+          ..write('originalMinute: $originalMinute')
           ..write(')'))
         .toString();
   }
@@ -585,6 +702,9 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
     visibility,
     completed,
     completedAt,
+    timezone,
+    originalHour,
+    originalMinute,
   );
   @override
   bool operator ==(Object other) =>
@@ -603,7 +723,10 @@ class ScheduleData extends DataClass implements Insertable<ScheduleData> {
           other.status == this.status &&
           other.visibility == this.visibility &&
           other.completed == this.completed &&
-          other.completedAt == this.completedAt);
+          other.completedAt == this.completedAt &&
+          other.timezone == this.timezone &&
+          other.originalHour == this.originalHour &&
+          other.originalMinute == this.originalMinute);
 }
 
 class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
@@ -621,6 +744,9 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
   final Value<String> visibility;
   final Value<bool> completed;
   final Value<DateTime?> completedAt;
+  final Value<String> timezone;
+  final Value<int?> originalHour;
+  final Value<int?> originalMinute;
   const ScheduleCompanion({
     this.start = const Value.absent(),
     this.end = const Value.absent(),
@@ -636,6 +762,9 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     this.visibility = const Value.absent(),
     this.completed = const Value.absent(),
     this.completedAt = const Value.absent(),
+    this.timezone = const Value.absent(),
+    this.originalHour = const Value.absent(),
+    this.originalMinute = const Value.absent(),
   });
   ScheduleCompanion.insert({
     required DateTime start,
@@ -652,6 +781,9 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     this.visibility = const Value.absent(),
     this.completed = const Value.absent(),
     this.completedAt = const Value.absent(),
+    this.timezone = const Value.absent(),
+    this.originalHour = const Value.absent(),
+    this.originalMinute = const Value.absent(),
   }) : start = Value(start),
        end = Value(end),
        summary = Value(summary),
@@ -671,6 +803,9 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     Expression<String>? visibility,
     Expression<bool>? completed,
     Expression<DateTime>? completedAt,
+    Expression<String>? timezone,
+    Expression<int>? originalHour,
+    Expression<int>? originalMinute,
   }) {
     return RawValuesInsertable({
       if (start != null) 'start': start,
@@ -687,6 +822,9 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
       if (visibility != null) 'visibility': visibility,
       if (completed != null) 'completed': completed,
       if (completedAt != null) 'completed_at': completedAt,
+      if (timezone != null) 'timezone': timezone,
+      if (originalHour != null) 'original_hour': originalHour,
+      if (originalMinute != null) 'original_minute': originalMinute,
     });
   }
 
@@ -705,6 +843,9 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     Value<String>? visibility,
     Value<bool>? completed,
     Value<DateTime?>? completedAt,
+    Value<String>? timezone,
+    Value<int?>? originalHour,
+    Value<int?>? originalMinute,
   }) {
     return ScheduleCompanion(
       start: start ?? this.start,
@@ -721,6 +862,9 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
       visibility: visibility ?? this.visibility,
       completed: completed ?? this.completed,
       completedAt: completedAt ?? this.completedAt,
+      timezone: timezone ?? this.timezone,
+      originalHour: originalHour ?? this.originalHour,
+      originalMinute: originalMinute ?? this.originalMinute,
     );
   }
 
@@ -769,6 +913,15 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
     if (completedAt.present) {
       map['completed_at'] = Variable<DateTime>(completedAt.value);
     }
+    if (timezone.present) {
+      map['timezone'] = Variable<String>(timezone.value);
+    }
+    if (originalHour.present) {
+      map['original_hour'] = Variable<int>(originalHour.value);
+    }
+    if (originalMinute.present) {
+      map['original_minute'] = Variable<int>(originalMinute.value);
+    }
     return map;
   }
 
@@ -788,7 +941,10 @@ class ScheduleCompanion extends UpdateCompanion<ScheduleData> {
           ..write('status: $status, ')
           ..write('visibility: $visibility, ')
           ..write('completed: $completed, ')
-          ..write('completedAt: $completedAt')
+          ..write('completedAt: $completedAt, ')
+          ..write('timezone: $timezone, ')
+          ..write('originalHour: $originalHour, ')
+          ..write('originalMinute: $originalMinute')
           ..write(')'))
         .toString();
   }
@@ -4465,6 +4621,18 @@ class $RecurringPatternTable extends RecurringPattern
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _recurrenceModeMeta = const VerificationMeta(
+    'recurrenceMode',
+  );
+  @override
+  late final GeneratedColumn<String> recurrenceMode = GeneratedColumn<String>(
+    'recurrence_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('ABSOLUTE'),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -4500,6 +4668,7 @@ class $RecurringPatternTable extends RecurringPattern
     count,
     timezone,
     exdate,
+    recurrenceMode,
     createdAt,
     updatedAt,
   ];
@@ -4574,6 +4743,15 @@ class $RecurringPatternTable extends RecurringPattern
         exdate.isAcceptableOrUnknown(data['exdate']!, _exdateMeta),
       );
     }
+    if (data.containsKey('recurrence_mode')) {
+      context.handle(
+        _recurrenceModeMeta,
+        recurrenceMode.isAcceptableOrUnknown(
+          data['recurrence_mode']!,
+          _recurrenceModeMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -4635,6 +4813,10 @@ class $RecurringPatternTable extends RecurringPattern
         DriftSqlType.string,
         data['${effectivePrefix}exdate'],
       )!,
+      recurrenceMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recurrence_mode'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -4663,6 +4845,7 @@ class RecurringPatternData extends DataClass
   final int? count;
   final String timezone;
   final String exdate;
+  final String recurrenceMode;
   final DateTime createdAt;
   final DateTime updatedAt;
   const RecurringPatternData({
@@ -4675,6 +4858,7 @@ class RecurringPatternData extends DataClass
     this.count,
     required this.timezone,
     required this.exdate,
+    required this.recurrenceMode,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -4694,6 +4878,7 @@ class RecurringPatternData extends DataClass
     }
     map['timezone'] = Variable<String>(timezone);
     map['exdate'] = Variable<String>(exdate);
+    map['recurrence_mode'] = Variable<String>(recurrenceMode);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -4714,6 +4899,7 @@ class RecurringPatternData extends DataClass
           : Value(count),
       timezone: Value(timezone),
       exdate: Value(exdate),
+      recurrenceMode: Value(recurrenceMode),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -4734,6 +4920,7 @@ class RecurringPatternData extends DataClass
       count: serializer.fromJson<int?>(json['count']),
       timezone: serializer.fromJson<String>(json['timezone']),
       exdate: serializer.fromJson<String>(json['exdate']),
+      recurrenceMode: serializer.fromJson<String>(json['recurrenceMode']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -4751,6 +4938,7 @@ class RecurringPatternData extends DataClass
       'count': serializer.toJson<int?>(count),
       'timezone': serializer.toJson<String>(timezone),
       'exdate': serializer.toJson<String>(exdate),
+      'recurrenceMode': serializer.toJson<String>(recurrenceMode),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -4766,6 +4954,7 @@ class RecurringPatternData extends DataClass
     Value<int?> count = const Value.absent(),
     String? timezone,
     String? exdate,
+    String? recurrenceMode,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => RecurringPatternData(
@@ -4778,6 +4967,7 @@ class RecurringPatternData extends DataClass
     count: count.present ? count.value : this.count,
     timezone: timezone ?? this.timezone,
     exdate: exdate ?? this.exdate,
+    recurrenceMode: recurrenceMode ?? this.recurrenceMode,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -4794,6 +4984,9 @@ class RecurringPatternData extends DataClass
       count: data.count.present ? data.count.value : this.count,
       timezone: data.timezone.present ? data.timezone.value : this.timezone,
       exdate: data.exdate.present ? data.exdate.value : this.exdate,
+      recurrenceMode: data.recurrenceMode.present
+          ? data.recurrenceMode.value
+          : this.recurrenceMode,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -4811,6 +5004,7 @@ class RecurringPatternData extends DataClass
           ..write('count: $count, ')
           ..write('timezone: $timezone, ')
           ..write('exdate: $exdate, ')
+          ..write('recurrenceMode: $recurrenceMode, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -4828,6 +5022,7 @@ class RecurringPatternData extends DataClass
     count,
     timezone,
     exdate,
+    recurrenceMode,
     createdAt,
     updatedAt,
   );
@@ -4844,6 +5039,7 @@ class RecurringPatternData extends DataClass
           other.count == this.count &&
           other.timezone == this.timezone &&
           other.exdate == this.exdate &&
+          other.recurrenceMode == this.recurrenceMode &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -4858,6 +5054,7 @@ class RecurringPatternCompanion extends UpdateCompanion<RecurringPatternData> {
   final Value<int?> count;
   final Value<String> timezone;
   final Value<String> exdate;
+  final Value<String> recurrenceMode;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   const RecurringPatternCompanion({
@@ -4870,6 +5067,7 @@ class RecurringPatternCompanion extends UpdateCompanion<RecurringPatternData> {
     this.count = const Value.absent(),
     this.timezone = const Value.absent(),
     this.exdate = const Value.absent(),
+    this.recurrenceMode = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -4883,6 +5081,7 @@ class RecurringPatternCompanion extends UpdateCompanion<RecurringPatternData> {
     this.count = const Value.absent(),
     this.timezone = const Value.absent(),
     this.exdate = const Value.absent(),
+    this.recurrenceMode = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   }) : entityType = Value(entityType),
@@ -4899,6 +5098,7 @@ class RecurringPatternCompanion extends UpdateCompanion<RecurringPatternData> {
     Expression<int>? count,
     Expression<String>? timezone,
     Expression<String>? exdate,
+    Expression<String>? recurrenceMode,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
   }) {
@@ -4912,6 +5112,7 @@ class RecurringPatternCompanion extends UpdateCompanion<RecurringPatternData> {
       if (count != null) 'count': count,
       if (timezone != null) 'timezone': timezone,
       if (exdate != null) 'exdate': exdate,
+      if (recurrenceMode != null) 'recurrence_mode': recurrenceMode,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
@@ -4927,6 +5128,7 @@ class RecurringPatternCompanion extends UpdateCompanion<RecurringPatternData> {
     Value<int?>? count,
     Value<String>? timezone,
     Value<String>? exdate,
+    Value<String>? recurrenceMode,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
   }) {
@@ -4940,6 +5142,7 @@ class RecurringPatternCompanion extends UpdateCompanion<RecurringPatternData> {
       count: count ?? this.count,
       timezone: timezone ?? this.timezone,
       exdate: exdate ?? this.exdate,
+      recurrenceMode: recurrenceMode ?? this.recurrenceMode,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -4975,6 +5178,9 @@ class RecurringPatternCompanion extends UpdateCompanion<RecurringPatternData> {
     if (exdate.present) {
       map['exdate'] = Variable<String>(exdate.value);
     }
+    if (recurrenceMode.present) {
+      map['recurrence_mode'] = Variable<String>(recurrenceMode.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -4996,6 +5202,7 @@ class RecurringPatternCompanion extends UpdateCompanion<RecurringPatternData> {
           ..write('count: $count, ')
           ..write('timezone: $timezone, ')
           ..write('exdate: $exdate, ')
+          ..write('recurrenceMode: $recurrenceMode, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -6724,6 +6931,9 @@ typedef $$ScheduleTableCreateCompanionBuilder =
       Value<String> visibility,
       Value<bool> completed,
       Value<DateTime?> completedAt,
+      Value<String> timezone,
+      Value<int?> originalHour,
+      Value<int?> originalMinute,
     });
 typedef $$ScheduleTableUpdateCompanionBuilder =
     ScheduleCompanion Function({
@@ -6741,6 +6951,9 @@ typedef $$ScheduleTableUpdateCompanionBuilder =
       Value<String> visibility,
       Value<bool> completed,
       Value<DateTime?> completedAt,
+      Value<String> timezone,
+      Value<int?> originalHour,
+      Value<int?> originalMinute,
     });
 
 class $$ScheduleTableFilterComposer
@@ -6819,6 +7032,21 @@ class $$ScheduleTableFilterComposer
 
   ColumnFilters<DateTime> get completedAt => $composableBuilder(
     column: $table.completedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get timezone => $composableBuilder(
+    column: $table.timezone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get originalHour => $composableBuilder(
+    column: $table.originalHour,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get originalMinute => $composableBuilder(
+    column: $table.originalMinute,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6901,6 +7129,21 @@ class $$ScheduleTableOrderingComposer
     column: $table.completedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get timezone => $composableBuilder(
+    column: $table.timezone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get originalHour => $composableBuilder(
+    column: $table.originalHour,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get originalMinute => $composableBuilder(
+    column: $table.originalMinute,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ScheduleTableAnnotationComposer
@@ -6963,6 +7206,19 @@ class $$ScheduleTableAnnotationComposer
     column: $table.completedAt,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get timezone =>
+      $composableBuilder(column: $table.timezone, builder: (column) => column);
+
+  GeneratedColumn<int> get originalHour => $composableBuilder(
+    column: $table.originalHour,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get originalMinute => $composableBuilder(
+    column: $table.originalMinute,
+    builder: (column) => column,
+  );
 }
 
 class $$ScheduleTableTableManager
@@ -7010,6 +7266,9 @@ class $$ScheduleTableTableManager
                 Value<String> visibility = const Value.absent(),
                 Value<bool> completed = const Value.absent(),
                 Value<DateTime?> completedAt = const Value.absent(),
+                Value<String> timezone = const Value.absent(),
+                Value<int?> originalHour = const Value.absent(),
+                Value<int?> originalMinute = const Value.absent(),
               }) => ScheduleCompanion(
                 start: start,
                 end: end,
@@ -7025,6 +7284,9 @@ class $$ScheduleTableTableManager
                 visibility: visibility,
                 completed: completed,
                 completedAt: completedAt,
+                timezone: timezone,
+                originalHour: originalHour,
+                originalMinute: originalMinute,
               ),
           createCompanionCallback:
               ({
@@ -7042,6 +7304,9 @@ class $$ScheduleTableTableManager
                 Value<String> visibility = const Value.absent(),
                 Value<bool> completed = const Value.absent(),
                 Value<DateTime?> completedAt = const Value.absent(),
+                Value<String> timezone = const Value.absent(),
+                Value<int?> originalHour = const Value.absent(),
+                Value<int?> originalMinute = const Value.absent(),
               }) => ScheduleCompanion.insert(
                 start: start,
                 end: end,
@@ -7057,6 +7322,9 @@ class $$ScheduleTableTableManager
                 visibility: visibility,
                 completed: completed,
                 completedAt: completedAt,
+                timezone: timezone,
+                originalHour: originalHour,
+                originalMinute: originalMinute,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -9214,6 +9482,7 @@ typedef $$RecurringPatternTableCreateCompanionBuilder =
       Value<int?> count,
       Value<String> timezone,
       Value<String> exdate,
+      Value<String> recurrenceMode,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
     });
@@ -9228,6 +9497,7 @@ typedef $$RecurringPatternTableUpdateCompanionBuilder =
       Value<int?> count,
       Value<String> timezone,
       Value<String> exdate,
+      Value<String> recurrenceMode,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
     });
@@ -9330,6 +9600,11 @@ class $$RecurringPatternTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get recurrenceMode => $composableBuilder(
+    column: $table.recurrenceMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
@@ -9420,6 +9695,11 @@ class $$RecurringPatternTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get recurrenceMode => $composableBuilder(
+    column: $table.recurrenceMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -9468,6 +9748,11 @@ class $$RecurringPatternTableAnnotationComposer
 
   GeneratedColumn<String> get exdate =>
       $composableBuilder(column: $table.exdate, builder: (column) => column);
+
+  GeneratedColumn<String> get recurrenceMode => $composableBuilder(
+    column: $table.recurrenceMode,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -9541,6 +9826,7 @@ class $$RecurringPatternTableTableManager
                 Value<int?> count = const Value.absent(),
                 Value<String> timezone = const Value.absent(),
                 Value<String> exdate = const Value.absent(),
+                Value<String> recurrenceMode = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => RecurringPatternCompanion(
@@ -9553,6 +9839,7 @@ class $$RecurringPatternTableTableManager
                 count: count,
                 timezone: timezone,
                 exdate: exdate,
+                recurrenceMode: recurrenceMode,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),
@@ -9567,6 +9854,7 @@ class $$RecurringPatternTableTableManager
                 Value<int?> count = const Value.absent(),
                 Value<String> timezone = const Value.absent(),
                 Value<String> exdate = const Value.absent(),
+                Value<String> recurrenceMode = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => RecurringPatternCompanion.insert(
@@ -9579,6 +9867,7 @@ class $$RecurringPatternTableTableManager
                 count: count,
                 timezone: timezone,
                 exdate: exdate,
+                recurrenceMode: recurrenceMode,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),

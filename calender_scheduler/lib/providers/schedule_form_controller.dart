@@ -23,6 +23,10 @@ class ScheduleFormController extends ChangeNotifier {
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
 
+  // ✅ 종일 토글 시 시간 정보 캐시 (종일 해제 시 복원용)
+  TimeOfDay? _cachedStartTime;
+  TimeOfDay? _cachedEndTime;
+
   // Getters
   bool get isAllDay => _isAllDay;
   DateTime? get startDate => _startDate;
@@ -34,9 +38,23 @@ class ScheduleFormController extends ChangeNotifier {
   bool get hasTitle => titleController.text.trim().isNotEmpty;
 
   /// 시작 DateTime 빌드
+  /// ✅ 종일일 때: 00:00:00으로 저장 (시간 정보는 캐시에 보존)
+  /// ✅ 일반일 때: 실제 시간 사용
   DateTime? get startDateTime {
     if (_startDate == null) return null;
-    if (_isAllDay || _startTime == null) {
+    if (_isAllDay) {
+      // 종일: 무조건 00:00:00 (시간은 _cachedStartTime에 보존됨)
+      return DateTime(
+        _startDate!.year,
+        _startDate!.month,
+        _startDate!.day,
+        0,
+        0,
+        0,
+      );
+    }
+    // 일반: 실제 시간 사용
+    if (_startTime == null) {
       return DateTime(
         _startDate!.year,
         _startDate!.month,
@@ -57,9 +75,23 @@ class ScheduleFormController extends ChangeNotifier {
   }
 
   /// 종료 DateTime 빌드
+  /// ✅ 종일일 때: 23:59:59로 저장 (시간 정보는 캐시에 보존)
+  /// ✅ 일반일 때: 실제 시간 사용
   DateTime? get endDateTime {
     if (_endDate == null) return null;
-    if (_isAllDay || _endTime == null) {
+    if (_isAllDay) {
+      // 종일: 무조건 23:59:59 (시간은 _cachedEndTime에 보존됨)
+      return DateTime(
+        _endDate!.year,
+        _endDate!.month,
+        _endDate!.day,
+        23,
+        59,
+        59,
+      );
+    }
+    // 일반: 실제 시간 사용
+    if (_endTime == null) {
       return DateTime(
         _endDate!.year,
         _endDate!.month,
@@ -82,26 +114,60 @@ class ScheduleFormController extends ChangeNotifier {
   // Setters
   void toggleAllDay() {
     _isAllDay = !_isAllDay;
-    // ✅ 終日 토글 시 시간 값은 유지 (null로 설정하지 않음)
-    // 시간 값이 없으면 기본값 설정
+
     if (_isAllDay) {
-      _startTime ??= const TimeOfDay(hour: 0, minute: 0);
-      _endTime ??= const TimeOfDay(hour: 23, minute: 59);
+      // ✅ 종일 ON: 현재 시간을 캐시에 저장하고 00:00 ~ 23:59로 설정
+      if (_startTime != null) {
+        _cachedStartTime = _startTime;
+      }
+      if (_endTime != null) {
+        _cachedEndTime = _endTime;
+      }
+      _startTime = const TimeOfDay(hour: 0, minute: 0);
+      _endTime = const TimeOfDay(hour: 23, minute: 59);
+      debugPrint(
+        '🔄 [ScheduleForm] 終日 ON: 시간 캐시 저장 (start=${_cachedStartTime}, end=${_cachedEndTime}) → 00:00 ~ 23:59',
+      );
+    } else {
+      // ✅ 종일 OFF: 캐시에서 시간 복원
+      if (_cachedStartTime != null) {
+        _startTime = _cachedStartTime;
+      }
+      if (_cachedEndTime != null) {
+        _endTime = _cachedEndTime;
+      }
+      debugPrint(
+        '🔄 [ScheduleForm] 終日 OFF: 시간 복원 (start=$_startTime, end=$_endTime)',
+      );
     }
+
     notifyListeners();
-    debugPrint(
-      '🔄 [ScheduleForm] 終日 토글: $_isAllDay (시간 유지: start=$_startTime, end=$_endTime)',
-    );
   }
 
   void setAllDay(bool value) {
     if (_isAllDay == value) return;
     _isAllDay = value;
-    // ✅ 終日 설정 시 시간 값은 유지
+
     if (_isAllDay) {
-      _startTime ??= const TimeOfDay(hour: 0, minute: 0);
-      _endTime ??= const TimeOfDay(hour: 23, minute: 59);
+      // ✅ 종일 ON: 현재 시간을 캐시에 저장하고 00:00 ~ 23:59로 설정
+      if (_startTime != null) {
+        _cachedStartTime = _startTime;
+      }
+      if (_endTime != null) {
+        _cachedEndTime = _endTime;
+      }
+      _startTime = const TimeOfDay(hour: 0, minute: 0);
+      _endTime = const TimeOfDay(hour: 23, minute: 59);
+    } else {
+      // ✅ 종일 OFF: 캐시에서 시간 복원
+      if (_cachedStartTime != null) {
+        _startTime = _cachedStartTime;
+      }
+      if (_cachedEndTime != null) {
+        _endTime = _cachedEndTime;
+      }
     }
+
     notifyListeners();
   }
 
@@ -139,6 +205,8 @@ class ScheduleFormController extends ChangeNotifier {
     _startTime = null;
     _endDate = null;
     _endTime = null;
+    _cachedStartTime = null; // ✅ 캐시 초기화
+    _cachedEndTime = null; // ✅ 캐시 초기화
     notifyListeners();
   }
 
@@ -150,6 +218,8 @@ class ScheduleFormController extends ChangeNotifier {
     final now = TimeOfDay.now();
     _startTime = now;
     _endTime = TimeOfDay(hour: (now.hour + 1) % 24, minute: now.minute);
+    _cachedStartTime = null; // ✅ 캐시 초기화
+    _cachedEndTime = null; // ✅ 캐시 초기화
     notifyListeners();
   }
 

@@ -2174,7 +2174,43 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
                   targetDate.month,
                   targetDate.day,
                 );
-                schedules.putIfAbsent(dateKey, () => []).add(schedule);
+
+                // 🔥 월뷰용: originalHour/originalMinute로 시간 복원
+                ScheduleData displaySchedule = schedule;
+                if (schedule.originalHour != null &&
+                    schedule.originalMinute != null) {
+                  final instanceStartTime = DateTime(
+                    targetDate.year,
+                    targetDate.month,
+                    targetDate.day,
+                    schedule.originalHour!,
+                    schedule.originalMinute!,
+                  );
+                  final duration = schedule.end.difference(schedule.start);
+                  final instanceEndTime = instanceStartTime.add(duration);
+
+                  displaySchedule = ScheduleData(
+                    id: schedule.id,
+                    summary: schedule.summary,
+                    start: instanceStartTime,
+                    end: instanceEndTime,
+                    description: schedule.description,
+                    location: schedule.location,
+                    colorId: schedule.colorId,
+                    completed: schedule.completed,
+                    completedAt: schedule.completedAt,
+                    repeatRule: schedule.repeatRule,
+                    alertSetting: schedule.alertSetting,
+                    createdAt: schedule.createdAt,
+                    status: schedule.status,
+                    visibility: schedule.visibility,
+                    timezone: schedule.timezone,
+                    originalHour: schedule.originalHour,
+                    originalMinute: schedule.originalMinute,
+                  );
+                }
+
+                schedules.putIfAbsent(dateKey, () => []).add(displaySchedule);
                 print(
                   '  ✅ [반복] "${schedule.summary}" → ${dateKey.toString().split(' ')[0]}',
                 );

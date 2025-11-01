@@ -453,6 +453,28 @@ class RecurringPattern extends Table {
   // 이거는 이래서 → "20250315T100000,20250322T100000" 형식
   TextColumn get exdate => text().withDefault(const Constant(''))();
 
+  // 🔁 반복 모드 (ABSOLUTE vs RELATIVE_ON_COMPLETION)
+  // 이거를 설정하고 → 반복 일정의 동작 방식을 구분해서
+  // 이거를 해서 → every (절대적 반복)와 every! (완료 기준 반복)를 구현한다
+  // 이거는 이래서 → Todoist/Asana 스타일의 고급 반복 로직 지원
+  //
+  // **ABSOLUTE (기본값):**
+  // - 일정한 시간 간격으로 반복 (예: 매주 월요일)
+  // - 완료 여부와 상관없이 다음 인스턴스 생성
+  // - Schedule/Task/Habit 모두 지원
+  //
+  // **RELATIVE_ON_COMPLETION:**
+  // - 완료 시점 기준으로 다음 인스턴스 생성 (예: 완료 후 3일마다)
+  // - 항상 PENDING 인스턴스 1개만 유지
+  // - Task/Habit만 지원 (Schedule은 시간 고정)
+  //
+  // 예시:
+  // - "매주 월요일" → ABSOLUTE + FREQ=WEEKLY;BYDAY=MO
+  // - "완료 후 3일마다" → RELATIVE_ON_COMPLETION + FREQ=DAILY;INTERVAL=3
+  TextColumn get recurrenceMode => text().withDefault(
+    const Constant('ABSOLUTE'),
+  )(); // 'ABSOLUTE' | 'RELATIVE_ON_COMPLETION'
+
   // ⏰ 생성 시간
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 

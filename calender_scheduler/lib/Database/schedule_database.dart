@@ -47,7 +47,6 @@ class AppDatabase extends _$AppDatabase {
   /// RecurringPattern의 dtstart를 날짜만으로 정규화 (시간 제거)
   /// 🔥 UTC 변환 시 날짜가 밀리는 문제를 해결하기 위한 마이그레이션
   Future<void> normalizeDtstartDates() async {
-
     // 모든 RecurringPattern 조회
     final patterns = await select(recurringPattern).get();
 
@@ -70,9 +69,7 @@ class AppDatabase extends _$AppDatabase {
       await (update(recurringPattern)
             ..where((tbl) => tbl.id.equals(pattern.id)))
           .write(RecurringPatternCompanion(dtstart: Value(normalizedDate)));
-
     }
-
   }
 
   // ==================== 조회 함수 ====================
@@ -135,10 +132,8 @@ class AppDatabase extends _$AppDatabase {
     DateTime startDate,
     DateTime endDate,
   ) async* {
-
     // 모든 일정을 실시간으로 관찰
     await for (final schedules in watchSchedules()) {
-
       final result = <ScheduleData>[];
 
       for (final schedule in schedules) {
@@ -254,7 +249,20 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 해서 → into(schedule)로 테이블에 삽입하고
   /// 이거는 이래서 → 삽입된 행의 id를 int로 반환한다 (자동 생성)
   Future<int> createSchedule(ScheduleCompanion data) async {
-    final id = await into(schedule).insert(data);
+    // 🔥 반복 일정일 경우 원본 시간 자동 저장
+    ScheduleCompanion finalData = data;
+
+    if (data.start.present &&
+        (data.originalHour.present == false ||
+            data.originalHour.value == null)) {
+      final startTime = data.start.value;
+      finalData = data.copyWith(
+        originalHour: Value(startTime.hour),
+        originalMinute: Value(startTime.minute),
+      );
+    }
+
+    final id = await into(schedule).insert(finalData);
     return id;
   }
 
@@ -266,8 +274,7 @@ class AppDatabase extends _$AppDatabase {
   /// 이거라면 → 성공 시 true를 반환한다
   Future<bool> updateSchedule(ScheduleCompanion data) async {
     final result = await update(schedule).replace(data);
-    if (result) {
-    }
+    if (result) {}
     return result;
   }
 
@@ -406,7 +413,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 해서 → 사용자가 드래그 앤 드롭으로 정한 순서를 저장하고
   /// 이거는 이래서 → 다음에 인박스를 열 때 같은 순서로 표시된다
   Future<void> updateInboxTasksOrder(List<int> taskIds) async {
-
     await transaction(() async {
       for (int i = 0; i < taskIds.length; i++) {
         final taskId = taskIds[i];
@@ -415,7 +421,6 @@ class AppDatabase extends _$AppDatabase {
         );
       }
     });
-
   }
 
   // ==================== Habit (습관) 함수 ====================
@@ -858,8 +863,7 @@ class AppDatabase extends _$AppDatabase {
   /// 이거라면 → 성공 시 true를 반환한다
   Future<bool> updateHabit(HabitCompanion data) async {
     final result = await update(habit).replace(data);
-    if (result) {
-    }
+    if (result) {}
     return result;
   }
 
@@ -938,7 +942,6 @@ class AppDatabase extends _$AppDatabase {
         );
         insertCount++;
       }
-
     });
   }
 
@@ -969,7 +972,6 @@ class AppDatabase extends _$AppDatabase {
                 updatedAt: Value(DateTime.now().toUtc()),
               ),
             );
-
   }
 
   /// 특정 날짜의 카드 순서 초기화 (삭제)
@@ -993,7 +995,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 해서 → 모든 날짜의 DailyCardOrder에서 해당 카드를 제거하고
   /// 이거는 이래서 → 고아 레코드(orphan record)를 방지한다
   Future<int> deleteCardFromAllOrders(String cardType, int cardId) async {
-
     // 이거를 설정하고 → cardType과 cardId로 필터링해서
     // 이거를 해서 → 모든 날짜의 해당 카드 순서를 삭제한다
     final count =
@@ -1104,7 +1105,6 @@ class AppDatabase extends _$AppDatabase {
   Stream<List<TaskData>> watchCompletedTasksByDay(DateTime date) async* {
     final dateOnly = DateTime(date.year, date.month, date.day);
 
-
     // TaskCompletion 테이블에서 해당 날짜의 완료 기록을 실시간 감지
     await for (final completions
         in (select(taskCompletion)
@@ -1155,7 +1155,6 @@ class AppDatabase extends _$AppDatabase {
     final startOfDay = DateTime(date.year, date.month, date.day);
     final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
-
     // HabitCompletion 테이블에서 해당 날짜의 완료 기록을 실시간 감지
     await for (final completions
         in (select(habitCompletion)
@@ -1205,7 +1204,6 @@ class AppDatabase extends _$AppDatabase {
     DateTime date,
   ) async* {
     final dateOnly = DateTime(date.year, date.month, date.day);
-
 
     // ScheduleCompletion 테이블에서 해당 날짜의 완료 기록을 실시간 감지
     await for (final completions
@@ -1292,13 +1290,11 @@ class AppDatabase extends _$AppDatabase {
   Stream<List<ScheduleData>> watchSchedulesWithRepeat(
     DateTime targetDate,
   ) async* {
-
     // 날짜 정규화 (00:00:00)
     final target = DateTime(targetDate.year, targetDate.month, targetDate.day);
     final targetEnd = target.add(const Duration(days: 1));
 
     await for (final schedules in watchSchedules()) {
-
       // 🔥 해당 날짜의 완료 기록 조회
       final completions = await getScheduleCompletionsByDate(target);
       final completedIds = completions.map((c) => c.scheduleId).toSet();
@@ -1319,8 +1315,7 @@ class AppDatabase extends _$AppDatabase {
             // 🔥 일반 일정은 completed 필드로 완료 확인 (기존 방식 유지)
             if (!schedule.completed) {
               result.add(schedule);
-            } else {
-            }
+            } else {}
           }
         } else {
           // 반복 일정: RRULE로 인스턴스 생성
@@ -1366,14 +1361,51 @@ class AppDatabase extends _$AppDatabase {
                   createdAt: schedule.createdAt,
                   status: schedule.status,
                   visibility: schedule.visibility,
+                  timezone: schedule.timezone,
+                  originalHour: schedule.originalHour,
+                  originalMinute: schedule.originalMinute,
                 );
+              } else {
+                // 🔥 예외가 없으면 원본 시간을 복원하여 표시
+                // originalHour/originalMinute가 있으면 그 시간을 사용
+                if (schedule.originalHour != null &&
+                    schedule.originalMinute != null) {
+                  final instanceStartTime = DateTime(
+                    target.year,
+                    target.month,
+                    target.day,
+                    schedule.originalHour!,
+                    schedule.originalMinute!,
+                  );
+                  final duration = schedule.end.difference(schedule.start);
+                  final instanceEndTime = instanceStartTime.add(duration);
+
+                  displaySchedule = ScheduleData(
+                    id: schedule.id,
+                    summary: schedule.summary,
+                    start: instanceStartTime,
+                    end: instanceEndTime,
+                    description: schedule.description,
+                    location: schedule.location,
+                    colorId: schedule.colorId,
+                    completed: schedule.completed,
+                    completedAt: schedule.completedAt,
+                    repeatRule: schedule.repeatRule,
+                    alertSetting: schedule.alertSetting,
+                    createdAt: schedule.createdAt,
+                    status: schedule.status,
+                    visibility: schedule.visibility,
+                    timezone: schedule.timezone,
+                    originalHour: schedule.originalHour,
+                    originalMinute: schedule.originalMinute,
+                  );
+                }
               }
 
               // 🔥 반복 일정은 ScheduleCompletion 테이블로 완료 확인
               if (!completedIds.contains(schedule.id)) {
                 result.add(displaySchedule); // ✅ 수정된 일정 추가
-              } else {
-              }
+              } else {}
             }
           } catch (e) {
             // 실패 시 원본 날짜 기준으로 폴백
@@ -1515,11 +1547,9 @@ class AppDatabase extends _$AppDatabase {
   /// - executionDate가 있고 RecurringPattern 없으면 해당 날짜만
   /// - RecurringPattern이 있으면 RRULE 기반 인스턴스 생성
   Stream<List<TaskData>> watchTasksWithRepeat(DateTime targetDate) async* {
-
     final target = DateTime(targetDate.year, targetDate.month, targetDate.day);
 
     await for (final tasks in watchTasks()) {
-
       // 🔥 해당 날짜의 완료 기록 조회
       final completions = await getTaskCompletionsByDate(target);
       final completedIds = completions.map((c) => c.taskId).toSet();
@@ -1545,8 +1575,7 @@ class AppDatabase extends _$AppDatabase {
             // 🔥 일반 할일은 completed 필드로 완료 확인 (기존 방식 유지)
             if (!task.completed) {
               result.add(task);
-            } else {
-            }
+            } else {}
           }
         } else {
           // 반복 할일: RRULE로 인스턴스 생성
@@ -1557,49 +1586,116 @@ class AppDatabase extends _$AppDatabase {
               targetDate: target,
             );
 
-            if (instances.isNotEmpty) {
-              // ✅ FIX: RecurringException의 수정 사항을 적용
-              final exceptions = await getRecurringExceptions(pattern.id);
-              final targetNormalized = _normalizeDate(target);
+            // ✅ FIX: RecurringException의 수정 사항을 먼저 확인
+            final exceptions = await getRecurringExceptions(pattern.id);
+            final targetNormalized = _normalizeDate(target);
 
-              // 해당 날짜의 예외 찾기
-              RecurringExceptionData? exception;
-              for (final e in exceptions) {
-                if (_normalizeDate(e.originalDate) == targetNormalized) {
-                  exception = e;
-                  break;
-                }
+            // 해당 날짜와 관련된 예외 찾기
+            RecurringExceptionData? exception;
+            for (final e in exceptions) {
+              final originalDateNormalized = _normalizeDate(e.originalDate);
+              final newStartDateNormalized = e.newStartDate != null
+                  ? _normalizeDate(e.newStartDate!)
+                  : null;
+
+              // 1. originalDate가 target과 일치하거나
+              // 2. newStartDate가 target과 일치하면 해당 exception 사용
+              if (originalDateNormalized == targetNormalized ||
+                  newStartDateNormalized == targetNormalized) {
+                exception = e;
+                break;
               }
+            }
 
-              // 표시할 할일 데이터 결정
-              TaskData displayTask = task;
+            // 🔥 표시 조건:
+            // 1. RRULE 인스턴스가 있고 취소되지 않았으며 날짜 변경되지 않았거나
+            // 2. exception의 newStartDate가 target과 일치 (다른 날짜에서 이동해온 경우)
+            final hasInstance = instances.isNotEmpty;
+            final isCancelled = exception?.isCancelled ?? false;
+            final isMovedToThisDate =
+                exception?.newStartDate != null &&
+                _normalizeDate(exception!.newStartDate!) == targetNormalized;
+            final isMovedFromThisDate =
+                exception?.newStartDate != null &&
+                _normalizeDate(exception!.originalDate) == targetNormalized &&
+                _normalizeDate(exception.newStartDate!) != targetNormalized;
 
-              if (exception != null && !exception.isCancelled) {
-                // ✅ 수정된 필드를 적용한 새 TaskData 생성
-                displayTask = TaskData(
-                  id: task.id,
-                  title: exception.modifiedTitle ?? task.title,
-                  colorId: exception.modifiedColorId ?? task.colorId,
-                  completed: task.completed,
-                  completedAt: task.completedAt,
-                  dueDate: task.dueDate,
-                  executionDate: task.executionDate,
-                  listId: task.listId,
-                  createdAt: task.createdAt,
-                  repeatRule: task.repeatRule,
-                  reminder: task.reminder,
-                  inboxOrder: task.inboxOrder,
+            final shouldDisplay =
+                (hasInstance && !isCancelled && !isMovedFromThisDate) ||
+                isMovedToThisDate;
+
+            if (shouldDisplay) {
+              // 🔥 반복 할일: 각 인스턴스마다 해당 날짜를 executionDate로 설정
+              // 🔥 실행일 결정 우선순위:
+              // 1. exception.newStartDate (유저가 특정 인스턴스의 실행일을 수정한 경우)
+              // 2. target (해당 날짜)
+              DateTime finalExecutionDate = exception?.newStartDate ?? target;
+
+              // 🔥 마감일 결정 우선순위:
+              // 1. exception.newEndDate (유저가 특정 인스턴스의 마감일을 수정한 경우)
+              // 2. 자동 계산된 마감일 (원본 실행일-마감일 차이를 새 실행일에 적용)
+              // 3. 원본 마감일 (executionDate가 없었던 경우)
+              DateTime? finalDueDate;
+
+              if (exception?.newEndDate != null) {
+                // 🔥 유저가 수정한 마감일이 있으면 그것을 사용
+                finalDueDate = exception!.newEndDate;
+              } else if (task.dueDate != null && task.executionDate != null) {
+                // 자동 계산: 원본 실행일과 마감일의 차이 계산
+                final originalExecDate = DateTime(
+                  task.executionDate!.year,
+                  task.executionDate!.month,
+                  task.executionDate!.day,
                 );
+                final originalDueDate = DateTime(
+                  task.dueDate!.year,
+                  task.dueDate!.month,
+                  task.dueDate!.day,
+                );
+                final daysDifference = originalDueDate
+                    .difference(originalExecDate)
+                    .inDays;
+
+                // 새 실행일(finalExecutionDate)에 동일한 차이를 적용
+                finalDueDate = finalExecutionDate.add(
+                  Duration(days: daysDifference),
+                );
+
+                // 시간 정보는 원본 마감일의 시간 유지
+                finalDueDate = DateTime(
+                  finalDueDate.year,
+                  finalDueDate.month,
+                  finalDueDate.day,
+                  task.dueDate!.hour,
+                  task.dueDate!.minute,
+                  task.dueDate!.second,
+                );
+              } else if (task.dueDate != null) {
+                // executionDate가 없었던 경우 원본 마감일 유지
+                finalDueDate = task.dueDate;
               }
+
+              TaskData displayTask = TaskData(
+                id: task.id,
+                title: exception?.modifiedTitle ?? task.title,
+                colorId: exception?.modifiedColorId ?? task.colorId,
+                completed: task.completed,
+                completedAt: task.completedAt,
+                dueDate: finalDueDate, // 🔥 최종 마감일 (유저 수정 > 자동 계산 > 원본)
+                executionDate: finalExecutionDate, // 🔥 최종 실행일 (유저 수정 > target)
+                listId: task.listId,
+                createdAt: task.createdAt,
+                repeatRule: task.repeatRule,
+                reminder: task.reminder,
+                inboxOrder: task.inboxOrder,
+              );
 
               // 🔥 반복 할일은 TaskCompletion 테이블로 완료 확인
               if (!completedIds.contains(task.id)) {
                 result.add(displayTask); // ✅ 수정된 할일 추가
-              } else {
-              }
+              } else {}
             }
-          } catch (e) {
-          }
+          } catch (e) {}
         }
       }
 
@@ -1664,7 +1760,6 @@ class AppDatabase extends _$AppDatabase {
   /// - Habit은 항상 RecurringPattern이 있어야 함 (기본: 매일)
   /// - createdAt 날짜 이후로 반복 규칙에 따라 표시
   Stream<List<HabitData>> watchHabitsWithRepeat(DateTime targetDate) async* {
-
     final target = DateTime(targetDate.year, targetDate.month, targetDate.day);
 
     await for (final habits
@@ -1675,7 +1770,6 @@ class AppDatabase extends _$AppDatabase {
               ),
             ]))
             .watch()) {
-
       final result = <HabitData>[];
 
       for (final habitItem in habits) {
@@ -1735,8 +1829,7 @@ class AppDatabase extends _$AppDatabase {
 
             result.add(displayHabit); // ✅ 수정된 습관 추가
           }
-        } catch (e) {
-        }
+        } catch (e) {}
       }
 
       yield result;
@@ -1800,14 +1893,12 @@ class AppDatabase extends _$AppDatabase {
     // 날짜 정규화 (시간 부분 제거)
     final normalized = DateTime(date.year, date.month, date.day);
 
-
     final result = await (select(
       audioContents,
     )..where((t) => t.targetDate.equals(normalized))).getSingleOrNull();
 
     if (result != null) {
-    } else {
-    }
+    } else {}
 
     return result;
   }
@@ -1816,7 +1907,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 설정하고 → audioContentId로 필터링해서
   /// 이거를 해서 → sequence 순서대로 정렬된 스크립트를 watch한다
   Stream<List<TranscriptLineData>> watchTranscriptLines(int audioContentId) {
-
     return (select(transcriptLines)
           ..where((t) => t.audioContentId.equals(audioContentId))
           ..orderBy([(t) => OrderingTerm(expression: t.sequence)]))
@@ -1850,7 +1940,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 설정하고 → AudioContents의 lastPositionMs와 lastPlayedAt을 업데이트해서
   /// 이거를 해서 → 사용자가 어디까지 들었는지 기록한다
   Future<void> updateAudioProgress(int audioContentId, int positionMs) async {
-
     await (update(
       audioContents,
     )..where((t) => t.id.equals(audioContentId))).write(
@@ -1865,7 +1954,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 설정하고 → isCompleted를 true로 설정하고
   /// 이거를 해서 → completedAt 타임스탬프를 기록한다
   Future<void> markInsightAsCompleted(int audioContentId) async {
-
     await (update(
       audioContents,
     )..where((t) => t.id.equals(audioContentId))).write(
@@ -1880,7 +1968,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 설정하고 → playCount를 +1 증가시켜서
   /// 이거를 해서 → 몇 번 재생했는지 추적한다
   Future<void> incrementPlayCount(int audioContentId) async {
-
     final current = await (select(
       audioContents,
     )..where((t) => t.id.equals(audioContentId))).getSingle();
@@ -1896,7 +1983,6 @@ class AppDatabase extends _$AppDatabase {
   /// 이거를 설정하고 → Figma 텍스트 기반 LRC 데이터를 생성해서
   /// 이거를 해서 → 2025-10-18 날짜에 샘플 인사이트를 추가한다
   Future<void> seedInsightData() async {
-
     // 이미 데이터가 있는지 확인
     final existing = await getInsightForDate(DateTime(2025, 10, 18));
     if (existing != null) {
@@ -1980,11 +2066,10 @@ class AppDatabase extends _$AppDatabase {
 
     // ⚠️ AudioProgress 제거: 재생 상태는 AudioContents에 통합됨
     // 기본값으로 lastPositionMs=0, isCompleted=false, playCount=0 자동 설정
-
   }
 
   @override
-  int get schemaVersion => 10; // ✅ 스키마 버전 10: ScheduleCompletion, TaskCompletion 테이블 추가 (반복 이벤트 완료 처리)
+  int get schemaVersion => 12; // ✅ 스키마 버전 12: Schedule에 timezone, originalHour, originalMinute 추가 (DST 대응)
 
   // ✅ [마이그레이션 전략 추가]
   // 이거를 설정하고 → onCreate에서 테이블을 생성하고
@@ -1997,7 +2082,6 @@ class AppDatabase extends _$AppDatabase {
       await m.createAll();
     },
     onUpgrade: (Migrator m, int from, int to) async {
-
       // v2 → v3: Task와 Habit 테이블에 반복/리마인더 컬럼 추가
       if (from == 2 && to == 3) {
         await m.addColumn(task, task.repeatRule);
@@ -2044,6 +2128,29 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(taskCompletion);
       }
 
+      // v10 → v11: RecurringPattern에 recurrenceMode 컬럼 추가 (every vs every! 지원)
+      if (from == 10 && to >= 11) {
+        await customStatement(
+          'ALTER TABLE recurring_pattern ADD COLUMN recurrence_mode TEXT NOT NULL DEFAULT "ABSOLUTE"',
+        );
+      }
+
+      // v11 → v12: Schedule에 timezone, originalHour, originalMinute 추가 (DST 대응)
+      if (from == 11 && to >= 12) {
+        await m.addColumn(schedule, schedule.timezone);
+        await m.addColumn(schedule, schedule.originalHour);
+        await m.addColumn(schedule, schedule.originalMinute);
+
+        // 🔥 기존 데이터 마이그레이션: 기존 start에서 시간 추출
+        await customStatement('''
+          UPDATE schedule
+          SET 
+            original_hour = CAST(strftime('%H', start) AS INTEGER),
+            original_minute = CAST(strftime('%M', start) AS INTEGER),
+            timezone = ''
+          WHERE original_hour IS NULL
+        ''');
+      }
     },
     beforeOpen: (details) async {
       // 외래키 제약조건 활성화 등

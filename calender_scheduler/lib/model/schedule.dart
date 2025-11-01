@@ -39,4 +39,17 @@ class Schedule extends Table {
   // 완료 기능
   BoolColumn get completed => boolean().withDefault(const Constant(false))();
   DateTimeColumn get completedAt => dateTime().nullable()();
+
+  // 🌍 시간대 정보 (로컬 시간 보존을 위한 필드)
+  // 이거를 설정하고 → 반복 일정의 원래 "로컬 시간"을 기억해서
+  // 이거를 해서 → DST 변경 시에도 사용자가 원하는 시간을 유지하고
+  // 이거는 이래서 → "매일 오전 8시"가 항상 8시에 표시된다
+  TextColumn get timezone => text().withDefault(
+    const Constant(''),
+  )(); // IANA Timezone ID (예: 'Asia/Seoul', 빈 문자열이면 UTC)
+
+  // 🕐 원본 로컬 시간 (반복 이벤트용)
+  // start/end는 UTC로 저장되므로, 원래 사용자가 선택한 "로컬 시간"을 별도 저장
+  IntColumn get originalHour => integer().nullable()(); // 0-23
+  IntColumn get originalMinute => integer().nullable()(); // 0-59
 }

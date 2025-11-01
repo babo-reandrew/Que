@@ -2315,6 +2315,13 @@ class _DateDetailViewState extends State<DateDetailView>
                               '✅ [ScheduleCard] 완료: ${schedule.summary} (날짜: $date)',
                             );
                             HapticFeedback.lightImpact();
+                            // 🎯 완료 시 완료박스 자동 확장
+                            if (!_isCompletedExpanded) {
+                              setState(() {
+                                _isCompletedExpanded = true;
+                                _completedExpandController.forward();
+                              });
+                            }
                           },
                           onDelete: () async {
                             await GetIt.I<AppDatabase>().deleteSchedule(
@@ -2435,6 +2442,13 @@ class _DateDetailViewState extends State<DateDetailView>
                           date,
                         );
                         print('✅ [TaskCard] 완료 토글: ${task.title} (날짜: $date)');
+                        // 🎯 완료 시 완료박스 자동 확장
+                        if (!_isCompletedExpanded) {
+                          setState(() {
+                            _isCompletedExpanded = true;
+                            _completedExpandController.forward();
+                          });
+                        }
                       },
                       onDelete: () async {
                         await GetIt.I<AppDatabase>().deleteTask(task.id);
@@ -2508,6 +2522,13 @@ class _DateDetailViewState extends State<DateDetailView>
                                   print(
                                     '✅ [TaskCard] 체크박스 완료 처리: ${task.title} (날짜: $date)',
                                   );
+                                  // 🎯 완료 시 완료박스 자동 확장
+                                  if (!_isCompletedExpanded) {
+                                    setState(() {
+                                      _isCompletedExpanded = true;
+                                      _completedExpandController.forward();
+                                    });
+                                  }
                                 }
                               } else {
                                 // 🔥 일반 할일: 기존 completed 필드 사용
@@ -2525,6 +2546,13 @@ class _DateDetailViewState extends State<DateDetailView>
                                   print(
                                     '✅ [TaskCard] 체크박스 완료 처리: ${task.title}',
                                   );
+                                  // 🎯 완료 시 완료박스 자동 확장
+                                  if (!_isCompletedExpanded) {
+                                    setState(() {
+                                      _isCompletedExpanded = true;
+                                      _completedExpandController.forward();
+                                    });
+                                  }
                                 }
                               }
                             },
@@ -2629,14 +2657,18 @@ class _DateDetailViewState extends State<DateDetailView>
                           // 🎯 햅틱 피드백 추가
                           HapticFeedback.lightImpact();
 
-                          // 애니메이션: 카드 축소 효과
-                          setState(() {}); // 리빌드 트리거
-
                           await GetIt.I<AppDatabase>().recordHabitCompletion(
                             habit.id,
                             date,
                           );
                           print('✅ [HabitCard] 완료 기록: ${habit.title}');
+                          // 🎯 완료 시 완료박스 자동 확장
+                          if (!_isCompletedExpanded) {
+                            setState(() {
+                              _isCompletedExpanded = true;
+                              _completedExpandController.forward();
+                            });
+                          }
                         },
                         onDelete: () async {
                           await GetIt.I<AppDatabase>().deleteHabit(habit.id);
@@ -2682,6 +2714,13 @@ class _DateDetailViewState extends State<DateDetailView>
                                   print(
                                     '✅ [HabitCard] 체크박스 완료 기록: ${habit.title}',
                                   );
+                                  // 🎯 완료 시 완료박스 자동 확장
+                                  if (!_isCompletedExpanded) {
+                                    setState(() {
+                                      _isCompletedExpanded = true;
+                                      _completedExpandController.forward();
+                                    });
+                                  }
                                 }
                               },
                               onTap: () {

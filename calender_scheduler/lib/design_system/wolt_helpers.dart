@@ -131,8 +131,13 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
   final FocusNode _focusNode = FocusNode();
   String _savedColorName = ''; // ✅ 저장된 색상 이름
 
-  // Figma: 5개 색상 (정확한 hex 값)
+  // Figma: 6개 색상 (gray 기본 포함)
   final colorOptions = [
+    {
+      'value': 'gray',
+      'color': const Color(0xFF989898),
+      'label': 'グレー',
+    }, // ✅ 기본 색상 (categoryGray)
     {'value': 'red', 'color': const Color(0xFFD22D2D), 'label': '赤'},
     {'value': 'orange', 'color': const Color(0xFFF57C00), 'label': 'オレンジ'},
     {'value': 'blue', 'color': const Color(0xFF1976D2), 'label': '青'},
@@ -325,9 +330,11 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
 
                   const SizedBox(height: 24),
 
-                  // 하단 5개 색상 버튼
+                  // ✅ 하단 6개 색상 버튼 (gray 포함)
                   Padding(
-                    padding: const EdgeInsets.only(left: 50),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                    ), // ✅ 좌우 균등 패딩
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -362,7 +369,7 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
                             },
                           ),
                           if (i < colorOptions.length - 1)
-                            const SizedBox(width: 16),
+                            const SizedBox(width: 12), // ✅ 간격 줄임 (16px → 12px)
                         ],
                       ],
                     ),

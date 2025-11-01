@@ -129,11 +129,13 @@ class RecurringEventService {
           );
         }
       } else {
-        // 반복 일정: RRULE로 인스턴스 생성
-        final dates = RRuleUtils.generateInstancesFromPattern(
-          pattern: pattern,
+        // 반복 일정: RRULE로 인스턴스 생성 (preserveTime=true로 시간 유지)
+        final dates = RRuleUtils.generateInstances(
+          rruleString: pattern.rrule,
+          dtstart: pattern.dtstart,
           rangeStart: rangeStart,
           rangeEnd: rangeEnd,
+          preserveTime: true, // ✅ 원본 시간 보존
         );
 
         // 3. 예외 조회 (수정/삭제된 인스턴스)

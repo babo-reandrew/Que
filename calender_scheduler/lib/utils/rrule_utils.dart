@@ -16,6 +16,7 @@ class RRuleUtils {
   /// @param rangeStart 조회 범위 시작
   /// @param rangeEnd 조회 범위 종료
   /// @param exdates 제외할 날짜 목록
+  /// @param preserveTime 시간 보존 여부 (true: dtstart의 시/분 유지, false: 날짜만)
   /// @return 반복 발생 날짜 리스트
   static List<DateTime> generateInstances({
     required String rruleString,
@@ -23,6 +24,7 @@ class RRuleUtils {
     required DateTime rangeStart,
     required DateTime rangeEnd,
     List<DateTime>? exdates,
+    bool preserveTime = false, // ✅ 기본값 false (기존 동작 유지)
   }) {
     try {
       // 1. RRULE: 접두사 제거 (파싱용)
@@ -90,8 +92,19 @@ class RRuleUtils {
       // 6. 결과를 로컬 날짜로 변환 (UTC → 로컬 해석)
       final localInstances = instances.map((d) {
         // 🔥 UTC DateTime의 날짜 부분을 로컬 날짜로 해석
-        // 예: 2025-11-08 00:00:00 UTC → 2025-11-08 00:00:00 Local
-        return DateTime(d.year, d.month, d.day);
+        // preserveTime=true면 원본 시간 유지, false면 날짜만
+        if (preserveTime) {
+          return DateTime(
+            d.year,
+            d.month,
+            d.day,
+            dtstart.hour,
+            dtstart.minute,
+            dtstart.second,
+          );
+        } else {
+          return DateTime(d.year, d.month, d.day);
+        }
       }).toList();
 
       // 7. ✅ CRITICAL FIX: dtstart 이전 날짜 필터링
@@ -104,9 +117,15 @@ class RRuleUtils {
 
       // 8. ✅ EXDATE 필터링 (삭제된 날짜 제외)
       if (exdates != null && exdates.isNotEmpty) {
-        final exdateNormalized = exdates.map((d) => DateTime(d.year, d.month, d.day)).toSet();
+        final exdateNormalized = exdates
+            .map((d) => DateTime(d.year, d.month, d.day))
+            .toSet();
         final finalInstances = filteredInstances.where((instance) {
-          final instanceDate = DateTime(instance.year, instance.month, instance.day);
+          final instanceDate = DateTime(
+            instance.year,
+            instance.month,
+            instance.day,
+          );
           return !exdateNormalized.contains(instanceDate);
         }).toList();
 

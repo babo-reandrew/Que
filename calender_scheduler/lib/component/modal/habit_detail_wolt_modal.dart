@@ -19,6 +19,7 @@ import 'delete_repeat_confirmation_modal.dart'; // ✅ 반복 삭제 확인 모�
 import 'edit_repeat_confirmation_modal.dart'; // ✅ 반복 수정 확인 모달
 import '../toast/action_toast.dart'; // ✅ 변경 토스트
 import '../toast/save_toast.dart'; // ✅ 저장 토스트
+import 'animated_sheet_content.dart';
 
 /// 습관 상세 Wolt Modal Sheet
 ///
@@ -165,10 +166,6 @@ Future<void> showHabitDetailWoltModal(
   final initialReminder = bottomSheetController.reminder;
   final initialRepeatRule = bottomSheetController.repeatRule;
 
-  // ✅ 드래그 방향 추적 변수
-  double? previousExtent;
-  bool isDismissing = false; // 팝업 중복 방지
-
   await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -177,150 +174,119 @@ Future<void> showHabitDetailWoltModal(
     isDismissible: false, // ✅ 기본 드래그 닫기 비활성화
     enableDrag: false, // ✅ 기본 드래그 비활성화 (수동으로 처리)
     useRootNavigator: false, // ✅ 현재 네비게이터 사용 (부모 화면과 제스처 충돌 방지)
-    builder: (sheetContext) => WillPopScope(
-      onWillPop: () async {
-        // ✅ 변경사항 감지
-        final hasChanges =
-            initialTitle != habitController.titleController.text ||
-            initialColor != bottomSheetController.selectedColor ||
-            initialReminder != bottomSheetController.reminder ||
-            initialRepeatRule != bottomSheetController.repeatRule;
+    builder: (sheetContext) {
+      final keyboardHeight = MediaQuery.of(sheetContext).viewInsets.bottom;
+      final isKeyboardVisible = keyboardHeight > 0;
 
-        if (hasChanges) {
-          // ✅ 변경사항 있으면 확인 모달
-          final confirmed = await showDiscardChangesModal(context);
-          return confirmed == true;
-        }
-        // ✅ 변경사항 없으면 바로 닫기
-        return true;
-      },
-      child: Stack(
-        children: [
-          // ✅ 배리어 영역 (전체 화면)
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () async {
-                // ✅ 배리어 영역 터치 시
-                debugPrint('🐛 [HabitWolt] 배리어 터치 감지');
+      return WillPopScope(
+        onWillPop: () async {
+          // ✅ 변경사항 감지
+          final hasChanges =
+              initialTitle != habitController.titleController.text ||
+              initialColor != bottomSheetController.selectedColor ||
+              initialReminder != bottomSheetController.reminder ||
+              initialRepeatRule != bottomSheetController.repeatRule;
 
-                final hasChanges =
-                    initialTitle != habitController.titleController.text ||
-                    initialColor != bottomSheetController.selectedColor ||
-                    initialReminder != bottomSheetController.reminder ||
-                    initialRepeatRule != bottomSheetController.repeatRule;
-
-                if (hasChanges) {
-                  // ✅ 변경사항 있으면 확인 모달
-                  final confirmed = await showDiscardChangesModal(context);
-                  if (confirmed == true && sheetContext.mounted) {
-                    Navigator.of(sheetContext).pop();
-                  }
-                } else {
-                  // ✅ 변경사항 없으면 바로 닫기
-                  if (sheetContext.mounted) {
-                    Navigator.of(sheetContext).pop();
-                  }
-                }
-              },
-            ),
-          ),
-          // ✅ 바텀시트 (배리어 위에)
-          NotificationListener<DraggableScrollableNotification>(
-            onNotification: (notification) {
-              // ✅ 바텀시트를 minChildSize 이하로 내릴 때 감지
-              // ✅ 드래그 방향 감지 (아래로만)
-              final isMovingDown =
-                  previousExtent != null &&
-                  notification.extent < previousExtent!;
-              previousExtent = notification.extent;
-
-              // ✅ 바텀시트를 아래로 드래그하여 minChildSize 이하로 내릴 때만
-              if (isMovingDown &&
-                  notification.extent <= notification.minExtent + 0.05 &&
-                  !isDismissing) {
-                debugPrint('🐛 [TaskWolt] 아래로 드래그 닫기 감지');
-
-                isDismissing = true; // ✅ 즉시 플래그 설정하여 중복 호출 방지
-
-                // ✅ 변경사항 확인
-                final hasChanges =
-                    initialTitle != habitController.titleController.text ||
-                    initialColor != bottomSheetController.selectedColor ||
-                    initialReminder != bottomSheetController.reminder ||
-                    initialRepeatRule != bottomSheetController.repeatRule;
-
-                if (hasChanges) {
-                  // ✅ 변경사항 있으면 확인 모달 띄우기
-                  WidgetsBinding.instance.addPostFrameCallback((_) async {
-                    if (sheetContext.mounted) {
-                      final confirmed = await showDiscardChangesModal(context);
-                      if (confirmed == true && sheetContext.mounted) {
-                        Navigator.of(sheetContext).pop();
-                      } else {
-                        // ✅ 사용자가 취소한 경우에만 플래그 리셋
-                        isDismissing = false;
-                      }
-                    }
-                  });
-                  return true; // ✅ 드래그 이벤트 소비 (닫기 방지)
-                } else {
-                  // ✅ 변경사항 없으면 바로 닫기
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (sheetContext.mounted) {
-                      try {
-                        Navigator.of(sheetContext, rootNavigator: false).pop();
-                        // ✅ pop 성공 후에는 리셋하지 않음 (이미 dispose됨)
-                      } catch (e) {
-                        debugPrint('❌ 바텀시트 닫기 실패: $e');
-                        isDismissing = false; // ✅ 실패한 경우에만 리셋
-                      }
-                    }
-                  });
-                  return false;
-                }
-              }
-              return false;
-            },
-            child: DraggableScrollableSheet(
-              initialChildSize: 0.7,
-              minChildSize: 0.5,
-              maxChildSize: 0.95,
-              snap: true,
-              snapSizes: const [0.5, 0.7, 0.95],
-              builder: (context, scrollController) => GestureDetector(
+          if (hasChanges) {
+            // ✅ 변경사항 있으면 확인 모달
+            final confirmed = await showDiscardChangesModal(context);
+            return confirmed == true;
+          }
+          // ✅ 변경사항 없으면 바로 닫기
+          return true;
+        },
+        child: Stack(
+          children: [
+            // ✅ 배리어 영역 (전체 화면)
+            Positioned.fill(
+              child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  // ✅ 바텀시트 내부 터치는 아무것도 안함 (포커스 해제 등)
-                  debugPrint('🐛 [HabitWolt] 바텀시트 내부 터치');
+                onTap: () async {
+                  // ✅ 배리어 영역 터치 시
+                  debugPrint('🐛 [HabitWolt] 배리어 터치 감지');
+
+                  final hasChanges =
+                      initialTitle != habitController.titleController.text ||
+                      initialColor != bottomSheetController.selectedColor ||
+                      initialReminder != bottomSheetController.reminder ||
+                      initialRepeatRule != bottomSheetController.repeatRule;
+
+                  if (hasChanges) {
+                    // ✅ 변경사항 있으면 확인 모달
+                    final confirmed = await showDiscardChangesModal(context);
+                    if (confirmed == true && sheetContext.mounted) {
+                      Navigator.of(sheetContext).pop();
+                    }
+                  } else {
+                    // ✅ 변경사항 없으면 바로 닫기
+                    if (sheetContext.mounted) {
+                      Navigator.of(sheetContext).pop();
+                    }
+                  }
                 },
-                child: Container(
-                  decoration: ShapeDecoration(
-                    color: const Color(0xFFFCFCFC),
-                    shape: SmoothRectangleBorder(
-                      borderRadius: SmoothBorderRadius(
-                        cornerRadius: 36,
-                        cornerSmoothing: 0.6,
-                      ),
+              ),
+            ),
+            // ✅ 바텀시트 (배리어 위에) - 하단 고정, 상단으로만 확장
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOut,
+                padding: EdgeInsets.only(
+                  bottom: isKeyboardVisible
+                      ? (keyboardHeight - 80).clamp(0, double.infinity)
+                      : 0,
+                ),
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(sheetContext).size.height * 0.9,
+                ),
+                decoration: ShapeDecoration(
+                  color: const Color(0xFFFCFCFC),
+                  shape: SmoothRectangleBorder(
+                    borderRadius: SmoothBorderRadius(
+                      cornerRadius: 36,
+                      cornerSmoothing: 0.6,
                     ),
                   ),
+                ),
+                child: AnimatedSheetContent(
                   child: _buildHabitDetailPage(
                     context,
-                    scrollController: scrollController,
+                    scrollController: null,
                     habit: habit,
                     selectedDate: selectedDate,
                     initialTitle: initialTitle,
                     initialColor: initialColor,
                     initialReminder: initialReminder,
                     initialRepeatRule: initialRepeatRule,
+                    isKeyboardVisible: isKeyboardVisible,
                   ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-    ),
+            // ✅ 키보드가 올라올 때 DetailOptions를 키보드 상단 12px 위에 중앙 정렬
+            if (isKeyboardVisible)
+              Positioned(
+                bottom: keyboardHeight + 12, // ✅ 키보드와의 여백 12px
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Hero(
+                    tag: 'detail-options-hero',
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: _buildDetailOptions(
+                        context,
+                        selectedDate: selectedDate,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    },
   );
 }
 
@@ -330,22 +296,24 @@ Future<void> showHabitDetailWoltModal(
 
 Widget _buildHabitDetailPage(
   BuildContext context, {
-  required ScrollController scrollController,
+  required ScrollController? scrollController,
   required HabitData? habit, // ✅ nullable로 변경
   required DateTime selectedDate,
   required String initialTitle,
   required String initialColor,
   required String initialReminder,
   required String initialRepeatRule,
+  required bool isKeyboardVisible,
 }) {
   debugPrint('⌨️ [HabitWolt] 하단 패딩: 0px');
 
-  return ListView(
-    controller: scrollController,
-    padding: EdgeInsets.zero,
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      // ========== TopNavi (60px) - 컨텐츠 최상단 ==========
-      _buildTopNavi(
+      const SizedBox(height: 32),
+      // ========== 드래그 가능한 영역 (TopNavi + TextField + 여백) ==========
+      _buildDraggableHeader(
         context,
         habit: habit,
         selectedDate: selectedDate,
@@ -355,20 +323,119 @@ Widget _buildHabitDetailPage(
         initialRepeatRule: initialRepeatRule,
       ),
 
-      // ========== TextField Section (Frame 776) ==========
-      _buildTextField(context),
-
-      const SizedBox(height: 24), // Figma: gap 24px
+      const SizedBox(height: 10), // Figma: gap 24px
       // ========== DetailOptions (64px) ==========
-      _buildDetailOptions(context, selectedDate: selectedDate),
+      Visibility(
+        visible: !isKeyboardVisible,
+        maintainState: true,
+        maintainAnimation: true,
+        maintainSize: true,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 22), // ✅ 습관: 좌측 22px 여백
+          child: Hero(
+            tag: 'detail-options-hero',
+            child: Material(
+              type: MaterialType.transparency,
+              child: _buildDetailOptions(context, selectedDate: selectedDate),
+            ),
+          ),
+        ),
+      ),
 
       const SizedBox(height: 48), // Figma: gap 48px
       // ========== Delete Button (기존 습관만 표시) ==========
       if (habit != null)
         _buildDeleteButton(context, habit: habit, selectedDate: selectedDate),
 
-      const SizedBox(height: 20), // ✅ 하단 패딩 20px (최대 확장 시 바텀시트 끝에서 20px 여백)
+      const SizedBox(height: 56), // ✅ 하단 패딩 56px (키보드 없을 때 기본값)
     ],
+  );
+}
+
+// ========================================
+// Draggable Header (TopNavi + TextField)
+// ========================================
+
+Widget _buildDraggableHeader(
+  BuildContext context, {
+  required HabitData? habit,
+  required DateTime selectedDate,
+  required String initialTitle,
+  required String initialColor,
+  required String initialReminder,
+  required String initialRepeatRule,
+}) {
+  final habitController = Provider.of<HabitFormController>(
+    context,
+    listen: false,
+  );
+
+  return ValueListenableBuilder<TextEditingValue>(
+    valueListenable: habitController.titleController,
+    builder: (context, titleValue, child) {
+      return Consumer2<HabitFormController, BottomSheetController>(
+        builder: (context, habitController, bottomSheetController, child) {
+          // 🎯 키보드 상태 감지
+          final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+          final isKeyboardVisible = keyboardHeight > 0;
+
+          // ✅ 변경사항 감지
+          final hasChanges =
+              initialTitle != titleValue.text ||
+              initialColor != bottomSheetController.selectedColor.toString() ||
+              initialReminder != bottomSheetController.reminder ||
+              initialRepeatRule != bottomSheetController.repeatRule;
+
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragUpdate: (details) {
+              if (details.primaryDelta != null && details.primaryDelta! > 0) {
+                if (isKeyboardVisible) {
+                  FocusScope.of(context).unfocus();
+                }
+              }
+            },
+            onVerticalDragEnd: (details) {
+              if (details.primaryVelocity != null &&
+                  details.primaryVelocity! > 500) {
+                if (isKeyboardVisible) {
+                  FocusScope.of(context).unfocus();
+                  return;
+                }
+
+                if (hasChanges) {
+                  showDiscardChangesModal(context).then((confirmed) {
+                    if (confirmed == true && context.mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  });
+                } else {
+                  Navigator.of(context).pop();
+                }
+              }
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // TopNavi
+                _buildTopNavi(
+                  context,
+                  habit: habit,
+                  selectedDate: selectedDate,
+                  initialTitle: initialTitle,
+                  initialColor: initialColor,
+                  initialReminder: initialReminder,
+                  initialRepeatRule: initialRepeatRule,
+                ),
+                const SizedBox(height: 12),
+                // TextField
+                _buildTextField(context, habit: habit),
+              ],
+            ),
+          );
+        },
+      );
+    },
   );
 }
 
@@ -416,98 +483,98 @@ Widget _buildTopNavi(
               ? hasRequiredFields // 새 항목
               : (hasRequiredFields && hasChanges); // 기존 항목
 
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(
-              28,
-              28,
-              28,
-              9,
-            ), // 🎯 Figma: 28px 28px 9px 28px
-            child: Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween, // Figma: space-between
-              children: [
-                // ========== "ルーティン" 타이틀 (좌측) ==========
-                // Figma: Bold 16px, #505050, letter-spacing: -0.005em
-                const Text(
-                  'ルーティン', // 🎯 Figma: "ルーティン" (習慣 아님!)
-                  style: TextStyle(
-                    fontFamily: 'LINE Seed JP App_TTF',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700, // Bold (700)
-                    height: 1.4, // line-height: 140%
-                    letterSpacing: -0.08, // -0.005em = -0.08px
-                    color: Color(0xFF505050),
+          return SizedBox(
+            height: 60,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Row(
+                mainAxisAlignment:
+                    MainAxisAlignment.spaceBetween, // Figma: space-between
+                children: [
+                  // ========== "ルーティン" 타이틀 (좌측) ==========
+                  // Figma: Bold 16px, #505050, letter-spacing: -0.005em
+                  const Text(
+                    'ルーティン', // 🎯 Figma: "ルーティン" (習慣 아님!)
+                    style: TextStyle(
+                      fontFamily: 'LINE Seed JP App_TTF',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700, // Bold (700)
+                      height: 1.4, // line-height: 140%
+                      letterSpacing: -0.08, // -0.005em = -0.08px
+                      color: Color(0xFF7A7A7A),
+                    ),
                   ),
-                ),
 
-                // 🎯 조건부 버튼: 조건 충족하면 完了, 아니면 X 아이콘
-                showSaveButton
-                    ? GestureDetector(
-                        onTap: () => _handleSave(
-                          context,
-                          habit: habit,
-                          selectedDate: selectedDate,
-                        ),
-                        child: Container(
-                          width: 74,
-                          height: 42,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ), // Figma: 12px 24px
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF111111), // #111111
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color.fromRGBO(186, 186, 186, 0.08),
-                                offset: Offset(0, -2),
-                                blurRadius: 8,
+                  // 🎯 조건부 버튼: 조건 충족하면 完了, 아니면 X 아이콘
+                  showSaveButton
+                      ? GestureDetector(
+                          onTap: () => _handleSave(
+                            context,
+                            habit: habit,
+                            selectedDate: selectedDate,
+                          ),
+                          child: Container(
+                            width: 74,
+                            height: 42,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ), // Figma: 12px 24px
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF111111), // #111111
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color.fromRGBO(186, 186, 186, 0.08),
+                                  offset: Offset(0, -2),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            alignment: Alignment.center,
+                            child: const Text(
+                              '完了',
+                              style: TextStyle(
+                                fontFamily: 'LINE Seed JP App_TTF',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800, // ExtraBold (800)
+                                height: 1.4, // line-height: 140%
+                                letterSpacing: -0.065, // -0.005em = -0.065px
+                                color: Color(0xFFFAFAFA), // #FAFAFA
                               ),
-                            ],
+                            ),
                           ),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            '完了',
-                            style: TextStyle(
-                              fontFamily: 'LINE Seed JP App_TTF',
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800, // ExtraBold (800)
-                              height: 1.4, // line-height: 140%
-                              letterSpacing: -0.065, // -0.005em = -0.065px
-                              color: Color(0xFFFAFAFA), // #FAFAFA
+                        )
+                      : GestureDetector(
+                          onTap: () => Navigator.of(context).pop(),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE4E4E4).withOpacity(0.9),
+                              border: Border.all(
+                                color: const Color(
+                                  0xFF111111,
+                                ).withOpacity(0.02),
+                                width: 1,
+                              ),
+                              borderRadius: BorderRadius.circular(100),
+                            ),
+                            alignment: Alignment.center,
+                            child: SvgPicture.asset(
+                              'asset/icon/X_icon.svg',
+                              width: 20,
+                              height: 20,
+                              colorFilter: const ColorFilter.mode(
+                                Color(0xFF111111),
+                                BlendMode.srcIn,
+                              ),
                             ),
                           ),
                         ),
-                      )
-                    : GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE4E4E4).withOpacity(0.9),
-                            border: Border.all(
-                              color: const Color(0xFF111111).withOpacity(0.02),
-                              width: 1,
-                            ),
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                          alignment: Alignment.center,
-                          child: SvgPicture.asset(
-                            'asset/icon/X_icon.svg',
-                            width: 20,
-                            height: 20,
-                            colorFilter: const ColorFilter.mode(
-                              Color(0xFF111111),
-                              BlendMode.srcIn,
-                            ),
-                          ),
-                        ),
-                      ),
-              ],
+                ],
+              ),
             ),
           );
         },
@@ -520,7 +587,7 @@ Widget _buildTopNavi(
 // TextField Component (Frame 780 + DetailView_Title)
 // ========================================
 
-Widget _buildTextField(BuildContext context) {
+Widget _buildTextField(BuildContext context, {required HabitData? habit}) {
   final habitController = Provider.of<HabitFormController>(
     context,
     listen: false,
@@ -534,16 +601,16 @@ Widget _buildTextField(BuildContext context) {
     ), // Figma: Frame 780 - 12px 0px
     child: Padding(
       padding: const EdgeInsets.symmetric(
-        horizontal: 24,
+        horizontal: 28,
       ), // Figma: DetailView_Title - 0px 24px
       child: TextField(
         controller: habitController.titleController,
-        autofocus: true, // ✅ QuickAdd에서 전환 시 키보드 자동 활성화
+        autofocus: habit == null, // ✅ 새로 만들 때만 키보드 자동 활성화
         // Figma: Bold 19px, #111111
         style: const TextStyle(
           fontFamily: 'LINE Seed JP App_TTF',
           fontSize: 19,
-          fontWeight: FontWeight.w700, // Bold (700)
+          fontWeight: FontWeight.w800, // ExtraBold
           height: 1.4, // line-height: 140%
           letterSpacing: -0.095, // -0.005em = -0.095px
           color: Color(0xFF111111),
@@ -554,10 +621,10 @@ Widget _buildTextField(BuildContext context) {
           hintStyle: const TextStyle(
             fontFamily: 'LINE Seed JP App_TTF',
             fontSize: 19,
-            fontWeight: FontWeight.w700, // Bold (700)
+            fontWeight: FontWeight.w800, // ExtraBold
             height: 1.4, // line-height: 140%
             letterSpacing: -0.095, // -0.005em = -0.095px
-            color: Color(0xFFAAAAAA), // #AAAAAA
+            color: Color(0xFFA5A5A5), // #AAAAAA
           ),
           border: InputBorder.none,
           isDense: true,
@@ -588,26 +655,23 @@ Widget _buildDetailOptions(
   BuildContext context, {
   required DateTime selectedDate,
 }) {
-  // Figma: padding 0px 22px, gap 8px
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 22), // Figma: 0px 22px
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.start, // 🎯 좌측 정렬
-      children: [
-        // 🎯 순서: 반복 → 리마인더 → 색상
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.start, // 🎯 좌측 정렬
+    mainAxisSize: MainAxisSize.min, // ✅ 최소 크기로
+    children: [
+      // 🎯 순서: 반복 → 리마인더 → 색상
 
-        // 1️⃣ 반복 버튼 (repeat)
-        _buildRepeatOptionButton(context),
+      // 1️⃣ 반복 버튼 (repeat)
+      _buildRepeatOptionButton(context),
 
-        const SizedBox(width: 8), // Figma: gap 8px
-        // 2️⃣ 리마인더 버튼 (notification)
-        _buildReminderOptionButton(context),
+      const SizedBox(width: 8), // Figma: gap 8px
+      // 2️⃣ 리마인더 버튼 (notification)
+      _buildReminderOptionButton(context),
 
-        const SizedBox(width: 8), // Figma: gap 8px
-        // 3️⃣ 색상 버튼 (palette)
-        _buildColorOptionButton(context),
-      ],
-    ),
+      const SizedBox(width: 8), // Figma: gap 8px
+      // 3️⃣ 색상 버튼 (palette)
+      _buildColorOptionButton(context),
+    ],
   );
 }
 
@@ -888,61 +952,51 @@ Widget _buildDeleteButton(
   required HabitData habit,
   required DateTime selectedDate,
 }) {
-  // Figma: Frame 872 - padding 0px 24px
   return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 24), // Figma: 0px 24px
+    padding: const EdgeInsets.only(left: 22),
     child: GestureDetector(
       onTap: () =>
           _handleDelete(context, habit: habit, selectedDate: selectedDate),
       child: Container(
-        width: 100, // Figma: 100px width
-        height: 52, // Figma: 52px height
-        padding: const EdgeInsets.symmetric(
-          horizontal: 24,
-          vertical: 16,
-        ), // Figma: 16px 24px
+        width: 100,
+        height: 52,
         decoration: BoxDecoration(
-          color: const Color(0xFFFAFAFA), // #FAFAFA
-          borderRadius: BorderRadius.circular(16), // Figma: 16px radius
+          color: const Color(0xFFFAFAFA),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color.fromRGBO(
-              186,
-              186,
-              186,
-              0.08,
-            ), // rgba(186,186,186,0.08)
+            color: const Color(0xFFBABABA).withOpacity(0.08),
             width: 1,
           ),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color.fromRGBO(17, 17, 17, 0.03), // rgba(17,17,17,0.03)
-              offset: Offset(0, 4),
+              color: const Color(0xFF111111).withOpacity(0.04),
+              offset: const Offset(0, 4),
               blurRadius: 20,
             ),
           ],
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 🎯 삭제 아이콘 (20x20px)
-            const Icon(
-              Icons.delete_outline,
-              size: 20, // Figma: 20x20px
-              color: Color(0xFFF74A4A), // #F74A4A
+            SvgPicture.asset(
+              'asset/icon/trash_icon.svg',
+              width: 20,
+              height: 20,
+              colorFilter: const ColorFilter.mode(
+                Color(0xFFF74A4A),
+                BlendMode.srcIn,
+              ),
             ),
-
-            const SizedBox(width: 6), // Figma: gap 6px
-            // 🎯 "削除" 텍스트
+            const SizedBox(width: 6),
             const Text(
               '削除',
               style: TextStyle(
                 fontFamily: 'LINE Seed JP App_TTF',
                 fontSize: 13,
-                fontWeight: FontWeight.w700, // Bold (700)
-                height: 1.4, // line-height: 140%
-                letterSpacing: -0.065, // -0.005em = -0.065px
-                color: Color(0xFFF74A4A), // #F74A4A
+                fontWeight: FontWeight.w700,
+                height: 1.4,
+                letterSpacing: -0.065,
+                color: Color(0xFFF74A4A),
               ),
             ),
           ],
@@ -989,8 +1043,10 @@ void _handleSave(
   final cachedRepeatRule = await TempInputCache.getTempRepeatRule();
   final cachedReminder = await TempInputCache.getTempReminder();
 
-  // ========== 3단계: Provider 우선, 캐시는 보조 (반복/리마인더는 Provider 최신값 사용) ==========
-  final finalColor = cachedColor ?? bottomSheetController.selectedColor;
+  // ========== 3단계: Provider 우선, 캐시는 보조 (색상/반복/리마인더 모두 Provider 최신값 사용) ==========
+  final finalColor = bottomSheetController.selectedColor.isNotEmpty
+      ? bottomSheetController.selectedColor
+      : (cachedColor ?? 'gray');
   // ✅ 반복 규칙은 Provider 우선 (사용자가 선택한 최신 값)
   final finalRepeatRule = bottomSheetController.repeatRule.isNotEmpty
       ? bottomSheetController.repeatRule
@@ -999,6 +1055,18 @@ void _handleSave(
   final finalReminder = bottomSheetController.reminder.isNotEmpty
       ? bottomSheetController.reminder
       : (cachedReminder ?? '');
+
+  // 🔥 디버그: Provider와 캐시 값 확인
+  debugPrint('📊 [HabitWolt] 저장 데이터 확인');
+  debugPrint('   - Provider 색상: ${bottomSheetController.selectedColor}');
+  debugPrint('   - Provider 반복: ${bottomSheetController.repeatRule}');
+  debugPrint('   - Provider 알림: ${bottomSheetController.reminder}');
+  debugPrint('   - 캐시 색상: ${cachedColor ?? "(없음)"}');
+  debugPrint('   - 캐시 반복: ${cachedRepeatRule ?? "(없음)"}');
+  debugPrint('   - 캐시 알림: ${cachedReminder ?? "(없음)"}');
+  debugPrint('   - 최종 색상: $finalColor');
+  debugPrint('   - 최종 반복: $finalRepeatRule');
+  debugPrint('   - 최종 알림: $finalReminder');
 
   // ========== 4단계: 빈 문자열 → null 변환 ==========
   String? safeRepeatRule = finalRepeatRule.trim().isEmpty
@@ -1208,7 +1276,19 @@ void _handleSave(
         debugPrint('   - RRULE: $rrule');
         debugPrint('   - DTSTART: $dtstartDateOnly (날짜만)');
       } else {
-        debugPrint('⚠️ [HabitWolt] RRULE 변환 실패');
+        // ✅ 반복 규칙이 없거나 RRULE 변환 실패 시 RecurringPattern 삭제
+        final existingPattern = await database.getRecurringPattern(
+          entityType: 'habit',
+          entityId: habit.id,
+        );
+        if (existingPattern != null) {
+          await (database.delete(
+            database.recurringPattern,
+          )..where((tbl) => tbl.id.equals(existingPattern.id))).go();
+          debugPrint('🗑️ [HabitWolt] RecurringPattern 삭제 완료');
+        } else {
+          debugPrint('⚠️ [HabitWolt] RRULE 변환 실패 또는 반복 없음');
+        }
       }
 
       // 🎯 수정 완료 후 통합 캐시 클리어
@@ -1221,9 +1301,13 @@ void _handleSave(
       }
     } else {
       // ========== 5단계: 새 습관 생성 (createdAt 명시) ==========
+      // 🔥 오늘 날짜 00:00:00으로 정규화 (createdAt과 dtstart 동일하게)
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day);
+
       final newHabit = HabitCompanion(
         title: Value(habitController.titleController.text.trim()),
-        createdAt: Value(DateTime.now()), // ✅ 명시적 생성 시간 (로컬 시간)
+        createdAt: Value(todayStart), // ✅ 오늘 00:00:00 (오늘부터 표시)
         reminder: Value(safeReminder ?? ''),
         repeatRule: Value(safeRepeatRule), // ✅ null 체크 완료 (반복 필수)
         colorId: Value(finalColor),
@@ -1235,19 +1319,15 @@ void _handleSave(
       debugPrint('   - 반복: $safeRepeatRule');
       debugPrint('   - 리마인더: $safeReminder');
       debugPrint(
-        '   - createdAt: ${DateTime.now().toString().split(' ')[0]} (오늘부터 표시)',
+        '   - createdAt: ${todayStart.toString().split(' ')[0]} (오늘부터 표시)',
       );
 
       // ========== 5.5단계: RecurringPattern 생성 (습관은 반복 필수) ==========
-      final dtstart = DateTime.now();
+      final dtstart = todayStart; // ✅ createdAt과 동일하게 오늘 00:00:00
       final rrule = convertRepeatRuleToRRule(safeRepeatRule, dtstart);
 
-      // 🔥 날짜만 추출 (시간은 00:00:00으로 통일)
-      final dtstartDateOnly = DateTime(
-        dtstart.year,
-        dtstart.month,
-        dtstart.day,
-      );
+      // 🔥 이미 날짜만 추출된 상태 (시간은 00:00:00)
+      final dtstartDateOnly = dtstart;
 
       if (rrule != null) {
         await database.createRecurringPattern(

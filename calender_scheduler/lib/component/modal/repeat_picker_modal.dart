@@ -197,7 +197,10 @@ class _RepeatPickerSheetState extends State<_RepeatPickerSheet> {
 
       debugPrint('💾 [RepeatPicker] ========== 저장 완료 ==========');
     } else {
-      debugPrint('⚠️ [RepeatPicker] 표시 텍스트 없음 - 저장 안 함');
+      // ✅ 선택값이 없으면 반복 규칙 제거
+      debugPrint('🗑️ [RepeatPicker] 모든 선택 해제 → 반복 규칙 제거');
+      widget.controller.clearRepeatRule();
+      await TempInputCache.saveTempRepeatRule('');
     }
 
     Navigator.pop(context);
