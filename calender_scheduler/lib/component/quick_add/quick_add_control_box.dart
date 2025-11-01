@@ -27,7 +27,8 @@ class QuickAddControlBox extends StatefulWidget {
   final Function(Map<String, dynamic> data)? onSave; // 저장 콜백
   final QuickAddType? externalSelectedType; // ✅ 외부에서 전달받는 타입
   final Function(QuickAddType?)? onTypeChanged; // ✅ 타입 변경 콜백
-  final VoidCallback? onAddButtonPressed; // 🔥 추가 버튼 클릭 콜백
+  final VoidCallback? onShowTypePopup; // 🔥 팝업 표시 요청 콜백
+  final bool showTypePopup; // 🔥 외부에서 팝업 표시 여부 제어
   final VoidCallback? onInputFocused; // 🔥 입력 포커스 콜백 (키보드 락 해제)
 
   const QuickAddControlBox({
@@ -37,7 +38,8 @@ class QuickAddControlBox extends StatefulWidget {
     this.externalSelectedType, // ✅ 외부 타입
     this.onInputFocused, // 🔥 입력 포커스 콜백
     this.onTypeChanged, // ✅ 타입 변경 알림
-    this.onAddButtonPressed, // 🔥 추가 버튼 콜백
+    this.onShowTypePopup,
+    required this.showTypePopup,
   });
 
   @override
@@ -55,7 +57,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   String _selectedColorId = 'gray'; // 선택된 색상 ID
   DateTime? _startDateTime; // 시작 날짜/시간
   DateTime? _endDateTime; // 종료 날짜/시간
-  bool _showDetailPopup = false; // ✅ QuickDetailPopup 표시 여부
   bool _isAddButtonActive = false; // ✅ 追加버튼 활성화 상태 (텍스트 입력 시 활성화)
   double _textFieldHeight = 20.0; // ✅ TextField 높이 추적 (개행 감지용)
 
@@ -144,7 +145,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
     if (_selectedType == type) {
       setState(() {
         _selectedType = null;
-        _showDetailPopup = false;
       });
       widget.onTypeChanged?.call(null);
 
@@ -166,7 +166,6 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
 
     setState(() {
       _selectedType = type;
-      _showDetailPopup = false; // ✅ 타입 선택 시 팝업 숨김
     });
 
     // 🎯 새 타입으로 전환 - 캐시에서 데이터 복원
@@ -782,7 +781,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
                               ],
                             );
                           },
-                      child: _showDetailPopup && _selectedType == null
+                      child: widget.showTypePopup && _selectedType == null
                           ? _buildTypePopup()
                           : _buildTypeSelector(),
                     ),
@@ -866,10 +865,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
             minLines: 1, // ✅ 최소 1행
             onTap: () {
               // 🔥 팝업이 떠있으면 닫고, 키보드 고정 해제!
-              if (_showDetailPopup) {
-                setState(() {
-                  _showDetailPopup = false;
-                });
+              if (widget.showTypePopup) {
                 // 부모에게 "키보드 락 해제" 신호!
                 widget.onInputFocused?.call();
               }
@@ -1245,29 +1241,19 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
       return;
     }
 
+    // 🔥 추가 버튼 누르면 항상 키보드 숨기기
+    _focusNode.unfocus();
+
     // 🔥 중요: 팝업이 이미 표시된 상태면 닫기만 함
-    if (_showDetailPopup) {
-      setState(() {
-        _showDetailPopup = false;
-      });
+    if (widget.showTypePopup) {
+      widget.onInputFocused?.call();
       return;
     }
 
     // ✅ 타입이 선택되지 않은 경우 → 타입 선택 팝업 표시
     if (_selectedType == null) {
-      // 1단계: 키보드 내리기
-      _focusNode.unfocus();
-
-      // 2단계: 팝업 표시
-      setState(() {
-        _showDetailPopup = true;
-      });
-
-      // 3단계: 부모에게 키보드 고정 신호
-      if (widget.onAddButtonPressed != null) {
-        debugPrint('🔒 [QuickAdd] 키보드 고정 콜백 실행!');
-        widget.onAddButtonPressed!();
-      }
+      // 부모에게 팝업 표시 신호
+      widget.onShowTypePopup?.call();
 
       return;
     }

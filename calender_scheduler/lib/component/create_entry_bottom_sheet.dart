@@ -56,6 +56,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
   final TextEditingController _quickAddController = TextEditingController();
   QuickAddType? _selectedQuickAddType; // ✅ 외부에서 관리하는 타입 상태
   bool _isKeyboardLocked = false; // 🔥 키보드 고정 상태
+  bool _showQuickAddTypePopup = false; // 🔥 팝업 표시 상태
 
   // ========================================
   // ✅ 습관 입력 전용 상태 변수 (새로 추가)
@@ -72,6 +73,9 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
 
     // 🔥 타입 선택기 초기화 (매번 바텀시트 열 때 null로 시작!)
     _selectedQuickAddType = null;
+
+    // 🔥 팝업 상태 초기화
+    _showQuickAddTypePopup = false;
   }
 
   @override
@@ -706,22 +710,26 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
                           selectedDate: widget.selectedDate,
                           onSave: _handleQuickAddSave,
                           externalSelectedType: _selectedQuickAddType,
-                          onTypeChanged: (type) {
+                          showTypePopup: _showQuickAddTypePopup,
+                          onShowTypePopup: () {
                             setState(() {
-                              _selectedQuickAddType = type;
-                            });
-                          },
-                          onAddButtonPressed: () {
-                            setState(() {
+                              _showQuickAddTypePopup = true;
                               _isKeyboardLocked = true;
                             });
                             debugPrint(
-                              '🔒 [CreateEntry] 키보드 고정! isLocked: $_isKeyboardLocked',
+                              '🔒 [CreateEntry] 타입 선택 팝업 표시! isLocked: $_isKeyboardLocked',
                             );
+                          },
+                          onTypeChanged: (type) {
+                            setState(() {
+                              _selectedQuickAddType = type;
+                              _showQuickAddTypePopup = false;
+                            });
                           },
                           onInputFocused: () {
                             setState(() {
                               _isKeyboardLocked = false;
+                              _showQuickAddTypePopup = false;
                             });
                             debugPrint(
                               '🔓 [CreateEntry] 키보드 락 해제! isLocked: $_isKeyboardLocked',
