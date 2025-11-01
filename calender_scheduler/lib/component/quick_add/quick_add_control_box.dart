@@ -723,12 +723,70 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
 
                 const SizedBox(height: 8), // Figma: gap 8px
                 // ✅ 2. 타입 선택기 또는 타입 선택 팝업 (Frame 704 ↔ Frame 705)
-                // 追加 버튼 클릭 시 같은 위치에서 Frame 704 → Frame 705로 Hero 스타일 전환
-                Align(
-                  alignment: Alignment.centerRight, // 📍 둘 다 우측 정렬
-                  child: _showDetailPopup && _selectedType == null
-                      ? _buildTypePopup()
-                      : _buildTypeSelector(),
+                // 🔥 위치와 크기 변화를 모두 부드럽게 애니메이션
+                AnimatedAlign(
+                  // 🎯 위치 변화도 애니메이션 (가속도 적용)
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOutCubic,
+                  alignment: Alignment.centerRight, // 우측 정렬 유지
+                  child: AnimatedSize(
+                    // 🎯 높이 변화를 자동으로 감지하고 부드럽게 애니메이션
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOutCubic,
+                    alignment: Alignment.bottomCenter, // 하단 고정, 위로 확장
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      switchInCurve: Curves.easeInOutCubic,
+                      switchOutCurve: Curves.easeInOutCubic,
+                      transitionBuilder:
+                          (Widget child, Animation<double> animation) {
+                            // 🌟 위치 이동 + 스케일 + 페이드 조합
+                            return SlideTransition(
+                              position:
+                                  Tween<Offset>(
+                                    begin: const Offset(0.05, 0), // 오른쪽에서 5% 이동
+                                    end: Offset.zero,
+                                  ).animate(
+                                    CurvedAnimation(
+                                      parent: animation,
+                                      curve: Curves.easeInOutCubic, // 가속도 커브
+                                    ),
+                                  ),
+                              child: ScaleTransition(
+                                scale: Tween<double>(
+                                  begin: 0.95,
+                                  end: 1.0,
+                                ).animate(animation),
+                                alignment: Alignment.bottomRight,
+                                child: FadeTransition(
+                                  opacity: Tween<double>(
+                                    begin: 0.0,
+                                    end: 1.0,
+                                  ).animate(animation),
+                                  child: child,
+                                ),
+                              ),
+                            );
+                          },
+                      layoutBuilder:
+                          (
+                            Widget? currentChild,
+                            List<Widget> previousChildren,
+                          ) {
+                            // 🔥 이전/현재 위젯을 Stack으로 겹쳐서 부드러운 전환
+                            return Stack(
+                              alignment: Alignment.bottomRight,
+                              children: <Widget>[
+                                ...previousChildren,
+                                if (currentChild != null) currentChild,
+                              ],
+                            );
+                          },
+                      child: _showDetailPopup && _selectedType == null
+                          ? _buildTypePopup()
+                          : _buildTypeSelector(),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -754,22 +812,17 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   /// ✅ Figma: Frame 704는 항상 표시됨
   Widget _buildTypeSelector() {
     // Figma: Frame 704 (220×52px)
-    // 🔥 동적 너비 계산 (Frame 너비의 약 60%)
-    return Hero(
-      tag: 'typeSelectorHero',
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          width: QuickAddDimensions.getTypeSelectorWidth(context), // 🔥 동적 너비
-          height: 52, // Figma: Frame 704 height
-          padding: const EdgeInsets.symmetric(
-            horizontal: 4,
-          ), // Figma: padding 0px 4px
-          child: QuickAddTypeSelector(
-            selectedType: _selectedType,
-            onTypeSelected: _onTypeSelected,
-          ),
-        ),
+    // 🔥 고정 너비 220px (TypePopup과 동일하게 통일)
+    return Container(
+      key: const ValueKey('typeSelector'),
+      width: 220, // 🔥 고정 너비로 통일 (위치 점프 방지)
+      height: 52, // Figma: Frame 704 height
+      padding: const EdgeInsets.symmetric(
+        horizontal: 4,
+      ), // Figma: padding 0px 4px
+      child: QuickAddTypeSelector(
+        selectedType: _selectedType,
+        onTypeSelected: _onTypeSelected,
       ),
     );
   }
@@ -780,22 +833,17 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   Widget _buildTypePopup() {
     // Figma: Frame 705 (220×172px)
     // Frame 704와 같은 위치, 높이만 확장
-    return Hero(
-      tag: 'typeSelectorHero',
-      child: Material(
-        color: Colors.transparent,
-        child: QuickDetailPopup(
-          onScheduleSelected: () {
-            _onTypeSelected(QuickAddType.schedule);
-          },
-          onTaskSelected: () {
-            _onTypeSelected(QuickAddType.task);
-          },
-          onHabitSelected: () {
-            _onTypeSelected(QuickAddType.habit);
-          },
-        ),
-      ),
+    return QuickDetailPopup(
+      key: const ValueKey('typePopup'),
+      onScheduleSelected: () {
+        _onTypeSelected(QuickAddType.schedule);
+      },
+      onTaskSelected: () {
+        _onTypeSelected(QuickAddType.task);
+      },
+      onHabitSelected: () {
+        _onTypeSelected(QuickAddType.habit);
+      },
     );
   }
 

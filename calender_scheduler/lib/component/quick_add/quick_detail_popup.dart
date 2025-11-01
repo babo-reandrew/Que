@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import '../../design_system/quick_add_design_system.dart';
 
 /// Frame 653 - 타입 선택 팝업 (追加 버튼 클릭 시)
 ///
@@ -21,7 +20,7 @@ import '../../design_system/quick_add_design_system.dart';
 /// - Gap: 12px
 /// - Icon: 24×24px
 /// - Text: Bold 14px, #262626
-class QuickDetailPopup extends StatefulWidget {
+class QuickDetailPopup extends StatelessWidget {
   final VoidCallback onScheduleSelected;
   final VoidCallback onTaskSelected;
   final VoidCallback onHabitSelected;
@@ -34,112 +33,65 @@ class QuickDetailPopup extends StatefulWidget {
   });
 
   @override
-  State<QuickDetailPopup> createState() => _QuickDetailPopupState();
-}
-
-class _QuickDetailPopupState extends State<QuickDetailPopup>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _heightAnimation;
-  late Animation<double> _opacityAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // ✅ Figma 애니메이션: 350ms, easeInOutCubic
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 350),
-    );
-
-    // 높이 애니메이션: 52px → 172px (Frame 704 → Frame 705)
-    _heightAnimation = Tween<double>(begin: 52.0, end: 172.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic),
-    );
-
-    // 투명도 애니메이션
-    _opacityAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
-    // 애니메이션 시작
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Container(
-          width: 220,
-          height: _heightAnimation.value,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Opacity(
-            opacity: _opacityAnimation.value,
-            child: Container(
-              width: 212, // Figma: Frame 653
-              height: 172,
-              padding: const EdgeInsets.fromLTRB(10, 10, 12, 10), // Figma 스펙
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFFFFF), // Figma: #FFFFFF
-                border: Border.all(
-                  color: const Color(
-                    0xFF111111,
-                  ).withOpacity(0.1), // Figma: rgba(17, 17, 17, 0.1)
-                  width: 1,
-                ),
-                borderRadius: BorderRadius.circular(24), // Figma: 24px
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color.fromRGBO(
-                      186,
-                      186,
-                      186,
-                      0.08,
-                    ), // Figma: rgba(186, 186, 186, 0.08)
-                    offset: Offset(0, 2),
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Frame 650: 今日のスケジュール
-                  _buildPopupItem(
-                    svgPath: 'asset/icon/Schedule_icon.svg',
-                    text: '今日のスケジュール', // Figma 텍스트
-                    onTap: widget.onScheduleSelected,
-                  ),
-                  const SizedBox(height: 4), // Figma: gap 4px
-                  // Frame 651: タスク
-                  _buildPopupItem(
-                    svgPath: 'asset/icon/Task_icon.svg',
-                    text: 'タスク', // Figma 텍스트
-                    onTap: widget.onTaskSelected,
-                  ),
-                  const SizedBox(height: 4), // Figma: gap 4px
-                  // Frame 652: ルーティン
-                  _buildPopupItem(
-                    svgPath: 'asset/icon/routine_icon.svg',
-                    text: 'ルーティン', // Figma 텍스트
-                    onTap: widget.onHabitSelected,
-                  ),
-                ],
-              ),
-            ),
+    // ✅ 모든 애니메이션 제거 - 정적 UI만 렌더링
+    // 애니메이션은 부모(Hero)에서 완전히 제어
+    return Container(
+      width: 220,
+      height: 172, // Figma: Frame 705 고정 높이
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Container(
+        width: 212, // Figma: Frame 653
+        height: 172,
+        padding: const EdgeInsets.fromLTRB(10, 10, 12, 10), // Figma 스펙
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFFFF), // Figma: #FFFFFF
+          border: Border.all(
+            color: const Color(
+              0xFF111111,
+            ).withOpacity(0.1), // Figma: rgba(17, 17, 17, 0.1)
+            width: 1,
           ),
-        );
-      },
+          borderRadius: BorderRadius.circular(24), // Figma: 24px
+          boxShadow: const [
+            BoxShadow(
+              color: Color.fromRGBO(
+                186,
+                186,
+                186,
+                0.08,
+              ), // Figma: rgba(186, 186, 186, 0.08)
+              offset: Offset(0, 2),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Frame 650: 今日のスケジュール
+            _buildPopupItem(
+              svgPath: 'asset/icon/Schedule_icon.svg',
+              text: '今日のスケジュール', // Figma 텍스트
+              onTap: onScheduleSelected,
+            ),
+            const SizedBox(height: 4), // Figma: gap 4px
+            // Frame 651: タスク
+            _buildPopupItem(
+              svgPath: 'asset/icon/Task_icon.svg',
+              text: 'タスク', // Figma 텍스트
+              onTap: onTaskSelected,
+            ),
+            const SizedBox(height: 4), // Figma: gap 4px
+            // Frame 652: ルーティン
+            _buildPopupItem(
+              svgPath: 'asset/icon/routine_icon.svg',
+              text: 'ルーティン', // Figma 텍스트
+              onTap: onHabitSelected,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
