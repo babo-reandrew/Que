@@ -23,8 +23,6 @@ import '../Database/schedule_database.dart';
 enum UnifiedItemType {
   dateHeader, // 📅 날짜 헤더 (DateDetailHeader - 스크롤 가능)
   inboxHeader, // 📋 인박스 모드 헤더 (今日の流れを整えて スタート)
-  scheduleHeader, // 📅 일정 섹션 날짜 헤더 (今日, 明日, 昨日, ⭕️月⭕️日)
-  taskHeader, // ✅ 할일 섹션 날짜 헤더 (今日, 明日, 昨日, ⭕️月⭕️日, 未指定)
   schedule, // 일정
   task, // 할일
   habit, // 습관
@@ -187,44 +185,6 @@ class UnifiedListItem {
       data: null,
       sortOrder: sortOrder,
       isDraggable: false, // 플레이스홀더는 드래그 불가
-    );
-  }
-
-  /// 📅 일정 섹션 날짜 헤더 생성 (今日, 明日, 昨日, ⭕️月⭕️日)
-  /// 이거를 설정하고 → 일정 섹션의 날짜별 그룹 헤더를 생성해서
-  /// 이거를 해서 → 일정을 날짜별로 시각적으로 구분하고
-  /// 이거는 이래서 → isDraggable = false로 고정된다
-  factory UnifiedListItem.scheduleHeader({
-    required DateTime date,
-    required String label,
-    required int sortOrder,
-  }) {
-    return UnifiedListItem(
-      uniqueId: 'schedule_header_${date.year}_${date.month}_${date.day}',
-      type: UnifiedItemType.scheduleHeader,
-      data: {'date': date, 'label': label}, // DateTime과 레이블 저장
-      sortOrder: sortOrder,
-      isDraggable: false, // 섹션 헤더는 드래그 불가
-    );
-  }
-
-  /// ✅ 할일 섹션 날짜 헤더 생성 (今日, 明日, 昨日, ⭕️月⭕️日, 未指定)
-  /// 이거를 설정하고 → 할일 섹션의 실행일별 그룹 헤더를 생성해서
-  /// 이거를 해서 → 할일을 실행일별로 시각적으로 구분하고
-  /// 이거는 이래서 → isDraggable = false로 고정된다
-  factory UnifiedListItem.taskHeader({
-    DateTime? date, // null이면 "未指定"
-    required String label,
-    required int sortOrder,
-  }) {
-    return UnifiedListItem(
-      uniqueId: date != null
-          ? 'task_header_${date.year}_${date.month}_${date.day}'
-          : 'task_header_unspecified',
-      type: UnifiedItemType.taskHeader,
-      data: {'date': date, 'label': label}, // DateTime과 레이블 저장 (date는 nullable)
-      sortOrder: sortOrder,
-      isDraggable: false, // 섹션 헤더는 드래그 불가
     );
   }
 

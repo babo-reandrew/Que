@@ -1469,6 +1469,62 @@ class AppDatabase extends _$AppDatabase {
         }
       }
 
+      // 🔥 Phase 2 - Task 2: TO 날짜 처리
+      // 다른 날짜에서 오늘로 이동된 반복 일정 추가
+      for (final schedule in schedules) {
+        final pattern = await getRecurringPattern(
+          entityType: 'schedule',
+          entityId: schedule.id,
+        );
+
+        if (pattern != null) {
+          final exceptions = await getRecurringExceptions(pattern.id);
+
+          for (final exception in exceptions) {
+            // 날짜가 이동되고 + 취소되지 않은 경우
+            if (exception.isRescheduled &&
+                !exception.isCancelled &&
+                exception.newStartDate != null) {
+              final movedToDate = _normalizeDate(exception.newStartDate!);
+              final originalDate = _normalizeDate(exception.originalDate);
+
+              // 다른 날짜에서 오늘로 이동된 경우
+              if (movedToDate == target && originalDate != target) {
+                // 수정된 일정 데이터 생성
+                final duration = schedule.end.difference(schedule.start);
+                final displaySchedule = ScheduleData(
+                  id: schedule.id,
+                  summary: exception.modifiedTitle ?? schedule.summary,
+                  start: exception.newStartDate!,
+                  end:
+                      exception.newEndDate ??
+                      exception.newStartDate!.add(duration),
+                  description:
+                      exception.modifiedDescription ?? schedule.description,
+                  location: exception.modifiedLocation ?? schedule.location,
+                  colorId: exception.modifiedColorId ?? schedule.colorId,
+                  completed: schedule.completed,
+                  completedAt: schedule.completedAt,
+                  repeatRule: schedule.repeatRule,
+                  alertSetting: schedule.alertSetting,
+                  createdAt: schedule.createdAt,
+                  status: schedule.status,
+                  visibility: schedule.visibility,
+                  timezone: schedule.timezone,
+                  originalHour: schedule.originalHour,
+                  originalMinute: schedule.originalMinute,
+                );
+
+                // 완료 확인 후 추가
+                if (!completedIds.contains(schedule.id)) {
+                  result.add(displaySchedule);
+                }
+              }
+            }
+          }
+        }
+      }
+
       yield result;
     }
   }
@@ -1906,10 +1962,65 @@ class AppDatabase extends _$AppDatabase {
                 );
               }
 
-              result.add(displayHabit); // ✅ 수정된 습관 추가
+              // 🔥 Phase 2 - Task 2: FROM 날짜 처리
+              bool shouldSkip = false;
+              if (exception != null &&
+                  exception.isRescheduled &&
+                  exception.newStartDate != null) {
+                final movedToDate = _normalizeDate(exception.newStartDate!);
+                if (movedToDate != targetNormalized) {
+                  shouldSkip = true; // 다른 날짜로 이동됨, 오늘은 표시 안 함
+                }
+              }
+
+              if (!shouldSkip) {
+                result.add(displayHabit); // ✅ 수정된 습관 추가
+              }
             }
           } catch (e) {}
         } // ABSOLUTE 모드 종료
+      }
+
+      // 🔥 Phase 2 - Task 2: TO 날짜 처리
+      // 다른 날짜에서 오늘로 이동된 반복 습관 추가
+      for (final habitItem in habits) {
+        final pattern = await getRecurringPattern(
+          entityType: 'habit',
+          entityId: habitItem.id,
+        );
+
+        if (pattern != null) {
+          final exceptions = await getRecurringExceptions(pattern.id);
+
+          for (final exception in exceptions) {
+            // 날짜가 이동되고 + 취소되지 않은 경우
+            if (exception.isRescheduled &&
+                !exception.isCancelled &&
+                exception.newStartDate != null) {
+              final movedToDate = _normalizeDate(exception.newStartDate!);
+              final originalDate = _normalizeDate(exception.originalDate);
+
+              // 다른 날짜에서 오늘로 이동된 경우
+              if (movedToDate == target && originalDate != target) {
+                // 수정된 습관 데이터 생성
+                final displayHabit = HabitData(
+                  id: habitItem.id,
+                  title: exception.modifiedTitle ?? habitItem.title,
+                  colorId: exception.modifiedColorId ?? habitItem.colorId,
+                  createdAt: habitItem.createdAt,
+                  repeatRule: habitItem.repeatRule,
+                  reminder: habitItem.reminder,
+                );
+
+                // 완료 확인 후 추가
+                final completions = await getHabitCompletionsByDate(target);
+                if (!completions.any((c) => c.habitId == habitItem.id)) {
+                  result.add(displayHabit);
+                }
+              }
+            }
+          }
+        }
       }
 
       yield result;
@@ -2237,6 +2348,64 @@ class AppDatabase extends _$AppDatabase {
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );
+
+  // ============================================================================
+  // 🔥 Phase 2 - Task 4: 완료 확인 우선순위 헬퍼 함수
+  // ============================================================================
+  //
+  // **목적:**
+  // - 중복된 완료 확인 로직을 통합하여 유지보수성 향상
+  // - 완료 확인 우선순위를 명확히 정의
+  //
+  // **우선순위:**
+  // 1순위: Completion 테이블 (반복 일정/할일/습관)
+  // 2순위: completed 필드 (일반 일정/할일)
+  //
+  // **사용처:**
+  // - date_detail_view.dart의 StreamBuilder 내부
+  // - UnifiedItemList 빌드 시 필터링
+  //
+  // **데이터베이스 구조 변경 없음** (읽기 전용)
+
+  /// ✅ Task 완료 여부 확인 (동기)
+  /// - 반복 할일: TaskCompletion 테이블 확인 (1순위)
+  /// - 일반 할일: Task.completed 필드 확인 (2순위)
+  bool isTaskCompletedSync(
+    TaskData task,
+    List<TaskCompletionData> completions,
+  ) {
+    if (task.repeatRule.isNotEmpty) {
+      // 반복 할일: TaskCompletion 테이블에서 확인
+      return completions.any((c) => c.taskId == task.id);
+    }
+    // 일반 할일: completed 필드 확인
+    return task.completed;
+  }
+
+  /// ✅ Schedule 완료 여부 확인 (동기)
+  /// - 반복 일정: ScheduleCompletion 테이블 확인 (1순위)
+  /// - 일반 일정: Schedule.completed 필드 확인 (2순위)
+  bool isScheduleCompletedSync(
+    ScheduleData schedule,
+    List<ScheduleCompletionData> completions,
+  ) {
+    if (schedule.repeatRule.isNotEmpty) {
+      // 반복 일정: ScheduleCompletion 테이블에서 확인
+      return completions.any((c) => c.scheduleId == schedule.id);
+    }
+    // 일반 일정: completed 필드 확인
+    return schedule.completed;
+  }
+
+  /// ✅ Habit 완료 여부 확인 (동기)
+  /// - Habit은 항상 HabitCompletion 테이블 사용
+  bool isHabitCompletedSync(
+    HabitData habit,
+    List<HabitCompletionData> completions,
+  ) {
+    // Habit은 항상 HabitCompletion 테이블에서 확인
+    return completions.any((c) => c.habitId == habit.id);
+  }
 }
 
 LazyDatabase _openConnection() {

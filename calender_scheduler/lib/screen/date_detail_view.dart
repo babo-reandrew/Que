@@ -2670,17 +2670,13 @@ class _DateDetailViewState extends State<DateDetailView>
                         stream: GetIt.I<AppDatabase>()
                             .watchTaskCompletionsByDate(date),
                         builder: (context, completionSnapshot) {
-                          // 🔥 반복 할일인지 확인하여 isCompleted 결정
-                          final isCompleted =
-                              completionSnapshot.hasData &&
-                              completionSnapshot.data!.any(
-                                (c) => c.taskId == task.id,
-                              );
-
-                          // 🔥 일반 할일은 task.completed 사용
-                          final effectiveCompleted = task.repeatRule.isNotEmpty
-                              ? isCompleted
-                              : task.completed;
+                          // 🔥 Phase 2 - Task 4: 완료 확인 헬퍼 함수 사용
+                          // 우선순위: 1. TaskCompletion 테이블 → 2. Task.completed 필드
+                          final effectiveCompleted =
+                              GetIt.I<AppDatabase>().isTaskCompletedSync(
+                            task,
+                            completionSnapshot.data ?? [],
+                          );
 
                           return TaskCard(
                             task: task,
@@ -2954,54 +2950,6 @@ class _DateDetailViewState extends State<DateDetailView>
         );
 
       // ====================================================================
-      // 📅 일정 섹션 날짜 헤더 (今日, 明日, 昨日, ⭕️月⭕️日)
-      // Figma 스펙: 16px, Bold (700), 좌측 28px, 상단 8px, 하단 16px
-      // ====================================================================
-      case UnifiedItemType.scheduleHeader:
-        final headerData = item.data as Map<String, dynamic>;
-        final label = headerData['label'] as String;
-        return Container(
-          key: key,
-          width: 393,
-          padding: const EdgeInsets.fromLTRB(28, 8, 28, 16),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontFamily: 'LINE Seed JP App_TTF',
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              height: 1.4,
-              letterSpacing: -0.005 * 16,
-              color: Color(0xFF262626),
-            ),
-          ),
-        );
-
-      // ====================================================================
-      // ✅ 할일 섹션 날짜 헤더 (今日, 明日, 昨日, ⭕️月⭕️日, 未指定)
-      // Figma 스펙: 16px, Bold (700), 좌측 28px, 상단 8px, 하단 16px
-      // ====================================================================
-      case UnifiedItemType.taskHeader:
-        final headerData = item.data as Map<String, dynamic>;
-        final label = headerData['label'] as String;
-        return Container(
-          key: key,
-          width: 393,
-          padding: const EdgeInsets.fromLTRB(28, 8, 28, 16),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontFamily: 'LINE Seed JP App_TTF',
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              height: 1.4,
-              letterSpacing: -0.005 * 16,
-              color: Color(0xFF262626),
-            ),
-          ),
-        );
-
-      // ====================================================================
       // --- 점선 구분선 (Divider)
       // ====================================================================
       case UnifiedItemType.divider:
@@ -3154,26 +3102,6 @@ class _DateDetailViewState extends State<DateDetailView>
         date.day == now.day;
   }
 
-  /// 날짜 레이블 생성 (今日, 明日, 昨日, ⭕️月⭕️日)
-  /// 이거를 설정하고 → 기준일(baseDate)과 대상일(targetDate)를 비교해서
-  /// 이거를 해서 → 오늘/내일/어제는 일본어로, 그 외는 ⭕️月⭕️日 형식으로 반환한다
-  String _getDateLabel(DateTime baseDate, DateTime targetDate) {
-    // 시간을 제거하고 날짜만 비교
-    final base = DateTime(baseDate.year, baseDate.month, baseDate.day);
-    final target = DateTime(targetDate.year, targetDate.month, targetDate.day);
-    final diff = target.difference(base).inDays;
-
-    if (diff == 0) {
-      return '今日';
-    } else if (diff == 1) {
-      return '明日';
-    } else if (diff == -1) {
-      return '昨日';
-    } else {
-      return '${target.month}月${target.day}日';
-    }
-  }
-
   /// 통합 아이템 리스트 생성 (DailyCardOrder 우선, 없으면 기본 순서)
   /// 이거를 설정하고 → DailyCardOrder 테이블에서 커스텀 순서를 조회해서
   /// 이거를 해서 → 있으면 커스텀 순서로, 없으면 기본 순서(createdAt)로 표시하고
@@ -3201,7 +3129,6 @@ class _DateDetailViewState extends State<DateDetailView>
       print('  📊 임시 추출 데이터: ${tempItems.length}개');
 
       List<UnifiedListItem> items = [];
-      int order = 0;
 
       // 날짜별로 그룹핑 (startDate, dueDate, executionDate 모두 고려)
       final itemsByDate = <DateTime?, List<TempExtractedItemData>>{};
@@ -3242,31 +3169,9 @@ class _DateDetailViewState extends State<DateDetailView>
           return a.compareTo(b);
         });
 
-      // 날짜별로 헤더 + 아이템 추가
+      // 날짜별 아이템 추가 (헤더 없음)
       for (final itemDate in sortedDates) {
         final dateItems = itemsByDate[itemDate]!;
-
-        // 날짜 헤더 추가
-        if (itemDate != null) {
-          final label = _getDateLabel(date, itemDate);
-          print('    📅 임시 데이터 날짜 헤더: $label (items=${dateItems.length})');
-          items.add(
-            UnifiedListItem.scheduleHeader(
-              date: itemDate,
-              label: label,
-              sortOrder: order++,
-            ),
-          );
-        } else {
-          print('    📅 임시 데이터 날짜 헤더: 未指定 (items=${dateItems.length})');
-          items.add(
-            UnifiedListItem.taskHeader(
-              date: null,
-              label: '未指定',
-              sortOrder: order++,
-            ),
-          );
-        }
 
         // 해당 날짜의 아이템들 추가
         for (final item in dateItems) {
@@ -3349,19 +3254,8 @@ class _DateDetailViewState extends State<DateDetailView>
       final sortedScheduleDates = schedulesByDate.keys.toList()
         ..sort((a, b) => a.compareTo(b));
 
-      // 날짜별로 헤더 + 일정 추가
+      // 일정 추가 (날짜 헤더 없음)
       for (final scheduleDate in sortedScheduleDates) {
-        // 날짜 헤더 추가
-        final label = _getDateLabel(date, scheduleDate);
-        print('    📅 일정 날짜 헤더 추가: $label (order=$order)');
-        items.add(
-          UnifiedListItem.scheduleHeader(
-            date: scheduleDate,
-            label: label,
-            sortOrder: order++,
-          ),
-        );
-
         // 해당 날짜의 일정들 추가
         for (final schedule in schedulesByDate[scheduleDate]!) {
           print('    ✅ 일정 추가: "${schedule.summary}" (order=$order)');
@@ -3411,19 +3305,8 @@ class _DateDetailViewState extends State<DateDetailView>
           return a.compareTo(b);
         });
 
-      // 날짜별로 헤더 + 할일 추가
+      // 할일 추가 (날짜 헤더 없음)
       for (final taskDate in sortedTaskDates) {
-        // 날짜 헤더 추가
-        final label = taskDate != null ? _getDateLabel(date, taskDate) : '未指定';
-        print('    ✅ 할일 날짜 헤더 추가: $label (order=$order)');
-        items.add(
-          UnifiedListItem.taskHeader(
-            date: taskDate,
-            label: label,
-            sortOrder: order++,
-          ),
-        );
-
         // 해당 날짜의 할일들 추가
         for (final task in tasksByDate[taskDate]!) {
           print('    ✅ 할일 추가: "${task.title}" (order=$order)');
@@ -3505,14 +3388,6 @@ class _DateDetailViewState extends State<DateDetailView>
           ..sort((a, b) => a.compareTo(b));
 
         for (final scheduleDate in sortedScheduleDates) {
-          final label = _getDateLabel(date, scheduleDate);
-          items.add(
-            UnifiedListItem.scheduleHeader(
-              date: scheduleDate,
-              label: label,
-              sortOrder: order++,
-            ),
-          );
           for (final schedule in schedulesByDate[scheduleDate]!) {
             print('    ✅ 일정 추가: "${schedule.summary}" (order=$order)');
             items.add(
@@ -3557,16 +3432,6 @@ class _DateDetailViewState extends State<DateDetailView>
           });
 
         for (final taskDate in sortedTaskDates) {
-          final label = taskDate != null
-              ? _getDateLabel(date, taskDate)
-              : '未指定';
-          items.add(
-            UnifiedListItem.taskHeader(
-              date: taskDate,
-              label: label,
-              sortOrder: order++,
-            ),
-          );
           for (final task in tasksByDate[taskDate]!) {
             print('    ✅ 할일 추가: "${task.title}" (order=$order)');
             items.add(UnifiedListItem.fromTask(task, sortOrder: order++));
@@ -3615,10 +3480,9 @@ class _DateDetailViewState extends State<DateDetailView>
           // Task 찾기 (🎯 완료된 Task는 제외)
           try {
             final task = tasks.firstWhere((t) => t.id == orderData.cardId);
-            // 🔥 일반 할일은 task.completed, 반복 할일은 TaskCompletion 확인
-            final isCompleted = task.repeatRule.isNotEmpty
-                ? completedTaskIds.contains(task.id)
-                : task.completed;
+            // 🔥 Phase 2 - Task 4: 완료 확인 헬퍼 함수 사용
+            final isCompleted =
+                GetIt.I<AppDatabase>().isTaskCompletedSync(task, taskCompletions);
 
             if (!isCompleted) {
               // 미완료만 추가
@@ -4667,15 +4531,13 @@ class _DateDetailViewState extends State<DateDetailView>
     return StreamBuilder<List<TaskCompletionData>>(
       stream: GetIt.I<AppDatabase>().watchTaskCompletionsByDate(date),
       builder: (context, completionSnapshot) {
-        // 🔥 반복 할일인지 확인하여 isCompleted 결정
-        final isCompleted =
-            completionSnapshot.hasData &&
-            completionSnapshot.data!.any((c) => c.taskId == task.id);
-
-        // 🔥 일반 할일은 task.completed 사용
-        final effectiveCompleted = task.repeatRule.isNotEmpty
-            ? isCompleted
-            : task.completed;
+        // 🔥 Phase 2 - Task 4: 완료 확인 헬퍼 함수 사용
+        // 우선순위: 1. TaskCompletion 테이블 → 2. Task.completed 필드
+        final effectiveCompleted =
+            GetIt.I<AppDatabase>().isTaskCompletedSync(
+          task,
+          completionSnapshot.data ?? [],
+        );
 
         return TaskCard(
           task: task,
