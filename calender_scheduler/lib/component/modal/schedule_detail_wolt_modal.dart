@@ -1189,22 +1189,6 @@ Widget _buildAllDayContent(DateTime date) {
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            // 🎯 "終日" 표시 추가
-            const Text(
-              '終日',
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.visible,
-              style: TextStyle(
-                fontFamily: 'LINE Seed JP App_TTF',
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                height: 1.2,
-                letterSpacing: -0.005 * 16,
-                color: Color(0xFF888888), // 회색으로 표시
-              ),
-            ),
           ],
         ),
       ],
@@ -1318,8 +1302,12 @@ Widget _buildRepeatOptionButton(BuildContext context) {
           if (repeatData.contains('"display":"')) {
             final startIndex = repeatData.indexOf('"display":"') + 11;
             final endIndex = repeatData.indexOf('"', startIndex);
-            displayText = repeatData.substring(startIndex, endIndex);
-            // ✅ 개행 문자는 그대로 유지 (박스 안에서 중앙 정렬)
+            final extracted = repeatData.substring(startIndex, endIndex);
+            // ✅ 추출한 텍스트가 비어있지 않은 경우에만 사용
+            if (extracted.isNotEmpty) {
+              displayText = extracted;
+              // ✅ 개행 문자는 그대로 유지 (박스 안에서 중앙 정렬)
+            }
           }
         } catch (e) {
           debugPrint('반복 규칙 파싱 오류: $e');
@@ -2253,21 +2241,42 @@ void _handleDateTimePicker(BuildContext context) async {
     listen: false,
   );
 
-  // 현재 날짜와 시간을 DateTime으로 통합
+  // ✅ 시간이 없으면 현재 시간을 15분 단위로 반올림
+  TimeOfDay getDefaultTime() {
+    final now = DateTime.now();
+    final minutes = now.minute;
+    final roundedMinutes = ((minutes / 15).round() * 15) % 60;
+    var hour = now.hour;
+    if (minutes >= 53 && roundedMinutes == 0) {
+      hour = (hour + 1) % 24;
+    }
+    return TimeOfDay(hour: hour, minute: roundedMinutes);
+  }
+
+  final defaultStartTime = controller.startTime ?? getDefaultTime();
+  final defaultEndTime =
+      controller.endTime ??
+      TimeOfDay(
+        hour: (defaultStartTime.hour + 1) % 24,
+        minute: defaultStartTime.minute,
+      );
+
+  // ✅ 날짜가 없으면 오늘, 있으면 기존 날짜 사용
+  final now = DateTime.now();
   final startDateTime = DateTime(
-    controller.startDate?.year ?? DateTime.now().year,
-    controller.startDate?.month ?? DateTime.now().month,
-    controller.startDate?.day ?? DateTime.now().day,
-    controller.startTime?.hour ?? 0,
-    controller.startTime?.minute ?? 0,
+    controller.startDate?.year ?? now.year,
+    controller.startDate?.month ?? now.month,
+    controller.startDate?.day ?? now.day,
+    defaultStartTime.hour,
+    defaultStartTime.minute,
   );
 
   final endDateTime = DateTime(
-    controller.endDate?.year ?? DateTime.now().year,
-    controller.endDate?.month ?? DateTime.now().month,
-    controller.endDate?.day ?? DateTime.now().day,
-    controller.endTime?.hour ?? 0,
-    controller.endTime?.minute ?? 0,
+    controller.endDate?.year ?? now.year,
+    controller.endDate?.month ?? now.month,
+    controller.endDate?.day ?? now.day,
+    defaultEndTime.hour,
+    defaultEndTime.minute,
   );
 
   // 새로운 스무스 바텀시트 모달 호출

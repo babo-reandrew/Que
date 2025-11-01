@@ -1334,7 +1334,29 @@ Widget _buildReminderOptionButton(BuildContext context) {
       // 선택된 리마인더 시간 표시 (HH:MM 형식)
       String? displayText;
       if (controller.reminder.isNotEmpty) {
-        displayText = controller.reminder; // "HH:MM" 형식 그대로 사용
+        // ✅ JSON 형식인 경우 파싱하여 시간만 추출
+        if (controller.reminder.startsWith('{')) {
+          try {
+            if (controller.reminder.contains('"display":"')) {
+              final startIndex =
+                  controller.reminder.indexOf('"display":"') + 11;
+              final endIndex = controller.reminder.indexOf('"', startIndex);
+              final extracted = controller.reminder.substring(
+                startIndex,
+                endIndex,
+              );
+              // ✅ 추출한 텍스트가 비어있지 않은 경우에만 사용
+              if (extracted.isNotEmpty) {
+                displayText = extracted;
+              }
+            }
+          } catch (e) {
+            debugPrint('리마인더 파싱 오류: $e');
+          }
+        } else {
+          // ✅ HH:MM 형식은 그대로 사용 (빈 문자열이 아닌 경우만)
+          displayText = controller.reminder;
+        }
       }
 
       return GestureDetector(
@@ -1402,9 +1424,13 @@ Widget _buildRepeatOptionButton(BuildContext context) {
           if (repeatData.contains('"display":"')) {
             final startIndex = repeatData.indexOf('"display":"') + 11;
             final endIndex = repeatData.indexOf('"', startIndex);
-            displayText = repeatData.substring(startIndex, endIndex);
-            debugPrint('🔄 [RepeatButton] 표시 텍스트: $displayText');
-            // ✅ 개행 문자는 그대로 유지 (박스 안에서 중앙 정렬)
+            final extracted = repeatData.substring(startIndex, endIndex);
+            // ✅ 추출한 텍스트가 비어있지 않은 경우에만 사용
+            if (extracted.isNotEmpty) {
+              displayText = extracted;
+              debugPrint('🔄 [RepeatButton] 표시 텍스트: $displayText');
+              // ✅ 개행 문자는 그대로 유지 (박스 안에서 중앙 정렬)
+            }
           }
         } catch (e) {
           debugPrint('반복 규칙 파싱 오류: $e');
@@ -2205,10 +2231,22 @@ void _handleDelete(
 void _handleExecutionDatePicker(BuildContext context) async {
   final controller = Provider.of<TaskFormController>(context, listen: false);
 
+  // ✅ 실행일이 없으면 현재 날짜/시간(15분 단위 반올림)
+  DateTime getDefaultDateTime() {
+    final now = DateTime.now();
+    final minutes = now.minute;
+    final roundedMinutes = ((minutes / 15).round() * 15) % 60;
+    var hour = now.hour;
+    if (minutes >= 53 && roundedMinutes == 0) {
+      hour = (hour + 1) % 24;
+    }
+    return DateTime(now.year, now.month, now.day, hour, roundedMinutes);
+  }
+
   // ✅ 実行日 선택 바텀시트 표시
   await showDeadlinePickerModal(
     context,
-    initialDeadline: controller.executionDate ?? DateTime.now(),
+    initialDeadline: controller.executionDate ?? getDefaultDateTime(),
     onDeadlineSelected: (selectedDate) {
       controller.setExecutionDate(selectedDate); // ✅ 실행일만 설정
       // ✅ 임시 캐시에 저장
@@ -2220,10 +2258,22 @@ void _handleExecutionDatePicker(BuildContext context) async {
 void _handleDueDatePicker(BuildContext context) async {
   final controller = Provider.of<TaskFormController>(context, listen: false);
 
+  // ✅ 마감일이 없으면 현재 날짜/시간(15분 단위 반올림)
+  DateTime getDefaultDateTime() {
+    final now = DateTime.now();
+    final minutes = now.minute;
+    final roundedMinutes = ((minutes / 15).round() * 15) % 60;
+    var hour = now.hour;
+    if (minutes >= 53 && roundedMinutes == 0) {
+      hour = (hour + 1) % 24;
+    }
+    return DateTime(now.year, now.month, now.day, hour, roundedMinutes);
+  }
+
   // ✅ 締め切り(마감일) 선택 바텀시트 표시
   await showDeadlinePickerModal(
     context,
-    initialDeadline: controller.dueDate ?? DateTime.now(),
+    initialDeadline: controller.dueDate ?? getDefaultDateTime(),
     onDeadlineSelected: (selectedDate) {
       controller.setDueDate(selectedDate); // ✅ 마감일만 설정
       // ✅ 임시 캐시에 저장

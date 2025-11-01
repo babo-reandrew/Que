@@ -495,6 +495,7 @@ class _DateDetailViewState extends State<DateDetailView>
                             milliseconds: 200,
                           ), // 빠른 닫힘
                           builder: (context) => ImagePickerSmoothSheet(
+                            source: 'detail', // 🎯 디테일뷰에서 진입
                             onClose: () {
                               Navigator.of(context).pop();
                             },
@@ -2672,11 +2673,11 @@ class _DateDetailViewState extends State<DateDetailView>
                         builder: (context, completionSnapshot) {
                           // 🔥 Phase 2 - Task 4: 완료 확인 헬퍼 함수 사용
                           // 우선순위: 1. TaskCompletion 테이블 → 2. Task.completed 필드
-                          final effectiveCompleted =
-                              GetIt.I<AppDatabase>().isTaskCompletedSync(
-                            task,
-                            completionSnapshot.data ?? [],
-                          );
+                          final effectiveCompleted = GetIt.I<AppDatabase>()
+                              .isTaskCompletedSync(
+                                task,
+                                completionSnapshot.data ?? [],
+                              );
 
                           return TaskCard(
                             task: task,
@@ -3481,8 +3482,10 @@ class _DateDetailViewState extends State<DateDetailView>
           try {
             final task = tasks.firstWhere((t) => t.id == orderData.cardId);
             // 🔥 Phase 2 - Task 4: 완료 확인 헬퍼 함수 사용
-            final isCompleted =
-                GetIt.I<AppDatabase>().isTaskCompletedSync(task, taskCompletions);
+            final isCompleted = GetIt.I<AppDatabase>().isTaskCompletedSync(
+              task,
+              taskCompletions,
+            );
 
             if (!isCompleted) {
               // 미완료만 추가
@@ -4533,8 +4536,7 @@ class _DateDetailViewState extends State<DateDetailView>
       builder: (context, completionSnapshot) {
         // 🔥 Phase 2 - Task 4: 완료 확인 헬퍼 함수 사용
         // 우선순위: 1. TaskCompletion 테이블 → 2. Task.completed 필드
-        final effectiveCompleted =
-            GetIt.I<AppDatabase>().isTaskCompletedSync(
+        final effectiveCompleted = GetIt.I<AppDatabase>().isTaskCompletedSync(
           task,
           completionSnapshot.data ?? [],
         );

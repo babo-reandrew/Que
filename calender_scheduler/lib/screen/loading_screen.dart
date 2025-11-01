@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'gemini_result_confirmation_screen.dart';
+import 'gemini_result_date_detail_screen.dart'; // 🆕 디테일뷰용 화면
 import '../component/modal/image_picker_smooth_sheet.dart'; // ✅ smooth_sheet의 PickedImage 사용
 import '../services/gemini_service.dart';
 import '../model/extracted_schedule.dart';
@@ -9,8 +10,13 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 /// 로딩 화면 - Google Gemini API 호출 및 응답 대기
 class LoadingScreen extends StatefulWidget {
   final List<PickedImage> selectedImages;
+  final String source; // 'home' 또는 'detail'
 
-  const LoadingScreen({super.key, required this.selectedImages});
+  const LoadingScreen({
+    super.key,
+    required this.selectedImages,
+    this.source = 'home', // 기본값: 월뷰
+  });
 
   @override
   State<LoadingScreen> createState() => _LoadingScreenState();
@@ -25,7 +31,6 @@ class _LoadingScreenState extends State<LoadingScreen> {
 
   /// 이미지 처리 및 Gemini API 호출
   Future<void> _processImages() async {
-
     try {
       // [1단계] 첫 번째 이미지 데이터 준비 (현재는 단일 이미지만 처리)
       final firstImage = widget.selectedImages.first;
@@ -52,7 +57,6 @@ class _LoadingScreenState extends State<LoadingScreen> {
       final geminiService = GeminiService(apiKey: apiKey);
       final response = await geminiService.analyzeImage(imageBytes: imageBytes);
 
-
       // [3단계] JSON을 모델로 변환
       final schedules = (response['schedules'] as List? ?? [])
           .map(
@@ -66,20 +70,25 @@ class _LoadingScreenState extends State<LoadingScreen> {
           .map((json) => ExtractedHabit.fromJson(json as Map<String, dynamic>))
           .toList();
 
-      // [4단계] 확인 화면으로 이동
+      // [4단계] 확인 화면으로 이동 (진입점에 따라 다른 화면)
       if (mounted) {
+        final resultScreen = widget.source == 'detail'
+            ? GeminiResultDateDetailScreen(
+                schedules: schedules,
+                tasks: tasks,
+                habits: habits,
+              )
+            : GeminiResultConfirmationScreen(
+                schedules: schedules,
+                tasks: tasks,
+                habits: habits,
+              );
+
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => GeminiResultConfirmationScreen(
-              schedules: schedules,
-              tasks: tasks,
-              habits: habits,
-            ),
-          ),
+          MaterialPageRoute(builder: (context) => resultScreen),
         );
       }
-    } catch (e, stackTrace) {
-
+    } catch (e) {
       // 에러 다이얼로그 표시
       if (mounted) {
         showDialog(

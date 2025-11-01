@@ -29,11 +29,13 @@ class PickedImage {
 class ImagePickerSmoothSheet extends StatefulWidget {
   final VoidCallback? onClose;
   final Function(List<PickedImage>) onImagesSelected;
+  final String source; // 'home' 또는 'detail'
 
   const ImagePickerSmoothSheet({
     super.key,
     this.onClose,
     required this.onImagesSelected,
+    this.source = 'home', // 기본값: 월뷰
   });
 
   @override
@@ -330,15 +332,17 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet>
           widget.onClose!();
         }
 
-        // 🔍 LoadingScreen으로 이동
+        // 🔍 LoadingScreen으로 이동 (진입점 정보 전달)
         if (mounted) {
           // 약간의 딜레이 후 이동 (닫히는 애니메이션 완료 대기)
           await Future.delayed(const Duration(milliseconds: 100));
           if (mounted) {
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (context) =>
-                    LoadingScreen(selectedImages: _selectedImages),
+                builder: (context) => LoadingScreen(
+                  selectedImages: _selectedImages,
+                  source: widget.source, // 🎯 진입점 전달
+                ),
               ),
             );
           }

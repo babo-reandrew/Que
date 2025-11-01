@@ -116,18 +116,42 @@ class ScheduleFormController extends ChangeNotifier {
     _isAllDay = !_isAllDay;
 
     if (_isAllDay) {
-      // ✅ 종일 ON: 현재 시간을 캐시에 저장하고 00:00 ~ 23:59로 설정
-      if (_startTime != null) {
-        _cachedStartTime = _startTime;
+      if (_isAllDay) {
+        // ✅ 종일 ON: 현재 시간을 캐시에 저장하고 null로 설정 (DB 저장 시 00:00으로 처리됨)
+        if (_startTime != null) {
+          _cachedStartTime = _startTime;
+        }
+        if (_endTime != null) {
+          _cachedEndTime = _endTime;
+        }
+        _startTime = const TimeOfDay(hour: 0, minute: 0);
+        _endTime = const TimeOfDay(hour: 23, minute: 59);
+        debugPrint(
+          '🔄 [ScheduleForm] 終日 ON: 시간 캐시 (start=$_cachedStartTime, end=$_cachedEndTime)',
+        );
+      } else {
+        // ✅ 종일 OFF: 캐시에서 시간 복원, 캐시 없으면 현재 시간(15분 단위)
+        if (_cachedStartTime != null) {
+          _startTime = _cachedStartTime;
+        } else {
+          final now = DateTime.now();
+          _startTime = _roundToNearest15Minutes(now);
+        }
+
+        if (_cachedEndTime != null) {
+          _endTime = _cachedEndTime;
+        } else {
+          final roundedTime =
+              _startTime ?? _roundToNearest15Minutes(DateTime.now());
+          _endTime = TimeOfDay(
+            hour: (roundedTime.hour + 1) % 24,
+            minute: roundedTime.minute,
+          );
+        }
+        debugPrint(
+          '🔄 [ScheduleForm] 終日 OFF: 시간 복원 (start=$_startTime, end=$_endTime)',
+        );
       }
-      if (_endTime != null) {
-        _cachedEndTime = _endTime;
-      }
-      _startTime = const TimeOfDay(hour: 0, minute: 0);
-      _endTime = const TimeOfDay(hour: 23, minute: 59);
-      debugPrint(
-        '🔄 [ScheduleForm] 終日 ON: 시간 캐시 저장 (start=${_cachedStartTime}, end=${_cachedEndTime}) → 00:00 ~ 23:59',
-      );
     } else {
       // ✅ 종일 OFF: 캐시에서 시간 복원
       if (_cachedStartTime != null) {
@@ -159,12 +183,23 @@ class ScheduleFormController extends ChangeNotifier {
       _startTime = const TimeOfDay(hour: 0, minute: 0);
       _endTime = const TimeOfDay(hour: 23, minute: 59);
     } else {
-      // ✅ 종일 OFF: 캐시에서 시간 복원
+      // ✅ 종일 OFF: 캐시에서 시간 복원, 캐시 없으면 현재 시간(15분 단위)
       if (_cachedStartTime != null) {
         _startTime = _cachedStartTime;
+      } else {
+        final now = DateTime.now();
+        _startTime = _roundToNearest15Minutes(now);
       }
+
       if (_cachedEndTime != null) {
         _endTime = _cachedEndTime;
+      } else {
+        final roundedTime =
+            _startTime ?? _roundToNearest15Minutes(DateTime.now());
+        _endTime = TimeOfDay(
+          hour: (roundedTime.hour + 1) % 24,
+          minute: roundedTime.minute,
+        );
       }
     }
 
@@ -198,6 +233,20 @@ class ScheduleFormController extends ChangeNotifier {
   }
 
   // 초기화
+  /// 현재 시간을 15분 단위로 반올림
+  TimeOfDay _roundToNearest15Minutes(DateTime now) {
+    final minutes = now.minute;
+    final roundedMinutes = ((minutes / 15).round() * 15) % 60;
+    var hour = now.hour;
+
+    // 반올림 결과가 60분이면 다음 시간으로
+    if (minutes >= 53 && roundedMinutes == 0) {
+      hour = (hour + 1) % 24;
+    }
+
+    return TimeOfDay(hour: hour, minute: roundedMinutes);
+  }
+
   void reset() {
     titleController.clear();
     _isAllDay = false;
@@ -215,9 +264,16 @@ class ScheduleFormController extends ChangeNotifier {
     _isAllDay = false;
     _startDate = selectedDate;
     _endDate = selectedDate;
-    final now = TimeOfDay.now();
-    _startTime = now;
-    _endTime = TimeOfDay(hour: (now.hour + 1) % 24, minute: now.minute);
+
+    // ✅ 현재 시간을 15분 단위로 반올림
+    final now = DateTime.now();
+    final roundedTime = _roundToNearest15Minutes(now);
+    _startTime = roundedTime;
+    _endTime = TimeOfDay(
+      hour: (roundedTime.hour + 1) % 24,
+      minute: roundedTime.minute,
+    );
+
     _cachedStartTime = null; // ✅ 캐시 초기화
     _cachedEndTime = null; // ✅ 캐시 초기화
     notifyListeners();

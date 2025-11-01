@@ -743,7 +743,11 @@ Widget _buildReminderOptionButton(BuildContext context) {
           if (reminderData.contains('"display":"')) {
             final startIndex = reminderData.indexOf('"display":"') + 11;
             final endIndex = reminderData.indexOf('"', startIndex);
-            displayText = reminderData.substring(startIndex, endIndex);
+            final extracted = reminderData.substring(startIndex, endIndex);
+            // ✅ 추출한 텍스트가 비어있지 않은 경우에만 사용
+            if (extracted.isNotEmpty) {
+              displayText = extracted;
+            }
           }
         } catch (e) {
           debugPrint('리마인더 파싱 오류: $e');
@@ -813,8 +817,12 @@ Widget _buildRepeatOptionButton(BuildContext context) {
           if (repeatData.contains('"display":"')) {
             final startIndex = repeatData.indexOf('"display":"') + 11;
             final endIndex = repeatData.indexOf('"', startIndex);
-            displayText = repeatData.substring(startIndex, endIndex);
-            // ✅ 개행 문자는 그대로 유지 (박스 안에서 중앙 정렬)
+            final extracted = repeatData.substring(startIndex, endIndex);
+            // ✅ 추출한 텍스트가 비어있지 않은 경우에만 사용
+            if (extracted.isNotEmpty) {
+              displayText = extracted;
+              // ✅ 개행 문자는 그대로 유지 (박스 안에서 중앙 정렬)
+            }
           }
         } catch (e) {
           debugPrint('반복 규칙 파싱 오류: $e');

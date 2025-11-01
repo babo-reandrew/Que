@@ -101,13 +101,14 @@ class _AppleDateTimeWheelPickerState extends State<AppleDateTimeWheelPicker> {
   // 이거를 해서 → Wheel Picker에 표시한다
   List<String> _generateDateList() {
     final List<String> dates = [];
-    final now = DateTime.now();
-    final currentYear = now.year;
+    // ✅ 선택된 날짜를 기준으로 ±365일 범위 생성
+    final baseDate = _selectedDateTime;
+    final currentYear = DateTime.now().year;
 
-    // 이거를 설정하고 → 현재 날짜 기준 ±365일 범위를 생성해서
+    // 이거를 설정하고 → 선택된 날짜 기준 ±365일 범위를 생성해서
     // 이거를 해서 → 충분한 선택지를 제공하고 연도 넘어가는 것도 표시한다
     for (int i = -365; i <= 365; i++) {
-      final date = now.add(Duration(days: i));
+      final date = baseDate.add(Duration(days: i));
 
       // 연도가 현재 연도와 다르면 연도 표시, 요일은 제거
       if (date.year != currentYear) {
