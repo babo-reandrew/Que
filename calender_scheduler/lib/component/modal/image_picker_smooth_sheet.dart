@@ -40,11 +40,13 @@ class ImagePickerSmoothSheet extends StatefulWidget {
   State<ImagePickerSmoothSheet> createState() => _ImagePickerSmoothSheetState();
 }
 
-class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
+class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet>
+    with WidgetsBindingObserver {
   final SheetController _sheetController = SheetController();
   final List<PickedImage> _selectedImages = [];
   final List<AssetEntity> _galleryAssets = [];
-  final List<PickedImage> _capturedPhotos = []; // 📸 카메라로 촬영한 사진들 (임시, 앨범에 저장 안함)
+  final List<PickedImage> _capturedPhotos =
+      []; // 📸 카메라로 촬영한 사진들 (임시, 앨범에 저장 안함)
   bool _isLoading = false; // false로 변경 - 첫 로드를 위해
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -63,13 +65,23 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
 
     // Sheet의 extent 변화 감지 - 일정 threshold 이하로 내려가면 자동으로 닫기
     _sheetController.addListener(_onSheetExtentChanged);
+
+    // 📸 앱 라이프사이클 관찰 시작
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
     _sheetController.removeListener(_onSheetExtentChanged);
     _sheetController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    debugPrint('📱 [ImagePicker] 앱 상태 변경: $state');
   }
 
   bool _isClosing = false; // 중복 호출 방지
@@ -78,7 +90,7 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
   void _closeSheetImmediately() {
     if (_isClosing) return;
     _isClosing = true;
-    
+
     if (mounted && widget.onClose != null) {
       widget.onClose!();
     }
@@ -154,7 +166,6 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
         page: _currentPage,
         size: _pageSize,
       );
-
 
       if (!mounted) return;
 
@@ -522,6 +533,9 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
 
     return GestureDetector(
       onTap: () {
+        // 🎵 애플 스타일 햅틱 피드백
+        HapticFeedback.selectionClick();
+
         setState(() {
           if (isSelected) {
             _selectedImages.removeWhere(
@@ -614,9 +628,7 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
           _capturedPhotos.insert(0, picked);
         }
       });
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// 카메라 버튼
@@ -624,24 +636,44 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
     return GestureDetector(
       onTap: () async {
         try {
-          final XFile? photo = await _imagePicker.pickImage(
-            source: ImageSource.camera,
-            imageQuality: 85,
+          debugPrint('📸 [ImagePicker] 카메라 실행 시작');
+
+          // 📸 블랙 스크린으로 현재 시트를 보호하면서 카메라 실행
+          final XFile? photo = await Navigator.of(context).push<XFile?>(
+            MaterialPageRoute(
+              fullscreenDialog: true,
+              builder: (context) => _CameraWrapper(imagePicker: _imagePicker),
+            ),
           );
 
+          debugPrint('📸 [ImagePicker] 카메라 앱에서 복귀: photo=${photo?.path}');
+
           if (photo == null) {
+            debugPrint('❌ [ImagePicker] 사용자가 카메라 취소');
             return;
           }
 
           // 임시 PickedImage 생성 (앨범에는 저장하지 않음)
           final picked = PickedImage(file: photo);
+          debugPrint('📸 [ImagePicker] 촬영 완료: ${photo.path}');
 
-          setState(() {
-            // 카메라 슬롯 다음 앞부분에 추가 (앞에서부터 차례로 쌓음)
-            _capturedPhotos.insert(0, picked);
-          });
+          if (mounted) {
+            setState(() {
+              // 카메라 슬롯 다음 앞부분에 추가 (앞에서부터 차례로 쌓음)
+              _capturedPhotos.insert(0, picked);
+              // 📸 촬영한 사진을 자동으로 선택 상태로 추가
+              _selectedImages.add(picked);
 
+              debugPrint(
+                '📊 [ImagePicker] 캐시된 사진 개수: ${_capturedPhotos.length}',
+              );
+              debugPrint(
+                '✅ [ImagePicker] 자동 선택됨 - 선택된 사진 개수: ${_selectedImages.length}',
+              );
+            });
+          }
         } catch (e) {
+          debugPrint('⚠️ [ImagePicker] 카메라 에러: $e');
         }
       },
       child: Container(
@@ -683,6 +715,57 @@ class _ImagePickerSmoothSheetState extends State<ImagePickerSmoothSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 📸 카메라 래퍼 - 시트를 보호하면서 카메라 실행
+class _CameraWrapper extends StatefulWidget {
+  final ImagePicker imagePicker;
+
+  const _CameraWrapper({required this.imagePicker});
+
+  @override
+  State<_CameraWrapper> createState() => _CameraWrapperState();
+}
+
+class _CameraWrapperState extends State<_CameraWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    // 위젯이 빌드되자마자 카메라 실행
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openCamera();
+    });
+  }
+
+  Future<void> _openCamera() async {
+    try {
+      final XFile? photo = await widget.imagePicker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+      );
+
+      // 결과를 가지고 pop
+      if (mounted) {
+        Navigator.of(context).pop(photo);
+      }
+    } catch (e) {
+      debugPrint('⚠️ [CameraWrapper] 카메라 에러: $e');
+      if (mounted) {
+        Navigator.of(context).pop(null);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 검은 배경으로 시트를 가림
+    return Container(
+      color: Colors.black,
+      child: const Center(
+        child: CircularProgressIndicator(color: Colors.white),
       ),
     );
   }

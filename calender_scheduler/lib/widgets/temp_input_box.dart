@@ -39,10 +39,10 @@ class _TempInputBoxState extends State<TempInputBox> {
   }
 
   /// 임시 입력 삭제
-  /// 이거를 설정하고 → 저장된 임시 입력을 삭제하고
+  /// 이거를 설정하고 → 제목 포함 모든 임시 입력을 삭제하고
   /// 이거를 해서 → 부모 위젯에 알린다
   Future<void> _clearTempInput() async {
-    await TempInputCache.clearTempInput();
+    await TempInputCache.clearAllIncludingTitle();
     widget.onDismiss?.call();
   }
 

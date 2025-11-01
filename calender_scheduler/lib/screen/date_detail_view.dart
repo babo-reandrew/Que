@@ -79,11 +79,21 @@ class _DateDetailViewState extends State<DateDetailView>
   // 🚫 Divider 제약을 위한 변수
   bool _isReorderingScheduleBelowDivider = false; // 일정이 divider 아래로 이동 시도 중
 
+  // 🔴 제약 위반 시 흔들림 애니메이션 (카드에 적용)
+  late AnimationController _shakeController;
+  late Animation<double> _shakeAnimation;
+  int? _shakingCardIndex; // 현재 흔들리는 카드의 인덱스
+
   // 🎯 바텀시트 열림 추적 (DateDetailView 드래그 제스처 비활성화용)
   bool _isBottomSheetOpen = false;
 
   // ⏱️ DB 저장 디바운스를 위한 타이머
   Timer? _saveOrderDebounceTimer;
+
+  // 🎯 드래그 중 자동 스크롤을 위한 변수
+  Timer? _autoScrollTimer;
+  bool _isDragging = false;
+  double _lastDragY = 0.0;
 
   // 📄 페이지네이션 변수 (향후 구현용 - 현재 미사용)
   // static const int _pageSize = 20;
@@ -201,6 +211,27 @@ class _DateDetailViewState extends State<DateDetailView>
       ), // 280px + statusBar ≈ 1.7배 높이
     );
 
+    // 🔴 제약 위반 시 카드 흔들림 애니메이션 초기화 (프로페셔널한 효과)
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600), // 전문적인 타이밍
+    );
+
+    // 좌우 흔들림: -8 → 8 → -6 → 6 → -4 → 4 → 0 (점점 감소하는 진폭)
+    _shakeAnimation =
+        TweenSequence<double>([
+          TweenSequenceItem(tween: Tween(begin: 0.0, end: -8.0), weight: 10),
+          TweenSequenceItem(tween: Tween(begin: -8.0, end: 8.0), weight: 15),
+          TweenSequenceItem(tween: Tween(begin: 8.0, end: -6.0), weight: 15),
+          TweenSequenceItem(tween: Tween(begin: -6.0, end: 6.0), weight: 15),
+          TweenSequenceItem(tween: Tween(begin: 6.0, end: -4.0), weight: 12),
+          TweenSequenceItem(tween: Tween(begin: -4.0, end: 4.0), weight: 12),
+          TweenSequenceItem(tween: Tween(begin: 4.0, end: -2.0), weight: 10),
+          TweenSequenceItem(tween: Tween(begin: -2.0, end: 0.0), weight: 11),
+        ]).animate(
+          CurvedAnimation(parent: _shakeController, curve: Curves.easeInOut),
+        );
+
     print('✅ [LIFECYCLE] initState 완료');
     print('');
   }
@@ -238,10 +269,12 @@ class _DateDetailViewState extends State<DateDetailView>
 
     _pageController.dispose();
     _scrollController.dispose(); // ✅ ScrollController도 정리
+    _autoScrollTimer?.cancel(); // 🎯 자동 스크롤 타이머 정리
     // _dismissController.dispose(); // ⚠️ 제거됨
     // _entryController.dispose(); // ⚠️ 제거됨
     _completedExpandController.dispose(); // ✅ 완료 섹션 애니메이션 컨트롤러 정리
     _datePickerAnimationController.dispose(); // 🗓️ 날짜 피커 애니메이션 컨트롤러 정리
+    _shakeController.dispose(); // 🔴 카드 흔들림 애니메이션 컨트롤러 정리
     _saveOrderDebounceTimer?.cancel(); // ⏱️ 디바운스 타이머 정리
     print('🗑️ [DateDetailView] 리소스 정리 완료');
     super.dispose();
@@ -318,8 +351,73 @@ class _DateDetailViewState extends State<DateDetailView>
     // ScrollEndNotification에서 처리됨
   }
 
-  /// 🎯 드래그 시 자동 스크롤은 super_drag_and_drop에서 자동 처리됨
-  // void _handleAutoScroll(double globalY, BuildContext dragContext) { ... }
+  /// 🎯 드래그 중 자동 스크롤 처리
+  /// 포인터가 상/하단 엣지 근처에 있으면 자동으로 스크롤
+  void _handleDragAutoScroll(double pointerY, BuildContext context) {
+    if (!_scrollController.hasClients) return;
+
+    final screenHeight = MediaQuery.of(context).size.height;
+    const edgeThreshold = 300.0; // � 상/하단 300px 영역 (더 넓은 자동 스크롤 영역)
+
+    // 🎯 상단 엣지 근처
+    if (pointerY < edgeThreshold) {
+      final distance = edgeThreshold - pointerY;
+      final speed = (distance / edgeThreshold * 200).clamp(
+        10.0,
+        300.0,
+      ); // � 초고속 스크롤 (최대 100px/frame)
+      _startAutoScroll(-speed);
+    }
+    // 🎯 하단 엣지 근처
+    else if (pointerY > screenHeight - edgeThreshold) {
+      final distance = pointerY - (screenHeight - edgeThreshold);
+      final speed = (distance / edgeThreshold * 200).clamp(
+        10.0,
+        300.0,
+      ); // � 초고속 스크롤 (최대 100px/frame)
+      _startAutoScroll(speed);
+    }
+    // 🎯 엣지 영역 벗어남 → 자동 스크롤 중지
+    else {
+      _stopAutoScroll();
+    }
+  }
+
+  /// 🎯 자동 스크롤 시작
+  void _startAutoScroll(double speed) {
+    // 이미 타이머가 동작 중이면 중복 생성 방지
+    if (_autoScrollTimer != null && _autoScrollTimer!.isActive) return;
+
+    // 🎯 자동 스크롤 시작 시 미세한 햅틱 피드백
+    HapticFeedback.selectionClick();
+
+    _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 16), (
+      timer,
+    ) {
+      if (!_scrollController.hasClients || !_isDragging) {
+        timer.cancel();
+        return;
+      }
+
+      final currentPosition = _scrollController.position.pixels;
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      final newPosition = (currentPosition + speed).clamp(0.0, maxScroll);
+
+      // 🎯 경계에 도달하면 자동 스크롤 중지
+      if (newPosition == currentPosition) {
+        timer.cancel();
+        return;
+      }
+
+      _scrollController.jumpTo(newPosition);
+    });
+  }
+
+  /// 🎯 자동 스크롤 중지
+  void _stopAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1370,247 +1468,304 @@ class _DateDetailViewState extends State<DateDetailView>
                                       _buildTopDropZone(date),
 
                                     // 🎯 리스트 영역 (shrinkWrap으로 높이 제한)
-                                    AnimatedReorderableListView(
-                                      items: items,
+                                    // 🎯 Listener로 감싸서 드래그 중 포인터 위치 추적
+                                    Listener(
+                                      onPointerMove: (event) {
+                                        if (_isDragging) {
+                                          _lastDragY = event.position.dy;
+                                          _handleDragAutoScroll(
+                                            event.position.dy,
+                                            context,
+                                          );
+                                        }
+                                      },
+                                      child: AnimatedReorderableListView(
+                                        items: items,
 
-                                      // 🚀 SingleChildScrollView 안에서 사용하기 위한 설정
-                                      shrinkWrap: true,
-                                      physics:
-                                          const NeverScrollableScrollPhysics(),
-                                      padding: EdgeInsets.zero,
-                                      buildDefaultDragHandles: false,
+                                        // 🚀 SingleChildScrollView 안에서 사용하기 위한 설정
+                                        shrinkWrap: true,
+                                        physics:
+                                            const NeverScrollableScrollPhysics(),
+                                        padding: EdgeInsets.zero,
+                                        buildDefaultDragHandles: false,
 
-                                      // 🔧 itemBuilder: 각 아이템을 카드로 렌더링
-                                      itemBuilder: (context, index) {
-                                        // 🎯 첫 번째 아이템에서 Scrollable context 캡처
-                                        if (index == 0 &&
-                                            _scrollableContext == null) {
-                                          WidgetsBinding.instance.addPostFrameCallback((
-                                            _,
-                                          ) {
-                                            try {
-                                              final scrollableState =
-                                                  Scrollable.maybeOf(context);
-                                              if (scrollableState != null &&
-                                                  scrollableState
-                                                          .position
-                                                          .maxScrollExtent !=
-                                                      double.infinity &&
-                                                  scrollableState
-                                                          .position
-                                                          .maxScrollExtent <
-                                                      100000000) {
-                                                _scrollableContext = context;
+                                        // 🔧 itemBuilder: 각 아이템을 카드로 렌더링
+                                        itemBuilder: (context, index) {
+                                          // 🎯 첫 번째 아이템에서 Scrollable context 캡처
+                                          if (index == 0 &&
+                                              _scrollableContext == null) {
+                                            WidgetsBinding.instance.addPostFrameCallback((
+                                              _,
+                                            ) {
+                                              try {
+                                                final scrollableState =
+                                                    Scrollable.maybeOf(context);
+                                                if (scrollableState != null &&
+                                                    scrollableState
+                                                            .position
+                                                            .maxScrollExtent !=
+                                                        double.infinity &&
+                                                    scrollableState
+                                                            .position
+                                                            .maxScrollExtent <
+                                                        100000000) {
+                                                  _scrollableContext = context;
+                                                  print(
+                                                    '✅ [ScrollContext] 저장 완료: max=${scrollableState.position.maxScrollExtent}',
+                                                  );
+                                                } else {
+                                                  print(
+                                                    '❌ [ScrollContext] 부적절한 Scrollable: max=${scrollableState?.position.maxScrollExtent}',
+                                                  );
+                                                }
+                                              } catch (e) {
                                                 print(
-                                                  '✅ [ScrollContext] 저장 완료: max=${scrollableState.position.maxScrollExtent}',
-                                                );
-                                              } else {
-                                                print(
-                                                  '❌ [ScrollContext] 부적절한 Scrollable: max=${scrollableState?.position.maxScrollExtent}',
+                                                  '❌ [ScrollContext] 저장 실패: $e',
                                                 );
                                               }
-                                            } catch (e) {
-                                              print(
-                                                '❌ [ScrollContext] 저장 실패: $e',
-                                              );
-                                            }
+                                            });
+                                          }
+
+                                          final item = items[index];
+                                          print(
+                                            '  → [itemBuilder] index=$index, type=${item.type}, id=${item.actualId}',
+                                          );
+
+                                          // 타입별 카드 렌더링 (index와 총 개수, items 배열 전달)
+                                          return _buildCardByType(
+                                            item,
+                                            date,
+                                            tasks
+                                                .where((t) => t.completed)
+                                                .toList(),
+                                            index,
+                                            items, // 🎯 items 배열 전달
+                                          );
+                                        },
+
+                                        onReorderStart: (index) {
+                                          final item = items[index];
+                                          print(
+                                            '🎯 [onReorderStart] index=$index, type=${item.type}',
+                                          );
+                                          // 🎯 드래그 시작 - 자동 스크롤 활성화
+                                          setState(() {
+                                            _isDragging = true;
                                           });
-                                        }
+                                        },
 
-                                        final item = items[index];
-                                        print(
-                                          '  → [itemBuilder] index=$index, type=${item.type}, id=${item.actualId}',
-                                        );
+                                        // ✅ onReorderEnd: 드래그 종료 시 상태 초기화
+                                        onReorderEnd: (index) {
+                                          print(
+                                            '🏁 [onReorderEnd] index=$index',
+                                          );
+                                          setState(() {
+                                            _isReorderingScheduleBelowDivider =
+                                                false;
+                                            // 🎯 드래그 종료 - 자동 스크롤 중지
+                                            _isDragging = false;
+                                          });
+                                          _stopAutoScroll();
+                                        },
 
-                                        // 타입별 카드 렌더링 (index와 총 개수, items 배열 전달)
-                                        return _buildCardByType(
-                                          item,
-                                          date,
-                                          tasks
-                                              .where((t) => t.completed)
-                                              .toList(),
-                                          index,
-                                          items, // 🎯 items 배열 전달
-                                        );
-                                      },
+                                        // 🔄 onReorder: 재정렬 핸들러
+                                        // 이거를 설정하고 → 드래그앤드롭 시 호출되어
+                                        // 이거를 해서 → sortOrder 재계산 및 DB 저장한다
+                                        onReorder: (oldIndex, newIndex) {
+                                          print(
+                                            '🎯 [onReorder] 콜백 호출됨! oldIndex=$oldIndex, newIndex=$newIndex',
+                                          );
+                                          print('   📋 인박스 모드: $_isInboxMode');
+                                          print(
+                                            '   📊 아이템 개수: ${items.length}',
+                                          );
 
-                                      onReorderStart: (index) {
-                                        final item = items[index];
-                                        print(
-                                          '🎯 [onReorderStart] index=$index, type=${item.type}',
-                                        );
-                                      },
+                                          // 🚫 Divider 제약 확인 (일정만)
+                                          final item = items[oldIndex];
+                                          print(
+                                            '   🎯 이동할 아이템: ${item.type} - ${item.uniqueId}',
+                                          );
 
-                                      // ✅ onReorderEnd: 드래그 종료 시 상태 초기화
-                                      onReorderEnd: (index) {
-                                        print('🏁 [onReorderEnd] index=$index');
-                                        setState(() {
-                                          _isReorderingScheduleBelowDivider =
-                                              false;
-                                        });
-                                      },
+                                          final dividerIndex = items.indexWhere(
+                                            (i) =>
+                                                i.type ==
+                                                UnifiedItemType.divider,
+                                          );
+                                          print(
+                                            '   📏 divider 위치: $dividerIndex',
+                                          );
 
-                                      // �🔄 onReorder: 재정렬 핸들러
-                                      // 이거를 설정하고 → 드래그앤드롭 시 호출되어
-                                      // 이거를 해서 → sortOrder 재계산 및 DB 저장한다
-                                      onReorder: (oldIndex, newIndex) {
-                                        print(
-                                          '🎯 [onReorder] 콜백 호출됨! oldIndex=$oldIndex, newIndex=$newIndex',
-                                        );
-                                        print('   📋 인박스 모드: $_isInboxMode');
-                                        print('   📊 아이템 개수: ${items.length}');
+                                          // targetIndex 계산 (AnimatedReorderableListView 규칙)
+                                          final targetIndex =
+                                              newIndex > oldIndex
+                                              ? newIndex - 1
+                                              : newIndex;
 
-                                        // 🚫 Divider 제약 확인 → ✅ 제약 제거! 모든 아이템이 자유롭게 이동 가능
-                                        final item = items[oldIndex];
-                                        print(
-                                          '   🎯 이동할 아이템: ${item.type} - ${item.uniqueId}',
-                                        );
+                                          print(
+                                            '🎯 [onReorder] 이동: index $oldIndex → $targetIndex (divider: $dividerIndex, type: ${item.type})',
+                                          );
 
-                                        final dividerIndex = items.indexWhere(
-                                          (i) =>
-                                              i.type == UnifiedItemType.divider,
-                                        );
-                                        print(
-                                          '   📏 divider 위치: $dividerIndex',
-                                        );
+                                          // 🚫 일정이 점선 아래로 이동 시도 시 차단
+                                          if (item.type ==
+                                                  UnifiedItemType.schedule &&
+                                              dividerIndex != -1 &&
+                                              oldIndex < dividerIndex &&
+                                              targetIndex >= dividerIndex) {
+                                            print('🚫 일정을 점선 아래로 이동할 수 없습니다!');
 
-                                        // targetIndex 계산 (AnimatedReorderableListView 규칙)
-                                        final targetIndex = newIndex > oldIndex
-                                            ? newIndex - 1
-                                            : newIndex;
+                                            // 🔴 햅틱 피드백 (거부감)
+                                            HapticFeedback.heavyImpact();
 
-                                        print(
-                                          '🎯 [onReorder] 이동: index $oldIndex → $targetIndex (divider: $dividerIndex, type: ${item.type})',
-                                        );
+                                            // 🔴 해당 카드에 빨간색 테두리 + 흔들림 애니메이션
+                                            setState(() {
+                                              _shakingCardIndex = oldIndex;
+                                            });
 
-                                        // ✅ 제약 제거! 일정, 할일, 습관 모두 자유롭게 재정렬 가능
-                                        print('   ✅ 제약 없음 → 자유롭게 재정렬');
-                                        _handleReorder(
-                                          items,
-                                          oldIndex,
-                                          newIndex,
-                                        );
-                                      },
+                                            _shakeController
+                                                .forward(from: 0.0)
+                                                .then((_) {
+                                                  if (mounted) {
+                                                    setState(() {
+                                                      _shakingCardIndex = null;
+                                                    });
+                                                  }
+                                                });
 
-                                      // 🔑 isSameItem: 동일 아이템 비교
-                                      // 이거를 설정하고 → uniqueId로 비교해서
-                                      // 이거를 해서 → 애니메이션이 정확히 작동하도록 한다
-                                      isSameItem: (a, b) =>
-                                          a.uniqueId == b.uniqueId,
+                                            // 🎯 이동 차단 (아무 작업도 하지 않음)
+                                            return;
+                                          }
 
-                                      // 🎨 iOS 18 스타일 애니메이션 설정
-                                      // 이거를 설정하고 → 300ms duration으로 설정해서
-                                      // 이거를 해서 → 부드러운 애니메이션을 구현한다
-                                      insertDuration: const Duration(
-                                        milliseconds: 300,
-                                      ),
-                                      removeDuration: const Duration(
-                                        milliseconds: 250,
-                                      ),
+                                          // ✅ 할일/습관은 자유롭게 이동 가능
+                                          print('   ✅ 이동 허용 → 재정렬 진행');
+                                          _handleReorder(
+                                            items,
+                                            oldIndex,
+                                            newIndex,
+                                          );
+                                        },
 
-                                      // 🎯 드래그 시작 딜레이 (길게 누르기)
-                                      // 🎯 인박스에서 드래그 중일 때만 재정렬 비활성화
-                                      // 리스트 아이템 직접 드래그는 항상 가능
-                                      dragStartDelay: _isDraggingFromInbox
-                                          ? const Duration(
-                                              days: 365,
-                                            ) // 인박스 드래그 중: 비활성화
-                                          : const Duration(
-                                              milliseconds: 500,
-                                            ), // 일반: 500ms 딜레이
-                                      // 🎭 enterTransition: 아이템 추가 애니메이션
-                                      // 이거를 설정하고 → iOS 스타일 ScaleIn + FadeIn으로
-                                      // 이거를 해서 → 부드럽게 나타나도록 한다
-                                      enterTransition: [
-                                        ScaleIn(
-                                          duration: const Duration(
-                                            milliseconds: 300,
-                                          ),
-                                          curve: const Cubic(
-                                            0.25,
-                                            0.1,
-                                            0.25,
-                                            1.0,
-                                          ), // iOS 곡선
-                                          begin: 0.95,
-                                          end: 1.0,
+                                        // 🔑 isSameItem: 동일 아이템 비교
+                                        // 이거를 설정하고 → uniqueId로 비교해서
+                                        // 이거를 해서 → 애니메이션이 정확히 작동하도록 한다
+                                        isSameItem: (a, b) =>
+                                            a.uniqueId == b.uniqueId,
+
+                                        // 🎨 iOS 18 스타일 애니메이션 설정
+                                        // 이거를 설정하고 → 300ms duration으로 설정해서
+                                        // 이거를 해서 → 부드러운 애니메이션을 구현한다
+                                        insertDuration: const Duration(
+                                          milliseconds: 300,
                                         ),
-                                        FadeIn(
-                                          duration: const Duration(
-                                            milliseconds: 250,
-                                          ),
-                                          curve: Curves.easeOut,
+                                        removeDuration: const Duration(
+                                          milliseconds: 250,
                                         ),
-                                      ],
 
-                                      // 🎭 exitTransition: 아이템 제거 애니메이션
-                                      // 이거를 설정하고 → iOS 스타일 ScaleIn + FadeIn으로
-                                      // 이거를 해서 → 부드럽게 사라지도록 한다
-                                      exitTransition: [
-                                        ScaleIn(
-                                          duration: const Duration(
-                                            milliseconds: 250,
+                                        // 🎯 드래그 시작 딜레이 (길게 누르기)
+                                        // 🎯 인박스에서 드래그 중일 때만 재정렬 비활성화
+                                        // 리스트 아이템 직접 드래그는 항상 가능
+                                        dragStartDelay: _isDraggingFromInbox
+                                            ? const Duration(
+                                                days: 365,
+                                              ) // 인박스 드래그 중: 비활성화
+                                            : const Duration(
+                                                milliseconds: 500,
+                                              ), // 일반: 500ms 딜레이
+                                        // 🎭 enterTransition: 아이템 추가 애니메이션
+                                        // 이거를 설정하고 → iOS 스타일 ScaleIn + FadeIn으로
+                                        // 이거를 해서 → 부드럽게 나타나도록 한다
+                                        enterTransition: [
+                                          ScaleIn(
+                                            duration: const Duration(
+                                              milliseconds: 300,
+                                            ),
+                                            curve: const Cubic(
+                                              0.25,
+                                              0.1,
+                                              0.25,
+                                              1.0,
+                                            ), // iOS 곡선
+                                            begin: 0.95,
+                                            end: 1.0,
                                           ),
-                                          curve: Curves.easeIn,
-                                          begin: 1.0,
-                                          end: 0.95,
-                                        ),
-                                        FadeIn(
-                                          duration: const Duration(
-                                            milliseconds: 200,
+                                          FadeIn(
+                                            duration: const Duration(
+                                              milliseconds: 250,
+                                            ),
+                                            curve: Curves.easeOut,
                                           ),
-                                          curve: Curves.easeIn,
-                                        ),
-                                      ],
+                                        ],
 
-                                      // 🎨 proxyDecorator: 드래그 중 카드 스타일
-                                      // 이거를 설정하고 → 드래그 시 확대 + 회전 + 그림자 효과를 추가해서
-                                      // 이거를 해서 → iOS 스타일 드래그 애니메이션을 구현한다
-                                      proxyDecorator: (child, index, animation) {
-                                        return AnimatedBuilder(
-                                          animation: animation,
-                                          builder: (context, child) {
-                                            // 1️⃣ 확대 효과 (3%)
-                                            final scale =
-                                                1.0 + (animation.value * 0.03);
+                                        // 🎭 exitTransition: 아이템 제거 애니메이션
+                                        // 이거를 설정하고 → iOS 스타일 ScaleIn + FadeIn으로
+                                        // 이거를 해서 → 부드럽게 사라지도록 한다
+                                        exitTransition: [
+                                          ScaleIn(
+                                            duration: const Duration(
+                                              milliseconds: 250,
+                                            ),
+                                            curve: Curves.easeIn,
+                                            begin: 1.0,
+                                            end: 0.95,
+                                          ),
+                                          FadeIn(
+                                            duration: const Duration(
+                                              milliseconds: 200,
+                                            ),
+                                            curve: Curves.easeIn,
+                                          ),
+                                        ],
 
-                                            // 2️⃣ 회전 효과 (3도)
-                                            final rotation =
-                                                animation.value * 0.05; // 약 3도
+                                        // 🎨 proxyDecorator: 드래그 중 카드 스타일
+                                        // 이거를 설정하고 → 드래그 시 확대 + 회전 + 그림자 효과를 추가해서
+                                        // 이거를 해서 → iOS 스타일 드래그 애니메이션을 구현한다
+                                        proxyDecorator: (child, index, animation) {
+                                          return AnimatedBuilder(
+                                            animation: animation,
+                                            builder: (context, child) {
+                                              // 1️⃣ 확대 효과 (3%)
+                                              final scale =
+                                                  1.0 +
+                                                  (animation.value * 0.03);
 
-                                            return Transform.scale(
-                                              scale: scale,
-                                              child: Transform.rotate(
-                                                angle: rotation,
-                                                child: Container(
-                                                  decoration: BoxDecoration(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          24,
+                                              // 2️⃣ 회전 효과 (3도)
+                                              final rotation =
+                                                  animation.value *
+                                                  0.05; // 약 3도
+
+                                              return Transform.scale(
+                                                scale: scale,
+                                                child: Transform.rotate(
+                                                  angle: rotation,
+                                                  child: Container(
+                                                    decoration: BoxDecoration(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            24,
+                                                          ),
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: const Color(
+                                                            0x14111111,
+                                                          ), // #111111 8% opacity
+                                                          offset: const Offset(
+                                                            0,
+                                                            4,
+                                                          ), // y: 4
+                                                          blurRadius:
+                                                              20, // blur: 20
                                                         ),
-                                                    boxShadow: [
-                                                      BoxShadow(
-                                                        color: const Color(
-                                                          0x14111111,
-                                                        ), // #111111 8% opacity
-                                                        offset: const Offset(
-                                                          0,
-                                                          4,
-                                                        ), // y: 4
-                                                        blurRadius:
-                                                            20, // blur: 20
-                                                      ),
-                                                    ],
+                                                      ],
+                                                    ),
+                                                    child: child,
                                                   ),
-                                                  child: child,
                                                 ),
-                                              ),
-                                            );
-                                          },
-                                          child: child,
-                                        );
-                                      },
-                                    ), // AnimatedReorderableListView 끝
+                                              );
+                                            },
+                                            child: child,
+                                          );
+                                        },
+                                      ), // AnimatedReorderableListView 끝
+                                    ), // Listener 끝
                                     // ✅ 완료 섹션 - 리스트 바로 아래에 배치
                                     StreamBuilder<List<ScheduleData>>(
                                       stream: GetIt.I<AppDatabase>()
@@ -2215,8 +2370,8 @@ class _DateDetailViewState extends State<DateDetailView>
       case UnifiedItemType.schedule:
         final schedule = item.data as ScheduleData;
 
-        // 🚫 Divider 제약 위반 시 흔들림 + 빨간색 효과
-        final isInvalid = _isReorderingScheduleBelowDivider;
+        // � 현재 카드가 흔들리는 중인지 확인
+        final isShaking = _shakingCardIndex == index;
 
         // 🎯 카드 위(사이)에 호버 중인지 확인 (-(index+1000)으로 표시)
         final isBetweenHovered = _hoveredCardIndex == -(index + 1000);
@@ -2229,131 +2384,164 @@ class _DateDetailViewState extends State<DateDetailView>
             // 🎯 카드 사이 드롭존 (카드 위쪽)
             _buildBetweenCardDropZone(index, date, isBetweenHovered),
 
-            // 🔥 실제 카드 (DragTarget으로 감싸기)
-            DragTarget<TaskData>(
-              hitTestBehavior:
-                  HitTestBehavior.translucent, // 🎯 더 민감한 터치 감지 (Schedule)
-              onWillAcceptWithDetails: (details) => true,
-              onMove: (details) {
-                if (mounted && _hoveredCardIndex != index) {
-                  setState(() {
-                    _isDraggingFromInbox = true;
-                    _hoveredCardIndex = index;
-                  });
-                }
-              },
-              onLeave: (data) {
-                print('👋 [Schedule #$index] 드롭 영역 이탈 - 파란색 박스 숨김');
-                if (mounted) {
-                  setState(() {
-                    _hoveredCardIndex = null;
-                  });
-                }
-              },
-              onAcceptWithDetails: (details) async {
-                final task = details.data;
-                print(
-                  '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+            // � 흔들림 효과를 위한 AnimatedBuilder
+            AnimatedBuilder(
+              animation: _shakeAnimation,
+              builder: (context, child) {
+                return Transform.translate(
+                  offset: Offset(isShaking ? _shakeAnimation.value : 0.0, 0),
+                  child: child,
                 );
-                print('✅ [Schedule #$index] 🔥 드롭 완료!');
-                print('   🔵 파란색 박스가 표시된 위치: index=$index');
-                print('   📅 대상 날짜: ${date.toString().split(' ')[0]}');
-                print('');
-
-                // 🎯 즉시 햅틱
-                HapticFeedback.heavyImpact();
-
-                // 🔥 새로운 드롭 처리 함수 호출
-                await _handleInboxDrop(index, task, date);
-
-                // 🔥 인박스 바텀시트 투명도 복구 (위젯 재생성 안함)
-                if (mounted) {
-                  setState(() {
-                    _isDraggingFromInbox = false;
-                    _hoveredCardIndex = null;
-                  });
-                }
               },
-              builder: (context, candidateData, rejectedData) {
-                return RepaintBoundary(
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.elasticOut,
-                    // 좌우 흔들림 효과 (offset 대신 padding으로 구현)
-                    padding: EdgeInsets.only(
-                      bottom: 0,
-                      left: isInvalid ? 20 : 24,
-                      right: isInvalid ? 28 : 24,
-                    ),
+              child: // �🔥 실제 카드 (DragTarget으로 감싸기)
+              DragTarget<TaskData>(
+                hitTestBehavior:
+                    HitTestBehavior.translucent, // 🎯 더 민감한 터치 감지 (Schedule)
+                onWillAcceptWithDetails: (details) => true,
+                onMove: (details) {
+                  if (mounted && _hoveredCardIndex != index) {
+                    setState(() {
+                      _isDraggingFromInbox = true;
+                      _hoveredCardIndex = index;
+                    });
+                  }
+                },
+                onLeave: (data) {
+                  print('👋 [Schedule #$index] 드롭 영역 이탈 - 파란색 박스 숨김');
+                  if (mounted) {
+                    setState(() {
+                      _hoveredCardIndex = null;
+                    });
+                  }
+                },
+                onAcceptWithDetails: (details) async {
+                  final task = details.data;
+                  print(
+                    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+                  );
+                  print('✅ [Schedule #$index] 🔥 드롭 완료!');
+                  print('   🔵 파란색 박스가 표시된 위치: index=$index');
+                  print('   📅 대상 날짜: ${date.toString().split(' ')[0]}');
+                  print('');
+
+                  // 🎯 즉시 햅틱
+                  HapticFeedback.heavyImpact();
+
+                  // 🔥 새로운 드롭 처리 함수 호출
+                  await _handleInboxDrop(index, task, date);
+
+                  // 🔥 인박스 바텀시트 투명도 복구 (위젯 재생성 안함)
+                  if (mounted) {
+                    setState(() {
+                      _isDraggingFromInbox = false;
+                      _hoveredCardIndex = null;
+                    });
+                  }
+                },
+                builder: (context, candidateData, rejectedData) {
+                  return RepaintBoundary(
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(24),
-                        // 빨간색 테두리 효과
-                        border: isInvalid
-                            ? Border.all(
-                                color: Colors.red.withOpacity(0.6),
-                                width: 2,
-                              )
-                            : null,
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                      padding: const EdgeInsets.only(
+                        bottom: 0,
+                        left: 24,
+                        right: 24,
                       ),
-                      child: GestureDetector(
-                        onTap: () => _openScheduleDetail(schedule),
-                        child: SlidableScheduleCard(
-                          groupTag: 'unified_list',
-                          scheduleId: schedule.id,
-                          repeatRule: schedule.repeatRule, // 🔄 반복 규칙 전달
-                          showConfirmDialog: true, // ✅ 삭제 확인 모달 표시
-                          onComplete: () async {
-                            // 🔥 반복 일정은 ScheduleCompletion 테이블로 날짜별 완료 처리
-                            await GetIt.I<AppDatabase>()
-                                .recordScheduleCompletion(
-                                  schedule.id,
-                                  date, // 현재 날짜
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          // 🔴 빨간색 테두리 효과 (흔들리는 중일 때)
+                          border: isShaking
+                              ? Border.all(
+                                  color: const Color(0xFFFF3B30), // iOS 시스템 빨강
+                                  width: 2.5,
+                                )
+                              : null,
+                        ),
+                        child: GestureDetector(
+                          onTap: () => _openScheduleDetail(schedule),
+                          child: SlidableScheduleCard(
+                            groupTag: 'unified_list',
+                            scheduleId: schedule.id,
+                            repeatRule: schedule.repeatRule, // 🔄 반복 규칙 전달
+                            showConfirmDialog: true, // ✅ 삭제 확인 모달 표시
+                            onComplete: () async {
+                              // 🎯 햅틱 피드백 먼저 제공
+                              HapticFeedback.lightImpact();
+
+                              // 🔥 반복 일정인지 확인
+                              final pattern = await GetIt.I<AppDatabase>()
+                                  .getRecurringPattern(
+                                    entityType: 'schedule',
+                                    entityId: schedule.id,
+                                  );
+
+                              if (pattern != null) {
+                                // 🔥 반복 일정: ScheduleCompletion 테이블로 날짜별 완료 처리
+                                await GetIt.I<AppDatabase>()
+                                    .recordScheduleCompletion(
+                                      schedule.id,
+                                      date, // 현재 날짜
+                                    );
+                                print(
+                                  '✅ [ScheduleCard] 완료 (반복): ${schedule.summary} (날짜: $date)',
                                 );
-                            print(
-                              '✅ [ScheduleCard] 완료: ${schedule.summary} (날짜: $date)',
-                            );
-                            HapticFeedback.lightImpact();
-                            // 🎯 완료 시 완료박스 자동 확장
-                            if (!_isCompletedExpanded) {
-                              setState(() {
-                                _isCompletedExpanded = true;
-                                _completedExpandController.forward();
-                              });
-                            }
-                          },
-                          onDelete: () async {
-                            await GetIt.I<AppDatabase>().deleteSchedule(
-                              schedule.id,
-                            );
-                            // 🗑️ DailyCardOrder에서도 삭제
-                            await GetIt.I<AppDatabase>()
-                                .deleteCardFromAllOrders(
-                                  'schedule',
+                              } else {
+                                // 🔥 일반 일정: completed 필드 업데이트
+                                await GetIt.I<AppDatabase>().completeSchedule(
                                   schedule.id,
                                 );
-                            print('🗑️ [ScheduleCard] 삭제: ${schedule.summary}');
-                            // ✅ 토스트 표시
-                            if (context.mounted) {
-                              showActionToast(context, type: ToastType.delete);
-                            }
-                          },
-                          child: ScheduleCard(
-                            start: schedule.start,
-                            end: schedule.end,
-                            summary: schedule.summary,
-                            colorId: schedule.colorId,
-                            repeatRule: schedule.repeatRule,
-                            alertSetting: schedule.alertSetting,
+                                print(
+                                  '✅ [ScheduleCard] 완료 (일반): ${schedule.summary}',
+                                );
+                              }
+
+                              // 🎯 완료 시 완료박스 자동 확장
+                              if (!_isCompletedExpanded) {
+                                setState(() {
+                                  _isCompletedExpanded = true;
+                                  _completedExpandController.forward();
+                                });
+                              }
+                            },
+                            onDelete: () async {
+                              await GetIt.I<AppDatabase>().deleteSchedule(
+                                schedule.id,
+                              );
+                              // 🗑️ DailyCardOrder에서도 삭제
+                              await GetIt.I<AppDatabase>()
+                                  .deleteCardFromAllOrders(
+                                    'schedule',
+                                    schedule.id,
+                                  );
+                              print(
+                                '🗑️ [ScheduleCard] 삭제: ${schedule.summary}',
+                              );
+                              // ✅ 토스트 표시
+                              if (context.mounted) {
+                                showActionToast(
+                                  context,
+                                  type: ToastType.delete,
+                                );
+                              }
+                            },
+                            child: ScheduleCard(
+                              start: schedule.start,
+                              end: schedule.end,
+                              summary: schedule.summary,
+                              colorId: schedule.colorId,
+                              repeatRule: schedule.repeatRule,
+                              alertSetting: schedule.alertSetting,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              },
-            ), // DragTarget 닫기
+                  );
+                },
+              ), // DragTarget 닫기
+            ), // AnimatedBuilder 닫기
           ], // Column children 닫기
         ); // Column 닫기
 
@@ -2766,6 +2954,54 @@ class _DateDetailViewState extends State<DateDetailView>
         );
 
       // ====================================================================
+      // 📅 일정 섹션 날짜 헤더 (今日, 明日, 昨日, ⭕️月⭕️日)
+      // Figma 스펙: 16px, Bold (700), 좌측 28px, 상단 8px, 하단 16px
+      // ====================================================================
+      case UnifiedItemType.scheduleHeader:
+        final headerData = item.data as Map<String, dynamic>;
+        final label = headerData['label'] as String;
+        return Container(
+          key: key,
+          width: 393,
+          padding: const EdgeInsets.fromLTRB(28, 8, 28, 16),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'LINE Seed JP App_TTF',
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              height: 1.4,
+              letterSpacing: -0.005 * 16,
+              color: Color(0xFF262626),
+            ),
+          ),
+        );
+
+      // ====================================================================
+      // ✅ 할일 섹션 날짜 헤더 (今日, 明日, 昨日, ⭕️月⭕️日, 未指定)
+      // Figma 스펙: 16px, Bold (700), 좌측 28px, 상단 8px, 하단 16px
+      // ====================================================================
+      case UnifiedItemType.taskHeader:
+        final headerData = item.data as Map<String, dynamic>;
+        final label = headerData['label'] as String;
+        return Container(
+          key: key,
+          width: 393,
+          padding: const EdgeInsets.fromLTRB(28, 8, 28, 16),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'LINE Seed JP App_TTF',
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              height: 1.4,
+              letterSpacing: -0.005 * 16,
+              color: Color(0xFF262626),
+            ),
+          ),
+        );
+
+      // ====================================================================
       // --- 점선 구분선 (Divider)
       // ====================================================================
       case UnifiedItemType.divider:
@@ -2918,6 +3154,26 @@ class _DateDetailViewState extends State<DateDetailView>
         date.day == now.day;
   }
 
+  /// 날짜 레이블 생성 (今日, 明日, 昨日, ⭕️月⭕️日)
+  /// 이거를 설정하고 → 기준일(baseDate)과 대상일(targetDate)를 비교해서
+  /// 이거를 해서 → 오늘/내일/어제는 일본어로, 그 외는 ⭕️月⭕️日 형식으로 반환한다
+  String _getDateLabel(DateTime baseDate, DateTime targetDate) {
+    // 시간을 제거하고 날짜만 비교
+    final base = DateTime(baseDate.year, baseDate.month, baseDate.day);
+    final target = DateTime(targetDate.year, targetDate.month, targetDate.day);
+    final diff = target.difference(base).inDays;
+
+    if (diff == 0) {
+      return '今日';
+    } else if (diff == 1) {
+      return '明日';
+    } else if (diff == -1) {
+      return '昨日';
+    } else {
+      return '${target.month}月${target.day}日';
+    }
+  }
+
   /// 통합 아이템 리스트 생성 (DailyCardOrder 우선, 없으면 기본 순서)
   /// 이거를 설정하고 → DailyCardOrder 테이블에서 커스텀 순서를 조회해서
   /// 이거를 해서 → 있으면 커스텀 순서로, 없으면 기본 순서(createdAt)로 표시하고
@@ -2932,6 +3188,98 @@ class _DateDetailViewState extends State<DateDetailView>
     print(
       '  📊 입력 데이터: 일정=${schedules.length}, 할일=${tasks.length}, 습관=${habits.length}',
     );
+
+    // 🎯 인박스 모드일 때는 TempExtractedItems 테이블에서 데이터 조회
+    if (_isInboxMode) {
+      print('  🎯 [인박스 모드] TempExtractedItems 데이터 조회 시작');
+
+      final db = GetIt.I<AppDatabase>();
+      final tempItems = await (db.select(
+        db.tempExtractedItems,
+      )..where((tbl) => tbl.isConfirmed.equals(true))).get();
+
+      print('  📊 임시 추출 데이터: ${tempItems.length}개');
+
+      List<UnifiedListItem> items = [];
+      int order = 0;
+
+      // 날짜별로 그룹핑 (startDate, dueDate, executionDate 모두 고려)
+      final itemsByDate = <DateTime?, List<TempExtractedItemData>>{};
+
+      for (final item in tempItems) {
+        DateTime? itemDate;
+
+        // 날짜 우선순위: startDate > dueDate > executionDate
+        if (item.startDate != null) {
+          itemDate = DateTime(
+            item.startDate!.year,
+            item.startDate!.month,
+            item.startDate!.day,
+          );
+        } else if (item.dueDate != null) {
+          itemDate = DateTime(
+            item.dueDate!.year,
+            item.dueDate!.month,
+            item.dueDate!.day,
+          );
+        } else if (item.executionDate != null) {
+          itemDate = DateTime(
+            item.executionDate!.year,
+            item.executionDate!.month,
+            item.executionDate!.day,
+          );
+        }
+
+        itemsByDate.putIfAbsent(itemDate, () => []).add(item);
+      }
+
+      // 날짜순 정렬 (null은 맨 뒤로)
+      final sortedDates = itemsByDate.keys.toList()
+        ..sort((a, b) {
+          if (a == null && b == null) return 0;
+          if (a == null) return 1;
+          if (b == null) return -1;
+          return a.compareTo(b);
+        });
+
+      // 날짜별로 헤더 + 아이템 추가
+      for (final itemDate in sortedDates) {
+        final dateItems = itemsByDate[itemDate]!;
+
+        // 날짜 헤더 추가
+        if (itemDate != null) {
+          final label = _getDateLabel(date, itemDate);
+          print('    📅 임시 데이터 날짜 헤더: $label (items=${dateItems.length})');
+          items.add(
+            UnifiedListItem.scheduleHeader(
+              date: itemDate,
+              label: label,
+              sortOrder: order++,
+            ),
+          );
+        } else {
+          print('    📅 임시 데이터 날짜 헤더: 未指定 (items=${dateItems.length})');
+          items.add(
+            UnifiedListItem.taskHeader(
+              date: null,
+              label: '未指定',
+              sortOrder: order++,
+            ),
+          );
+        }
+
+        // 해당 날짜의 아이템들 추가
+        for (final item in dateItems) {
+          print('    ✅ 임시 데이터 추가: "${item.title}" (type=${item.itemType})');
+
+          // TODO: TempExtractedItemData를 UnifiedListItem으로 변환하는 로직 필요
+          // 지금은 일단 스킵 - 다음 단계에서 처리
+        }
+      }
+
+      print('  ✅ [인박스 모드] 통합 리스트 생성 완료: ${items.length}개');
+      return items;
+    }
 
     // 🎯 완료된 습관 ID 조회 (HabitCompletion 테이블)
     final completedHabits = await GetIt.I<AppDatabase>()
@@ -2981,12 +3329,44 @@ class _DateDetailViewState extends State<DateDetailView>
 
       int order = 0;
 
-      // 1️⃣ 일정 추가 (시간순, 미완료만)
+      // 1️⃣ 일정 추가 (날짜별 그룹핑, 시간순, 미완료만)
       final incompleteSchedules = schedules.where((s) => !s.completed).toList();
       print('  → 일정 추가 중... (미완료: ${incompleteSchedules.length}개)');
+
+      // 일정을 날짜별로 그룹핑
+      final schedulesByDate = <DateTime, List<ScheduleData>>{};
       for (final schedule in incompleteSchedules) {
-        print('    ✅ 일정 추가: "${schedule.summary}" (order=$order)');
-        items.add(UnifiedListItem.fromSchedule(schedule, sortOrder: order++));
+        // 일정의 날짜 (시간 제거)
+        final scheduleDate = DateTime(
+          schedule.start.year,
+          schedule.start.month,
+          schedule.start.day,
+        );
+        schedulesByDate.putIfAbsent(scheduleDate, () => []).add(schedule);
+      }
+
+      // 날짜순으로 정렬된 키 리스트
+      final sortedScheduleDates = schedulesByDate.keys.toList()
+        ..sort((a, b) => a.compareTo(b));
+
+      // 날짜별로 헤더 + 일정 추가
+      for (final scheduleDate in sortedScheduleDates) {
+        // 날짜 헤더 추가
+        final label = _getDateLabel(date, scheduleDate);
+        print('    📅 일정 날짜 헤더 추가: $label (order=$order)');
+        items.add(
+          UnifiedListItem.scheduleHeader(
+            date: scheduleDate,
+            label: label,
+            sortOrder: order++,
+          ),
+        );
+
+        // 해당 날짜의 일정들 추가
+        for (final schedule in schedulesByDate[scheduleDate]!) {
+          print('    ✅ 일정 추가: "${schedule.summary}" (order=$order)');
+          items.add(UnifiedListItem.fromSchedule(schedule, sortOrder: order++));
+        }
       }
 
       // 2️⃣ 점선 구분선 (일정 섹션 종료)
@@ -2995,7 +3375,7 @@ class _DateDetailViewState extends State<DateDetailView>
         items.add(UnifiedListItem.divider(sortOrder: order++));
       }
 
-      // 3️⃣ 할일 추가 (미완료만, createdAt 순)
+      // 3️⃣ 할일 추가 (실행일별 그룹핑, createdAt 순, 미완료만)
       // 🔥 일반 할일은 task.completed, 반복 할일은 TaskCompletion 확인
       final incompleteTasks = tasks.where((t) {
         if (t.repeatRule.isNotEmpty) {
@@ -3007,9 +3387,48 @@ class _DateDetailViewState extends State<DateDetailView>
         }
       }).toList();
       print('  → 할일 추가 중... (미완료: ${incompleteTasks.length}개)');
+
+      // 할일을 실행일별로 그룹핑 (executionDate 기준)
+      final tasksByDate = <DateTime?, List<TaskData>>{};
       for (final task in incompleteTasks) {
-        print('    ✅ 할일 추가: "${task.title}" (order=$order)');
-        items.add(UnifiedListItem.fromTask(task, sortOrder: order++));
+        // 실행일이 있으면 날짜만 추출, 없으면 null
+        final taskDate = task.executionDate != null
+            ? DateTime(
+                task.executionDate!.year,
+                task.executionDate!.month,
+                task.executionDate!.day,
+              )
+            : null;
+        tasksByDate.putIfAbsent(taskDate, () => []).add(task);
+      }
+
+      // 날짜순으로 정렬 (null은 맨 뒤)
+      final sortedTaskDates = tasksByDate.keys.toList()
+        ..sort((a, b) {
+          if (a == null && b == null) return 0;
+          if (a == null) return 1; // null은 뒤로
+          if (b == null) return -1;
+          return a.compareTo(b);
+        });
+
+      // 날짜별로 헤더 + 할일 추가
+      for (final taskDate in sortedTaskDates) {
+        // 날짜 헤더 추가
+        final label = taskDate != null ? _getDateLabel(date, taskDate) : '未指定';
+        print('    ✅ 할일 날짜 헤더 추가: $label (order=$order)');
+        items.add(
+          UnifiedListItem.taskHeader(
+            date: taskDate,
+            label: label,
+            sortOrder: order++,
+          ),
+        );
+
+        // 해당 날짜의 할일들 추가
+        for (final task in tasksByDate[taskDate]!) {
+          print('    ✅ 할일 추가: "${task.title}" (order=$order)');
+          items.add(UnifiedListItem.fromTask(task, sortOrder: order++));
+        }
       }
 
       // 4️⃣ 습관 추가 (미완료만, createdAt 순)
@@ -3065,19 +3484,48 @@ class _DateDetailViewState extends State<DateDetailView>
         // DailyCardOrder 삭제 (비동기 처리)
         GetIt.I<AppDatabase>().resetDailyCardOrder(date);
 
-        // 기본 순서로 폴백
+        // 기본 순서로 폴백 (날짜별 그룹핑 포함)
         int order = 0;
         final incompleteSchedules = schedules
             .where((s) => !s.completed)
             .toList();
+
+        // 일정을 날짜별로 그룹핑
+        final schedulesByDate = <DateTime, List<ScheduleData>>{};
         for (final schedule in incompleteSchedules) {
-          print('    ✅ 일정 추가: "${schedule.summary}" (order=$order)');
-          items.add(UnifiedListItem.fromSchedule(schedule, sortOrder: order++));
+          final scheduleDate = DateTime(
+            schedule.start.year,
+            schedule.start.month,
+            schedule.start.day,
+          );
+          schedulesByDate.putIfAbsent(scheduleDate, () => []).add(schedule);
         }
+
+        final sortedScheduleDates = schedulesByDate.keys.toList()
+          ..sort((a, b) => a.compareTo(b));
+
+        for (final scheduleDate in sortedScheduleDates) {
+          final label = _getDateLabel(date, scheduleDate);
+          items.add(
+            UnifiedListItem.scheduleHeader(
+              date: scheduleDate,
+              label: label,
+              sortOrder: order++,
+            ),
+          );
+          for (final schedule in schedulesByDate[scheduleDate]!) {
+            print('    ✅ 일정 추가: "${schedule.summary}" (order=$order)');
+            items.add(
+              UnifiedListItem.fromSchedule(schedule, sortOrder: order++),
+            );
+          }
+        }
+
         if (incompleteSchedules.isNotEmpty) {
           print('    ➖ 구분선 추가 (order=$order)');
           items.add(UnifiedListItem.divider(sortOrder: order++));
         }
+
         // 🔥 일반 할일은 task.completed, 반복 할일은 TaskCompletion 확인
         final incompleteTasks = tasks.where((t) {
           if (t.repeatRule.isNotEmpty) {
@@ -3086,10 +3534,45 @@ class _DateDetailViewState extends State<DateDetailView>
             return !t.completed;
           }
         }).toList();
+
+        // 할일을 실행일별로 그룹핑
+        final tasksByDate = <DateTime?, List<TaskData>>{};
         for (final task in incompleteTasks) {
-          print('    ✅ 할일 추가: "${task.title}" (order=$order)');
-          items.add(UnifiedListItem.fromTask(task, sortOrder: order++));
+          final taskDate = task.executionDate != null
+              ? DateTime(
+                  task.executionDate!.year,
+                  task.executionDate!.month,
+                  task.executionDate!.day,
+                )
+              : null;
+          tasksByDate.putIfAbsent(taskDate, () => []).add(task);
         }
+
+        final sortedTaskDates = tasksByDate.keys.toList()
+          ..sort((a, b) {
+            if (a == null && b == null) return 0;
+            if (a == null) return 1;
+            if (b == null) return -1;
+            return a.compareTo(b);
+          });
+
+        for (final taskDate in sortedTaskDates) {
+          final label = taskDate != null
+              ? _getDateLabel(date, taskDate)
+              : '未指定';
+          items.add(
+            UnifiedListItem.taskHeader(
+              date: taskDate,
+              label: label,
+              sortOrder: order++,
+            ),
+          );
+          for (final task in tasksByDate[taskDate]!) {
+            print('    ✅ 할일 추가: "${task.title}" (order=$order)');
+            items.add(UnifiedListItem.fromTask(task, sortOrder: order++));
+          }
+        }
+
         for (final habit in incompleteHabits) {
           print('    ✅ 습관 추가: "${habit.title}" (order=$order)');
           items.add(UnifiedListItem.fromHabit(habit, sortOrder: order++));
@@ -3783,7 +4266,7 @@ class _DateDetailViewState extends State<DateDetailView>
           height: 22,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: const Text(
-            '習慣',
+            'ルーティン',
             style: TextStyle(
               fontFamily: 'LINE Seed JP App_TTF',
               fontSize: 16,
@@ -3914,9 +4397,30 @@ class _DateDetailViewState extends State<DateDetailView>
         children: [
           CustomSlidableAction(
             onPressed: (context) async {
+              // 🎯 햅틱 피드백 먼저 제공 (즉각적인 반응)
               await HapticFeedback.lightImpact();
-              await GetIt.I<AppDatabase>().uncompleteSchedule(schedule.id);
-              // setState() 제거 - StreamBuilder가 자동으로 반응
+
+              // 🔥 반복 일정인지 확인
+              final pattern = await GetIt.I<AppDatabase>().getRecurringPattern(
+                entityType: 'schedule',
+                entityId: schedule.id,
+              );
+
+              if (pattern != null) {
+                // 🔥 반복 일정: ScheduleCompletion 삭제
+                await GetIt.I<AppDatabase>().deleteScheduleCompletion(
+                  schedule.id,
+                  date,
+                );
+                print(
+                  '🔄 [CompletedSchedule] 완료 해제: ${schedule.summary} (날짜: $date)',
+                );
+              } else {
+                // 🔥 일반 일정: completed 필드 업데이트
+                await GetIt.I<AppDatabase>().uncompleteSchedule(schedule.id);
+                print('🔄 [CompletedSchedule] 완료 해제: ${schedule.summary}');
+              }
+              // ✅ StreamBuilder가 자동으로 반응하여 완료박스에서 사라지고 리스트로 이동
             },
             backgroundColor: Colors.transparent,
             borderRadius: BorderRadius.circular(100),
@@ -3998,9 +4502,30 @@ class _DateDetailViewState extends State<DateDetailView>
         children: [
           CustomSlidableAction(
             onPressed: (context) async {
+              // 🎯 햅틱 피드백 먼저 제공 (즉각적인 반응)
               await HapticFeedback.lightImpact();
-              await GetIt.I<AppDatabase>().uncompleteTask(task.id);
-              // setState() 제거 - StreamBuilder가 자동으로 반응
+
+              // 🔥 반복 할일인지 확인
+              final pattern = await GetIt.I<AppDatabase>().getRecurringPattern(
+                entityType: 'task',
+                entityId: task.id,
+              );
+
+              if (pattern != null) {
+                // 🔥 반복 할일: TaskCompletion 삭제
+                await GetIt.I<AppDatabase>().deleteTaskCompletion(
+                  task.id,
+                  date,
+                );
+                print(
+                  '🔄 [CompletedTask] 완료 해제 (스와이프): ${task.title} (날짜: $date)',
+                );
+              } else {
+                // 🔥 일반 할일: completed 필드 업데이트
+                await GetIt.I<AppDatabase>().uncompleteTask(task.id);
+                print('🔄 [CompletedTask] 완료 해제 (스와이프): ${task.title}');
+              }
+              // ✅ StreamBuilder가 자동으로 반응하여 완료박스에서 사라지고 리스트로 이동
             },
             backgroundColor: Colors.transparent,
             borderRadius: BorderRadius.circular(100),
@@ -4082,12 +4607,16 @@ class _DateDetailViewState extends State<DateDetailView>
         children: [
           CustomSlidableAction(
             onPressed: (context) async {
+              // 🎯 햅틱 피드백 먼저 제공 (즉각적인 반응)
               await HapticFeedback.lightImpact();
+
+              // 완료 해제 (HabitCompletion 삭제)
               await GetIt.I<AppDatabase>().deleteHabitCompletion(
                 habit.id,
                 date,
               );
-              // setState() 제거 - StreamBuilder가 자동으로 반응
+              print('🔄 [CompletedHabit] 완료 해제 (스와이프): ${habit.title}');
+              // ✅ StreamBuilder가 자동으로 반응하여 완료박스에서 사라지고 리스트로 이동
             },
             backgroundColor: Colors.transparent,
             borderRadius: BorderRadius.circular(100),
@@ -4152,6 +4681,9 @@ class _DateDetailViewState extends State<DateDetailView>
           task: task,
           isCompleted: effectiveCompleted, // 🔥 완료 상태 전달
           onToggle: () async {
+            // 🎯 햅틱 피드백 먼저 제공 (즉각적인 반응)
+            HapticFeedback.lightImpact();
+
             // 🔥 반복 할일인지 확인
             final pattern = await GetIt.I<AppDatabase>().getRecurringPattern(
               entityType: 'task',
@@ -4167,8 +4699,7 @@ class _DateDetailViewState extends State<DateDetailView>
               await GetIt.I<AppDatabase>().uncompleteTask(task.id);
               print('🔄 [CompletedTask] 완료 해제: ${task.title}');
             }
-            HapticFeedback.lightImpact();
-            // setState() 제거 - StreamBuilder가 자동으로 반응
+            // ✅ StreamBuilder가 자동으로 반응하여 완료박스에서 사라지고 리스트로 이동
           },
           onTap: () {
             // 상세 모달 열기
@@ -4193,11 +4724,13 @@ class _DateDetailViewState extends State<DateDetailView>
           habit: habit,
           isCompleted: isCompleted, // 🔥 실시간 완료 상태 전달
           onToggle: () async {
+            // 🎯 햅틱 피드백 먼저 제공 (즉각적인 반응)
+            HapticFeedback.lightImpact();
+
             // 완료 해제 (HabitCompletion 삭제)
             await GetIt.I<AppDatabase>().deleteHabitCompletion(habit.id, date);
             print('🔄 [CompletedHabit] 완료 해제: ${habit.title}');
-            HapticFeedback.lightImpact();
-            // setState() 제거 - StreamBuilder가 자동으로 반응
+            // ✅ StreamBuilder가 자동으로 반응하여 완료박스에서 사라지고 리스트로 이동
           },
           onTap: () {
             // 상세 모달 열기

@@ -97,4 +97,20 @@ class BottomSheetController extends ChangeNotifier {
     _reminder = '';
     notifyListeners();
   }
+
+  /// 일정 생성용 초기화 (리마인더 기본값: 10분 전)
+  void resetForSchedule() {
+    _selectedColor = 'gray';
+    _repeatRule = '';
+    _reminder = '{"value":"10","display":"10分前"}'; // ✅ 일정 기본값: 10분 전
+    notifyListeners();
+  }
+
+  /// 할일 생성용 초기화 (리마인더 기본값: 없음)
+  void resetForTask() {
+    _selectedColor = 'gray';
+    _repeatRule = '';
+    _reminder = ''; // ✅ 할일 기본값: 없음
+    notifyListeners();
+  }
 }

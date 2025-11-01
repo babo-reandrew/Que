@@ -1291,9 +1291,9 @@ void _handleSave(
         }
       }
 
-      // 🎯 수정 완료 후 통합 캐시 클리어
-      await TempInputCache.clearCacheForType('habit');
-      debugPrint('🗑️ [HabitWolt] 습관 통합 캐시 클리어 완료');
+      // 🎯 수정 완료 후 제목 포함 모든 캐시 클리어
+      await TempInputCache.clearAllIncludingTitle();
+      debugPrint('🗑️ [HabitWolt] 습관 캐시 클리어 완료 (제목 포함)');
 
       // ✅ 변경 토스트 표시
       if (context.mounted) {
@@ -1346,9 +1346,9 @@ void _handleSave(
         debugPrint('⚠️ [HabitWolt] RRULE 변환 실패');
       }
 
-      // ========== 6단계: 통합 캐시 클리어 ==========
-      await TempInputCache.clearCacheForType('habit');
-      debugPrint('🗑️ [HabitWolt] 습관 통합 캐시 클리어 완료');
+      // ========== 6단계: 제목 포함 모든 캐시 클리어 ==========
+      await TempInputCache.clearAllIncludingTitle();
+      debugPrint('🗑️ [HabitWolt] 습관 캐시 클리어 완료 (제목 포함)');
 
       // ✅ 저장 토스트 표시 (캘린더에 저장됨)
       if (context.mounted) {

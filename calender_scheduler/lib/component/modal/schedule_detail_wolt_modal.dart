@@ -121,7 +121,7 @@ Future<void> showScheduleDetailWoltModal(
   } else {
     // 새 일정 생성
     scheduleController.reset();
-    bottomSheetController.reset(); // ✅ Provider 초기화
+    bottomSheetController.resetForSchedule(); // ✅ 일정용 초기화 (리마인더 기본값: 10분 전)
 
     // 🎯 통합 캐시에서 공통 데이터 복원
     final commonData = await TempInputCache.getCommonData();
@@ -139,6 +139,9 @@ Future<void> showScheduleDetailWoltModal(
     if (commonData['reminder'] != null && commonData['reminder']!.isNotEmpty) {
       bottomSheetController.updateReminder(commonData['reminder']!);
       debugPrint('✅ [ScheduleWolt] 통합 리마인더 복원: ${commonData['reminder']}');
+    } else {
+      // ✅ 캐시가 없으면 기본값(10분 전) 유지
+      debugPrint('✅ [ScheduleWolt] 리마인더 기본값 사용: 10분 전');
     }
 
     if (commonData['repeatRule'] != null &&
@@ -1979,20 +1982,23 @@ void _handleSave(
       debugPrint('   - 종료: ${scheduleController.endDateTime}');
       debugPrint('   - 반복 규칙: ${safeRepeatRule ?? "(없음)"}');
 
-      // 🎯 수정 완료 후 통합 캐시 클리어
-      await TempInputCache.clearCacheForType('schedule');
-      debugPrint('🗑️ [ScheduleWolt] 일정 통합 캐시 클리어 완료');
+      // 🎯 수정 완료 후 제목 포함 모든 캐시 클리어
+      await TempInputCache.clearAllIncludingTitle();
+      debugPrint('🗑️ [ScheduleWolt] 일정 캐시 클리어 완료 (제목 포함)');
     } else {
       // ========== 5단계: 새 일정 생성 (createdAt 명시) ==========
+      // ✅ 일정 리마인더 기본값: 10분 전 (사용자가 설정하지 않았으면)
+      final finalReminder = (safeReminder == null || safeReminder.isEmpty)
+          ? '{"value":"10","display":"10分前"}'
+          : safeReminder;
+
       final newId = await db.createSchedule(
         ScheduleCompanion.insert(
           summary: scheduleController.title.trim(),
           start: scheduleController.startDateTime!,
           end: scheduleController.endDateTime!,
           colorId: finalColor,
-          alertSetting: (safeReminder != null && safeReminder.isNotEmpty)
-              ? Value(safeReminder)
-              : const Value.absent(), // ✅ 리마인더: 사용자가 설정한 경우에만 저장
+          alertSetting: Value(finalReminder), // ✅ 리마인더: 기본값 10분 전 적용
           repeatRule: (safeRepeatRule != null && safeRepeatRule.isNotEmpty)
               ? Value(safeRepeatRule)
               : const Value.absent(), // ✅ 반복 규칙: 사용자가 설정한 경우에만 저장
@@ -2037,9 +2043,9 @@ void _handleSave(
         }
       }
 
-      // ========== 6단계: 통합 캐시 클리어 ==========
-      await TempInputCache.clearCacheForType('schedule');
-      debugPrint('🗑️ [ScheduleWolt] 일정 통합 캐시 클리어 완료');
+      // ========== 6단계: 제목 포함 모든 캐시 클리어 ==========
+      await TempInputCache.clearAllIncludingTitle();
+      debugPrint('🗑️ [ScheduleWolt] 일정 캐시 클리어 완료 (제목 포함)');
 
       // ✅ 저장 토스트 표시 (캘린더에 저장됨)
       if (context.mounted) {

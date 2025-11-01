@@ -14,6 +14,7 @@ import 'package:calender_scheduler/providers/task_form_controller.dart';
 import 'package:calender_scheduler/providers/habit_form_controller.dart';
 import 'package:calender_scheduler/providers/image_analysis_provider.dart'; // ✅ 추가
 import 'package:calender_scheduler/design_system/wolt_theme.dart';
+import 'package:calender_scheduler/utils/temp_input_cache.dart'; // ✅ 임시 캐시 초기화
 // import 'package:calender_scheduler/utils/sample_data_helper.dart'; // ✅ 샘플 데이터 헬퍼 - 비활성화
 
 // ===================================================================
@@ -44,8 +45,7 @@ void main() async {
   // ===================================================================
   try {
     await dotenv.load(fileName: '.env');
-  } catch (e) {
-  }
+  } catch (e) {}
 
   // ===================================================================
   // 3. 데이터베이스 초기화 및 의존성 주입
@@ -93,7 +93,16 @@ void main() async {
   // }
 
   // ===================================================================
-  // 6. 앱 실행
+  // 7. 앱 재실행 시 임시 캐시 초기화 (제목 제외)
+  // ===================================================================
+  // 이거를 설정하고 → 앱 시작 시 임시 입력 캐시를 삭제해서
+  // 이거를 해서 → 색상, 날짜, 반복 규칙, 리마인더가 초기화된다
+  // 이거는 이래서 → 사용자가 앱을 새로 열 때마다 깨끗한 상태로 시작한다
+  await TempInputCache.clearTempInput();
+  await TempInputCache.clearAllUnifiedCache(); // 통합 캐시도 초기화 (제목 제외)
+
+  // ===================================================================
+  // 8. 앱 실행
   // ===================================================================
   runApp(const CalendarSchedulerApp());
 }

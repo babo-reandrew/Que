@@ -28,7 +28,7 @@ import '../providers/bottom_sheet_controller.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 /// 통합 아이템 타입
-enum GeminiItemType { schedule, task, habit, sectionHeader }
+enum GeminiItemType { schedule, task, habit, sectionHeader, dateHeader }
 
 /// 통합 아이템 클래스
 class GeminiItem {
@@ -67,11 +67,20 @@ class GeminiItem {
     );
   }
 
-  /// 섹션 헤더
+  /// 섹션 헤더 (スケジュール, タスク, ルーティン)
   factory GeminiItem.header(String title) {
     return GeminiItem(
       type: GeminiItemType.sectionHeader,
       id: 'header_$title',
+      sectionTitle: title,
+    );
+  }
+
+  /// 날짜 헤더 (今日, 8月2日 등)
+  factory GeminiItem.dateHeader(String title) {
+    return GeminiItem(
+      type: GeminiItemType.dateHeader,
+      id: 'date_header_$title',
       sectionTitle: title,
     );
   }
@@ -159,6 +168,7 @@ class GeminiItem {
         break;
 
       case GeminiItemType.sectionHeader:
+      case GeminiItemType.dateHeader:
         return data;
     }
     return data;
@@ -202,23 +212,19 @@ class _GeminiResultConfirmationScreenState
     final hasTasks = widget.tasks.isNotEmpty;
     final hasHabits = widget.habits.isNotEmpty;
 
-    // 1. 스케줄 (값이 있으면)
+    // 1. 스케줄 (값이 있으면) - 날짜별 그룹핑
     if (hasSchedules) {
       _items.add(GeminiItem.header('スケジュール'));
-      for (int i = 0; i < widget.schedules.length; i++) {
-        _items.add(GeminiItem.schedule(widget.schedules[i], i));
-      }
+      _addSchedulesGroupedByDate();
     }
 
-    // 2. 타스크 (값이 있으면)
+    // 2. 타스크 (값이 있으면) - 실행일별 그룹핑
     if (hasTasks) {
       _items.add(GeminiItem.header('タスク'));
-      for (int i = 0; i < widget.tasks.length; i++) {
-        _items.add(GeminiItem.task(widget.tasks[i], i));
-      }
+      _addTasksGroupedByDate();
     }
 
-    // 3. 습관 (값이 있으면)
+    // 3. 습관 (값이 있으면) - 날짜 그룹핑 없음
     if (hasHabits) {
       _items.add(GeminiItem.header('ルーティン'));
       for (int i = 0; i < widget.habits.length; i++) {
@@ -235,6 +241,93 @@ class _GeminiResultConfirmationScreenState
     }
     if (!hasHabits) {
       _items.add(GeminiItem.header('ルーティン'));
+    }
+  }
+
+  /// 스케줄을 날짜별로 그룹핑하여 추가
+  void _addSchedulesGroupedByDate() {
+    // 날짜별로 그룹핑
+    final groupedSchedules = <DateTime, List<ExtractedSchedule>>{};
+
+    for (final schedule in widget.schedules) {
+      final dateKey = DateTime(
+        schedule.start.year,
+        schedule.start.month,
+        schedule.start.day,
+      );
+      groupedSchedules.putIfAbsent(dateKey, () => []).add(schedule);
+    }
+
+    // 날짜순으로 정렬
+    final sortedDates = groupedSchedules.keys.toList()..sort();
+
+    // 각 날짜별로 헤더와 아이템 추가
+    for (final date in sortedDates) {
+      final schedules = groupedSchedules[date]!;
+
+      // 날짜 헤더 추가
+      final dateHeader = _formatDateHeader(date);
+      _items.add(GeminiItem.dateHeader(dateHeader));
+
+      // 해당 날짜의 스케줄들 추가
+      for (int i = 0; i < schedules.length; i++) {
+        _items.add(GeminiItem.schedule(schedules[i], i));
+      }
+    }
+  }
+
+  /// 타스크를 실행일별로 그룹핑하여 추가
+  void _addTasksGroupedByDate() {
+    // 실행일별로 그룹핑
+    final groupedTasks = <DateTime?, List<ExtractedTask>>{};
+
+    for (final task in widget.tasks) {
+      final dateKey = task.executionDate != null
+          ? DateTime(
+              task.executionDate!.year,
+              task.executionDate!.month,
+              task.executionDate!.day,
+            )
+          : null;
+      groupedTasks.putIfAbsent(dateKey, () => []).add(task);
+    }
+
+    // 날짜순으로 정렬 (null은 맨 뒤)
+    final sortedDates = groupedTasks.keys.toList()
+      ..sort((a, b) {
+        if (a == null) return 1;
+        if (b == null) return -1;
+        return a.compareTo(b);
+      });
+
+    // 각 날짜별로 헤더와 아이템 추가
+    for (final date in sortedDates) {
+      final tasks = groupedTasks[date]!;
+
+      // 날짜 헤더 추가
+      final dateHeader = date != null ? _formatDateHeader(date) : '実行日なし';
+      _items.add(GeminiItem.dateHeader(dateHeader));
+
+      // 해당 날짜의 타스크들 추가
+      for (int i = 0; i < tasks.length; i++) {
+        _items.add(GeminiItem.task(tasks[i], i));
+      }
+    }
+  }
+
+  /// 날짜 헤더 포맷 (今日, 8月2日 등)
+  String _formatDateHeader(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+
+    if (date == today) {
+      return '今日';
+    } else if (date == tomorrow) {
+      return '明日';
+    } else {
+      // 8月2日 형식
+      return '${date.month}月${date.day}日';
     }
   }
 
@@ -400,30 +493,56 @@ class _GeminiResultConfirmationScreenState
 
   /// 아이템 빌더
   Widget _buildItem(GeminiItem item, int index) {
-    // 섹션 헤더
+    // 섹션 헤더 (スケジュール, タスク, ルーティン) - 드래그 불가
     if (item.type == GeminiItemType.sectionHeader) {
       // 해당 섹션에 값이 있는지 확인
       final hasItems = _hasSectionItems(item.sectionTitle!);
 
-      return Container(
+      return IgnorePointer(
         key: ValueKey(item.id),
-        width: double.infinity,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.fromLTRB(0, 24, 0, 8),
-        child: SizedBox(
-          width: 342, // 카드와 동일한 너비
-          child: AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            style: TextStyle(
-              fontFamily: 'LINE Seed JP App_TTF',
-              fontSize: 19,
-              fontWeight: FontWeight.w800, // ExtraBold
-              color: hasItems
-                  ? const Color(0xFF262626) // 값이 있을 때: #262626
-                  : const Color(0xFF7A7A7A), // 값이 없을 때: #7A7A7A (비활성화)
+        child: Container(
+          width: double.infinity,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.fromLTRB(0, 24, 0, 8),
+          child: SizedBox(
+            width: 342, // 카드와 동일한 너비
+            child: AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              style: TextStyle(
+                fontFamily: 'LINE Seed JP App_TTF',
+                fontSize: 19,
+                fontWeight: FontWeight.w800, // ExtraBold
+                color: hasItems
+                    ? const Color(0xFF262626) // 값이 있을 때: #262626
+                    : const Color(0xFF7A7A7A), // 값이 없을 때: #7A7A7A (비활성화)
+              ),
+              child: Text(item.sectionTitle!),
             ),
-            child: Text(item.sectionTitle!),
+          ),
+        ),
+      );
+    }
+
+    // 날짜 헤더 (今日, 8月2日 등) - 드래그 불가
+    if (item.type == GeminiItemType.dateHeader) {
+      return IgnorePointer(
+        key: ValueKey(item.id),
+        child: Container(
+          width: double.infinity,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.fromLTRB(0, 16, 0, 8),
+          child: SizedBox(
+            width: 342, // 카드와 동일한 너비
+            child: Text(
+              item.sectionTitle!,
+              style: const TextStyle(
+                fontFamily: 'LINE Seed JP App_TTF',
+                fontSize: 15,
+                fontWeight: FontWeight.w700, // Bold
+                color: Color(0xFF7A7A7A), // 회색
+              ),
+            ),
           ),
         ),
       );
@@ -696,7 +815,8 @@ class _GeminiResultConfirmationScreenState
     if (index >= _items.length) return;
 
     final item = _items[index];
-    if (item.type == GeminiItemType.sectionHeader) {
+    if (item.type == GeminiItemType.sectionHeader ||
+        item.type == GeminiItemType.dateHeader) {
       return;
     }
 
@@ -761,7 +881,7 @@ class _GeminiResultConfirmationScreenState
     } else {}
   }
 
-  /// 섹션 재정렬: 내용이 있는 섹션을 위로, 순서는 스케줄 → 타스크 → 습관
+  /// 섹션 재정렬: 내용이 있는 섹션을 위로, 순서는 스케줄 → 타스크 → 습관, 날짜별 그룹핑 유지
   void _reorganizeSections() {
     // 1. 모든 아이템을 타입별로 분류
     final schedules = <GeminiItem>[];
@@ -784,11 +904,13 @@ class _GeminiResultConfirmationScreenState
     // 값이 있는 섹션들 (스케줄 → 타스크 → 습관 순서)
     if (schedules.isNotEmpty) {
       _items.add(GeminiItem.header('スケジュール'));
-      _items.addAll(schedules);
+      // 스케줄을 날짜별로 그룹핑
+      _addScheduleItemsGroupedByDate(schedules);
     }
     if (tasks.isNotEmpty) {
       _items.add(GeminiItem.header('タスク'));
-      _items.addAll(tasks);
+      // 타스크를 실행일별로 그룹핑
+      _addTaskItemsGroupedByDate(tasks);
     }
     if (habits.isNotEmpty) {
       _items.add(GeminiItem.header('ルーティン'));
@@ -807,6 +929,75 @@ class _GeminiResultConfirmationScreenState
     }
   }
 
+  /// 스케줄 아이템들을 날짜별로 그룹핑하여 추가
+  void _addScheduleItemsGroupedByDate(List<GeminiItem> scheduleItems) {
+    // 날짜별로 그룹핑
+    final groupedSchedules = <DateTime, List<GeminiItem>>{};
+
+    for (final item in scheduleItems) {
+      final schedule = item.data as ExtractedSchedule;
+      final dateKey = DateTime(
+        schedule.start.year,
+        schedule.start.month,
+        schedule.start.day,
+      );
+      groupedSchedules.putIfAbsent(dateKey, () => []).add(item);
+    }
+
+    // 날짜순으로 정렬
+    final sortedDates = groupedSchedules.keys.toList()..sort();
+
+    // 각 날짜별로 헤더와 아이템 추가
+    for (final date in sortedDates) {
+      final items = groupedSchedules[date]!;
+
+      // 날짜 헤더 추가
+      final dateHeader = _formatDateHeader(date);
+      _items.add(GeminiItem.dateHeader(dateHeader));
+
+      // 해당 날짜의 스케줄들 추가
+      _items.addAll(items);
+    }
+  }
+
+  /// 타스크 아이템들을 실행일별로 그룹핑하여 추가
+  void _addTaskItemsGroupedByDate(List<GeminiItem> taskItems) {
+    // 실행일별로 그룹핑
+    final groupedTasks = <DateTime?, List<GeminiItem>>{};
+
+    for (final item in taskItems) {
+      final task = item.data as ExtractedTask;
+      final dateKey = task.executionDate != null
+          ? DateTime(
+              task.executionDate!.year,
+              task.executionDate!.month,
+              task.executionDate!.day,
+            )
+          : null;
+      groupedTasks.putIfAbsent(dateKey, () => []).add(item);
+    }
+
+    // 날짜순으로 정렬 (null은 맨 뒤)
+    final sortedDates = groupedTasks.keys.toList()
+      ..sort((a, b) {
+        if (a == null) return 1;
+        if (b == null) return -1;
+        return a.compareTo(b);
+      });
+
+    // 각 날짜별로 헤더와 아이템 추가
+    for (final date in sortedDates) {
+      final items = groupedTasks[date]!;
+
+      // 날짜 헤더 추가
+      final dateHeader = date != null ? _formatDateHeader(date) : '実行日なし';
+      _items.add(GeminiItem.dateHeader(dateHeader));
+
+      // 해당 날짜의 타스크들 추가
+      _items.addAll(items);
+    }
+  }
+
   /// Provider에서 변경사항을 가져와 특정 인덱스의 아이템만 업데이트 (메모리만 업데이트, DB 저장 X)
   void _updateItemAtIndex(int index) {
     if (index < 0 || index >= _items.length) {
@@ -814,7 +1005,8 @@ class _GeminiResultConfirmationScreenState
     }
 
     final item = _items[index];
-    if (item.type == GeminiItemType.sectionHeader) {
+    if (item.type == GeminiItemType.sectionHeader ||
+        item.type == GeminiItemType.dateHeader) {
       return;
     }
 
@@ -839,6 +1031,7 @@ class _GeminiResultConfirmationScreenState
       switch (item.type) {
         case GeminiItemType.schedule:
           // Provider에서 업데이트된 스케줄 정보 가져오기
+          final oldSchedule = item.data as ExtractedSchedule;
           final updatedSchedule = ExtractedSchedule(
             summary: scheduleController.titleController.text,
             start: DateTime(
@@ -858,29 +1051,70 @@ class _GeminiResultConfirmationScreenState
             colorId: bottomSheetController.selectedColor,
             repeatRule: bottomSheetController.repeatRule,
           );
+
+          // 🎯 날짜가 바뀌었는지 확인
+          final oldDate = DateTime(
+            oldSchedule.start.year,
+            oldSchedule.start.month,
+            oldSchedule.start.day,
+          );
+          final newDate = DateTime(
+            updatedSchedule.start.year,
+            updatedSchedule.start.month,
+            updatedSchedule.start.day,
+          );
+
           _items[index] = GeminiItem(
             type: GeminiItemType.schedule,
             id: item.id,
             data: updatedSchedule,
           );
+
+          // 🎯 날짜가 바뀌었으면 섹션 재정렬 (날짜 그룹 이동)
+          if (oldDate != newDate) {
+            _reorganizeSections();
+          }
           break;
 
         case GeminiItemType.task:
           // Provider에서 업데이트된 타스크 정보 가져오기
+          final oldTask = item.data as ExtractedTask;
           final updatedTask = ExtractedTask(
             title: taskController.titleController.text,
             colorId: bottomSheetController.selectedColor,
             executionDate: taskController.executionDate,
             dueDate: taskController.dueDate,
-            listId: (item.data as ExtractedTask).listId,
+            listId: oldTask.listId,
             repeatRule: bottomSheetController.repeatRule, // 반복 규칙 업데이트
             reminder: bottomSheetController.reminder, // 리마인더 업데이트
           );
+
+          // 🎯 실행일이 바뀌었는지 확인
+          final oldDate = oldTask.executionDate != null
+              ? DateTime(
+                  oldTask.executionDate!.year,
+                  oldTask.executionDate!.month,
+                  oldTask.executionDate!.day,
+                )
+              : null;
+          final newDate = updatedTask.executionDate != null
+              ? DateTime(
+                  updatedTask.executionDate!.year,
+                  updatedTask.executionDate!.month,
+                  updatedTask.executionDate!.day,
+                )
+              : null;
+
           _items[index] = GeminiItem(
             type: GeminiItemType.task,
             id: item.id,
             data: updatedTask,
           );
+
+          // 🎯 실행일이 바뀌었으면 섹션 재정렬 (날짜 그룹 이동)
+          if (oldDate != newDate) {
+            _reorganizeSections();
+          }
           break;
 
         case GeminiItemType.habit:
@@ -896,9 +1130,11 @@ class _GeminiResultConfirmationScreenState
             id: item.id,
             data: updatedHabit,
           );
+          // 습관은 날짜 그룹핑이 없으므로 재정렬 불필요
           break;
 
         case GeminiItemType.sectionHeader:
+        case GeminiItemType.dateHeader:
           break;
       }
     });

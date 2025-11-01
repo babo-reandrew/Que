@@ -51,7 +51,6 @@ class TempInputCache {
       _keyTempTimestamp,
       DateTime.now().millisecondsSinceEpoch,
     );
-
   }
 
   /// 임시 색상 저장
@@ -230,10 +229,10 @@ class TempInputCache {
     await prefs.remove(_keyTempEndDateTime);
     await prefs.remove(_keyTempExecutionDate);
     await prefs.remove(_keyTempDueDate);
-    await prefs.remove(_keyTempTitle);
+    // ❌ 제목은 삭제하지 않음 (앱 재실행 시에도 유지)
+    // await prefs.remove(_keyTempTitle);
     await prefs.remove('temp_reminder');
     await prefs.remove(_keyTempRepeatRule); // ✅ 반복 규칙도 삭제
-
 
     // ✅ 리마인더 기본값(10분전) 설정
     await setDefaultReminder();
@@ -243,6 +242,47 @@ class TempInputCache {
   static Future<void> setDefaultReminder() async {
     final defaultReminder = '{"minutes":10,"display":"10分前"}';
     await saveTempReminder(defaultReminder);
+  }
+
+  /// 저장/취소 시 제목 포함 모든 데이터 삭제
+  /// 이거를 설정하고 → 사용자가 저장 또는 취소를 명시적으로 했을 때
+  /// 이거를 해서 → 제목을 포함한 모든 임시 데이터를 삭제한다
+  static Future<void> clearAllIncludingTitle() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 모든 데이터 삭제 (제목 포함)
+    await prefs.remove(_keyTempInput);
+    await prefs.remove(_keyTempTimestamp);
+    await prefs.remove(_keyTempColor);
+    await prefs.remove(_keyTempStartDateTime);
+    await prefs.remove(_keyTempEndDateTime);
+    await prefs.remove(_keyTempExecutionDate);
+    await prefs.remove(_keyTempDueDate);
+    await prefs.remove(_keyTempTitle); // ✅ 제목도 삭제
+    await prefs.remove('temp_reminder');
+    await prefs.remove(_keyTempRepeatRule);
+
+    // 통합 캐시도 제목 포함 모두 삭제
+    await prefs.remove(_keyCommonTitle); // ✅ 제목도 삭제
+    await prefs.remove(_keyCommonColor);
+    await prefs.remove(_keyCommonReminder);
+    await prefs.remove(_keyCommonRepeatRule);
+    await prefs.remove(_keyCurrentType);
+
+    // 일정 데이터
+    await prefs.remove(_keyScheduleStartDateTime);
+    await prefs.remove(_keyScheduleEndDateTime);
+    await prefs.remove(_keyScheduleIsAllDay);
+
+    // 할일 데이터
+    await prefs.remove(_keyTaskExecutionDate);
+    await prefs.remove(_keyTaskDueDate);
+
+    // 습관 데이터
+    await prefs.remove(_keyHabitTime);
+
+    // ✅ 리마인더 기본값(10분전) 설정
+    await setDefaultReminder();
   }
 
   /// 임시 입력이 있는지 확인
@@ -273,8 +313,7 @@ class TempInputCache {
   static Future<String?> getCurrentType() async {
     final prefs = await SharedPreferences.getInstance();
     final type = prefs.getString(_keyCurrentType);
-    if (type != null) {
-    }
+    if (type != null) {}
     return type;
   }
 
@@ -309,7 +348,6 @@ class TempInputCache {
     final colorId = prefs.getString(_keyCommonColor);
     final reminder = prefs.getString(_keyCommonReminder);
     final repeatRule = prefs.getString(_keyCommonRepeatRule);
-
 
     return {
       'title': title,
@@ -356,7 +394,6 @@ class TempInputCache {
 
     final startDateTime = DateTime.parse(startStr);
     final endDateTime = DateTime.parse(endStr);
-
 
     return {
       'startDateTime': startDateTime,
@@ -442,21 +479,22 @@ class TempInputCache {
       await prefs.remove(_keyHabitTime);
     }
 
-    // 공통 데이터도 삭제
-    await prefs.remove(_keyCommonTitle);
+    // 공통 데이터도 삭제 (단, 제목은 제외)
+    // ❌ 제목은 삭제하지 않음
+    // await prefs.remove(_keyCommonTitle);
     await prefs.remove(_keyCommonColor);
     await prefs.remove(_keyCommonReminder);
     await prefs.remove(_keyCommonRepeatRule);
     await prefs.remove(_keyCurrentType);
-
   }
 
-  /// 모든 통합 캐시 삭제
+  /// 모든 통합 캐시 삭제 (제목은 유지)
   static Future<void> clearAllUnifiedCache() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // 공통 데이터
-    await prefs.remove(_keyCommonTitle);
+    // 공통 데이터 (제목 제외)
+    // ❌ 제목은 삭제하지 않음
+    // await prefs.remove(_keyCommonTitle);
     await prefs.remove(_keyCommonColor);
     await prefs.remove(_keyCommonReminder);
     await prefs.remove(_keyCommonRepeatRule);
@@ -473,6 +511,5 @@ class TempInputCache {
 
     // 습관 데이터
     await prefs.remove(_keyHabitTime);
-
   }
 }

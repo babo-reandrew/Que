@@ -87,62 +87,63 @@ class _ReminderPickerSheetState extends State<_ReminderPickerSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 32), // ✅ 상단 패딩 32px
-            // 헤더 (TopNavi) - Figma 스펙: 364×54px, padding 9px 28px
-            Container(
-              width: 364,
-              height: 54,
+            // 헤더 (TopNavi) - Figma 스펹: 좌우 28px 여백
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 9),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // "リマインダー" 타이틀 - Figma: 19px, Bold, LINE Seed JP App_TTF
-                  const Text(
-                    'リマインダー',
-                    style: TextStyle(
-                      fontFamily: 'LINE Seed JP App_TTF',
-                      fontSize: 19,
-                      fontWeight: FontWeight.w700,
-                      height: 1.4, // line-height: 140%
-                      letterSpacing: -0.005,
-                      color: Color(0xFF111111),
+              child: SizedBox(
+                height: 54,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // "リマインダー" 타이틀 - Figma: 19px, Bold, LINE Seed JP App_TTF
+                    const Text(
+                      'リマインダー',
+                      style: TextStyle(
+                        fontFamily: 'LINE Seed JP App_TTF',
+                        fontSize: 19,
+                        fontWeight: FontWeight.w700,
+                        height: 1.4, // line-height: 140%
+                        letterSpacing: -0.005,
+                        color: Color(0xFF111111),
+                      ),
                     ),
-                  ),
-                  // 닫기 버튼 (Modal Control Buttons) - Figma: 36×36px
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      padding: const EdgeInsets.all(8), // ✅ 8px 패딩
-                      decoration: BoxDecoration(
-                        color: const Color(
-                          0xFFE4E4E4,
-                        ).withOpacity(0.9), // rgba(228, 228, 228, 0.9)
-                        border: Border.all(
-                          color: const Color(0xFF111111).withOpacity(0.02),
-                          width: 1,
-                        ),
-                        borderRadius: BorderRadius.circular(100),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 20,
-                            offset: const Offset(0, 4),
+                    // 닫기 버튼 (Modal Control Buttons) - Figma: 36×36px
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        padding: const EdgeInsets.all(8), // ✅ 8px 패딩
+                        decoration: BoxDecoration(
+                          color: const Color(
+                            0xFFE4E4E4,
+                          ).withOpacity(0.9), // rgba(228, 228, 228, 0.9)
+                          border: Border.all(
+                            color: const Color(0xFF111111).withOpacity(0.02),
+                            width: 1,
                           ),
-                        ],
-                      ),
-                      child: SvgPicture.asset(
-                        'asset/icon/X_icon.svg', // ✅ X_icon.svg 사용
-                        width: 20, // ✅ 20×20px
-                        height: 20,
-                        colorFilter: const ColorFilter.mode(
-                          Color(0xFF111111),
-                          BlendMode.srcIn,
+                          borderRadius: BorderRadius.circular(100),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 20,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: SvgPicture.asset(
+                          'asset/icon/X_icon.svg', // ✅ X_icon.svg 사용
+                          width: 20, // ✅ 20×20px
+                          height: 20,
+                          colorFilter: const ColorFilter.mode(
+                            Color(0xFF111111),
+                            BlendMode.srcIn,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             // 메인 컨텐츠 - 리마인더 옵션 리스트

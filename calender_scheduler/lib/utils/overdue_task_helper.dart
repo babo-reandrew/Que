@@ -1,4 +1,5 @@
 import '../Database/schedule_database.dart';
+import '../utils/rrule_utils.dart';
 
 // ✅ 연체(Overdue) 작업 표시 로직
 //
@@ -156,10 +157,9 @@ Future<List<OverdueHabitInstance>> getOverdueHabits(
       );
 
       if (!completedDates.contains(dateOnly)) {
-        overdueInstances.add(OverdueHabitInstance(
-          habit: habit,
-          missedDate: dateOnly,
-        ));
+        overdueInstances.add(
+          OverdueHabitInstance(habit: habit, missedDate: dateOnly),
+        );
       }
     }
   }
@@ -179,11 +179,7 @@ Future<OverdueTaskStats> getOverdueTaskStats(
   final overdueTasks = await getOverdueTasks(db, referenceDate: referenceDate);
 
   if (overdueTasks.isEmpty) {
-    return OverdueTaskStats(
-      count: 0,
-      oldestDate: null,
-      averageDaysOverdue: 0,
-    );
+    return OverdueTaskStats(count: 0, oldestDate: null, averageDaysOverdue: 0);
   }
 
   final today = referenceDate ?? DateTime.now();
@@ -249,10 +245,7 @@ class OverdueHabitInstance {
   final HabitData habit;
   final DateTime missedDate;
 
-  OverdueHabitInstance({
-    required this.habit,
-    required this.missedDate,
-  });
+  OverdueHabitInstance({required this.habit, required this.missedDate});
 }
 
 /// 연체 작업 통계
@@ -275,7 +268,3 @@ class OverdueTaskStats {
     return '$count개의 연체된 작업 (평균 $averageDaysOverdue일 지연)';
   }
 }
-
-// ==================== RRuleUtils import ====================
-// (이미 존재하는 파일 참조)
-import '../utils/rrule_utils.dart';

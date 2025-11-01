@@ -126,6 +126,11 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         final repeatRule = data['repeatRule'] as String? ?? '';
         final reminder = data['reminder'] as String? ?? '';
 
+        // ✅ 일정 리마인더 기본값: 10분 전
+        final finalReminder = reminder.isEmpty
+            ? '{"value":"10","display":"10分前"}'
+            : reminder;
+
         // 🔥 디버그 로그: 저장 전 데이터 확인
         debugPrint('💾 [QuickAdd] 일정 저장 시작');
         debugPrint('   - 제목: $title');
@@ -133,7 +138,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         debugPrint('   - 종료: $endDateTime');
         debugPrint('   - 색상: $colorId');
         debugPrint('   - 반복: ${repeatRule.isEmpty ? "(없음)" : repeatRule}');
-        debugPrint('   - 알림: ${reminder.isEmpty ? "(없음)" : reminder}');
+        debugPrint('   - 알림: ${reminder.isEmpty ? "(기본값: 10분 전)" : reminder}');
 
         final companion = ScheduleCompanion.insert(
           start: startDateTime,
@@ -144,9 +149,7 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
           repeatRule: repeatRule.isNotEmpty
               ? Value(repeatRule)
               : const Value.absent(), // ✅ 빈 문자열이면 absent (기본값 '' 사용)
-          alertSetting: reminder.isNotEmpty
-              ? Value(reminder)
-              : const Value.absent(), // ✅ 빈 문자열이면 absent (기본값 '' 사용)
+          alertSetting: Value(finalReminder), // ✅ 기본값 10분 전 적용
         );
 
         final database = GetIt.I<AppDatabase>();
@@ -270,10 +273,10 @@ class _CreateEntryBottomSheetState extends State<CreateEntryBottomSheet>
         debugPrint('✅ [QuickAdd] 습관 저장 완료: ID=$savedId');
       }
 
-      // 이거를 설정하고 → 저장이 성공했으므로 임시 캐시를 삭제해서
+      // 이거를 설정하고 → 저장이 성공했으므로 제목 포함 모든 캐시를 삭제해서
       // 이거를 해서 → 하단 박스가 사라지도록 한다
       // 이거는 이래서 → Figma 디자인대로 저장 후 임시 데이터를 정리한다
-      await TempInputCache.clearTempInput();
+      await TempInputCache.clearAllIncludingTitle();
 
       // 🔥 저장 성공 후 바텀시트를 닫고 토스트 표시
       if (context.mounted && savedId != null) {

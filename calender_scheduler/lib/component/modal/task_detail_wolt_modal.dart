@@ -95,7 +95,7 @@ Future<void> showTaskDetailWoltModal(
   } else {
     // 새 할일 생성
     taskController.reset();
-    bottomSheetController.reset(); // ✅ Provider 초기화
+    bottomSheetController.resetForTask(); // ✅ 할일용 초기화 (리마인더 기본값: 없음)
 
     // 🎯 통합 캐시에서 공통 데이터 복원
     final commonData = await TempInputCache.getCommonData();
@@ -113,6 +113,9 @@ Future<void> showTaskDetailWoltModal(
     if (commonData['reminder'] != null && commonData['reminder']!.isNotEmpty) {
       bottomSheetController.updateReminder(commonData['reminder']!);
       debugPrint('✅ [TaskWolt] 통합 리마인더 복원: ${commonData['reminder']}');
+    } else {
+      // ✅ 캐시가 없으면 기본값(없음) 유지
+      debugPrint('✅ [TaskWolt] 리마인더 기본값 사용: 없음');
     }
 
     if (commonData['repeatRule'] != null &&
@@ -1947,9 +1950,9 @@ void _handleSave(
         }
       }
 
-      // 🎯 수정 완료 후 통합 캐시 클리어
-      await TempInputCache.clearCacheForType('task');
-      debugPrint('🗑️ [TaskWolt] 할일 통합 캐시 클리어 완료');
+      // 🎯 수정 완료 후 제목 포함 모든 캐시 클리어
+      await TempInputCache.clearAllIncludingTitle();
+      debugPrint('🗑️ [TaskWolt] 할일 캐시 클리어 완료 (제목 포함)');
 
       // ✅ 실행일과 리마인더가 모두 있으면 알림 시간 계산
       if (finalExecutionDate != null &&
@@ -1981,44 +1984,13 @@ void _handleSave(
       }
     } else {
       // ========== 5단계: 새 할일 생성 (createdAt 명시) ==========
-      // 🔥 반복 규칙이 있는데 executionDate가 없으면 자동으로 첫 인스턴스 날짜 설정
-      DateTime? autoExecutionDate = finalExecutionDate;
-      if (finalExecutionDate == null &&
-          safeRepeatRule != null &&
-          safeRepeatRule.isNotEmpty) {
-        final dtstart = DateTime.now();
-        final rrule = convertRepeatRuleToRRule(safeRepeatRule, dtstart);
-        if (rrule != null) {
-          try {
-            // RRULE의 첫 번째 인스턴스 날짜를 가져옴
-            final dtstartDateOnly = DateTime(
-              dtstart.year,
-              dtstart.month,
-              dtstart.day,
-            );
-            final instances = RRuleUtils.generateInstances(
-              rruleString: rrule,
-              dtstart: dtstartDateOnly,
-              rangeStart: dtstartDateOnly,
-              rangeEnd: dtstartDateOnly.add(const Duration(days: 365)),
-            );
-            if (instances.isNotEmpty) {
-              autoExecutionDate = instances.first;
-              debugPrint('🔥 [TaskWolt] 반복 할일 자동 실행일 설정: $autoExecutionDate');
-            }
-          } catch (e) {
-            debugPrint('⚠️ [TaskWolt] 자동 실행일 설정 실패: $e');
-          }
-        }
-      }
-
       final newId = await db.createTask(
         TaskCompanion.insert(
           title: taskController.title.trim(),
           createdAt: DateTime.now(), // ✅ 명시적 생성 시간 (로컬 시간)
           listId: const Value('default'), // 기본 리스트
           dueDate: Value(finalDueDate),
-          executionDate: Value(autoExecutionDate),
+          executionDate: Value(finalExecutionDate), // ✅ 사용자가 지정한 실행일 그대로 사용
           colorId: Value(finalColor),
           reminder: Value(safeReminder ?? ''),
           repeatRule: Value(safeRepeatRule ?? ''),
@@ -2027,12 +1999,12 @@ void _handleSave(
       debugPrint('✅ [TaskWolt] 새 할일 생성 완료');
       debugPrint('   - 제목: ${taskController.title}');
       debugPrint('   - 색상: $finalColor');
-      debugPrint('   - 실행일: $autoExecutionDate');
+      debugPrint('   - 실행일: $finalExecutionDate');
       debugPrint('   - 마감일: $finalDueDate');
       debugPrint('   - 반복: $safeRepeatRule');
       debugPrint('   - 리마인더: $safeReminder');
       debugPrint(
-        '   ⚠️ executionDate가 ${autoExecutionDate == null ? "NULL → Inbox에 표시됨" : "설정됨 → DetailView에 표시됨"}',
+        '   ⚠️ executionDate가 ${finalExecutionDate == null ? "NULL → Inbox에 표시됨" : "설정됨 → DetailView에 표시됨"}',
       );
 
       // ✅ 실행일과 리마인더가 모두 있으면 알림 시간 계산
@@ -2061,7 +2033,8 @@ void _handleSave(
 
       // ========== 5.5단계: RecurringPattern 생성 (반복 규칙이 있으면) ==========
       if (safeRepeatRule != null && safeRepeatRule.isNotEmpty) {
-        final dtstart = autoExecutionDate ?? DateTime.now();
+        // ✅ dtstart는 사용자가 지정한 실행일 또는 오늘
+        final dtstart = finalExecutionDate ?? DateTime.now();
         final rrule = convertRepeatRuleToRRule(safeRepeatRule, dtstart);
 
         // 🔥 날짜만 추출 (시간은 00:00:00으로 통일)
@@ -2089,9 +2062,9 @@ void _handleSave(
         }
       }
 
-      // ========== 6단계: 통합 캐시 클리어 ==========
-      await TempInputCache.clearCacheForType('task');
-      debugPrint('🗑️ [TaskWolt] 할일 통합 캐시 클리어 완료');
+      // ========== 6단계: 제목 포함 모든 캐시 클리어 ==========
+      await TempInputCache.clearAllIncludingTitle();
+      debugPrint('🗑️ [TaskWolt] 할일 캐시 클리어 완료 (제목 포함)');
 
       // ✅ 저장 토스트 표시 (인박스 or 캘린더)
       final toInbox = finalExecutionDate == null;
