@@ -2255,6 +2255,40 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
     return schedules;
   }
 
+  /// 날짜 파싱 헬퍼 (iCalendar 형식 → DateTime)
+  /// ✅ EXDATE 문자열 파싱용 (예: "20250113T000000Z")
+  DateTime? _parseDateTime(String dtStr) {
+    try {
+      // 형식: YYYYMMDDTHHmmssZ
+      if (dtStr.length < 15) return null;
+
+      final year = int.parse(dtStr.substring(0, 4));
+      final month = int.parse(dtStr.substring(4, 6));
+      final day = int.parse(dtStr.substring(6, 8));
+      final hour = int.parse(dtStr.substring(9, 11));
+      final minute = int.parse(dtStr.substring(11, 13));
+      final second = int.parse(dtStr.substring(13, 15));
+
+      return DateTime(year, month, day, hour, minute, second);
+    } catch (e) {
+      print('❌ [HomeScreen] EXDATE 파싱 실패: $dtStr');
+      return null;
+    }
+  }
+
+  /// 날짜 포맷 헬퍼 (DateTime → iCalendar 형식)
+  /// ✅ UNTIL 문자열 생성용 (예: "20250113T000000Z")
+  String _formatDateTime(DateTime dt) {
+    return '${dt.year}'
+        '${dt.month.toString().padLeft(2, '0')}'
+        '${dt.day.toString().padLeft(2, '0')}'
+        'T'
+        '${dt.hour.toString().padLeft(2, '0')}'
+        '${dt.minute.toString().padLeft(2, '0')}'
+        '${dt.second.toString().padLeft(2, '0')}'
+        'Z';
+  }
+
   /// RRULE 인스턴스 생성 헬퍼 (디테일뷰 로직 복사)
   Future<List<DateTime>> _generateScheduleInstancesForDate({
     required AppDatabase db,
@@ -2267,6 +2301,24 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
     );
     print('   RRULE: ${pattern.rrule}');
     print('   DTSTART: ${pattern.dtstart}');
+
+    // EXDATE 파싱 (iCalendar 형식)
+    final exdates = pattern.exdate.isEmpty
+        ? <DateTime>[]
+        : pattern.exdate
+              .split(',')
+              .map((s) => _parseDateTime(s.trim()))
+              .whereType<DateTime>()
+              .toList();
+
+    // ✅ UNTIL이 있으면 RRULE 문자열에 추가
+    String rruleWithUntil = pattern.rrule;
+    if (pattern.until != null && !pattern.rrule.contains('UNTIL=')) {
+      final untilStr = _formatDateTime(pattern.until!);
+      rruleWithUntil = pattern.rrule.contains(';')
+          ? '${pattern.rrule};UNTIL=$untilStr'
+          : '${pattern.rrule};UNTIL=$untilStr';
+    }
 
     // RRULE 인스턴스 생성 (targetDate 당일만 - 시작과 끝을 같은 날로)
     final dayStart = DateTime(
@@ -2284,10 +2336,11 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
     );
 
     final instances = RRuleUtils.generateInstances(
-      rruleString: pattern.rrule,
+      rruleString: rruleWithUntil, // ✅ UNTIL 포함된 RRULE 전달
       dtstart: pattern.dtstart,
       rangeStart: dayStart,
       rangeEnd: dayEnd,
+      exdates: exdates, // ✅ EXDATE 전달
     );
 
     print('   생성된 인스턴스: ${instances.length}개');
@@ -2461,6 +2514,24 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
     required RecurringPatternData pattern,
     required DateTime targetDate,
   }) async {
+    // EXDATE 파싱 (iCalendar 형식)
+    final exdates = pattern.exdate.isEmpty
+        ? <DateTime>[]
+        : pattern.exdate
+              .split(',')
+              .map((s) => _parseDateTime(s.trim()))
+              .whereType<DateTime>()
+              .toList();
+
+    // ✅ UNTIL이 있으면 RRULE 문자열에 추가
+    String rruleWithUntil = pattern.rrule;
+    if (pattern.until != null && !pattern.rrule.contains('UNTIL=')) {
+      final untilStr = _formatDateTime(pattern.until!);
+      rruleWithUntil = pattern.rrule.contains(';')
+          ? '${pattern.rrule};UNTIL=$untilStr'
+          : '${pattern.rrule};UNTIL=$untilStr';
+    }
+
     // RRULE 인스턴스 생성
     final dayStart = DateTime(
       targetDate.year,
@@ -2477,10 +2548,11 @@ extension KeyboardAttachableQuickAdd on _HomeScreenState {
     );
 
     final instances = RRuleUtils.generateInstances(
-      rruleString: pattern.rrule,
+      rruleString: rruleWithUntil, // ✅ UNTIL 포함된 RRULE 전달
       dtstart: pattern.dtstart,
       rangeStart: dayStart,
       rangeEnd: dayEnd,
+      exdates: exdates, // ✅ EXDATE 전달
     );
 
     // 🔥 CRITICAL: targetDate와 정확히 같은 날짜만 필터링

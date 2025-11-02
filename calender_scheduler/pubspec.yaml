@@ -41,7 +41,8 @@ dependencies:  #이건 실제로 배포할 때만 패키징
   path_provider: ^2.1.5
   sqlite3_flutter_libs: ^0.5.40
   get_it: ^8.2.0
-  flutter_slidable: ^3.1.0  # iOS 네이티브 스타일 스와이프 액션
+  flutter_slidable: ^3.1.0  # iOS 네이티브 스타일 스와이프 액션 (기존 코드용)
+  flutter_swipe_action_cell: ^3.1.6  # iOS 네이티브 스타일 스와이프 액션 (새 디자인용)
   shared_preferences: ^2.5.3
   wolt_modal_sheet: ^0.11.0
   provider: ^6.1.5+1

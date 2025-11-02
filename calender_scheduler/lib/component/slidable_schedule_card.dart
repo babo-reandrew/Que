@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // 햅틱 피드백용
-import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:flutter_swipe_action_cell/flutter_swipe_action_cell.dart';
 import 'package:flutter_svg/flutter_svg.dart'; // SVG 아이콘용
 import 'modal/delete_confirmation_modal.dart'; // 🗑️ 삭제 확인 모달 추가
 import 'modal/delete_repeat_confirmation_modal.dart'; // 🔄 반복 삭제 확인 모달 추가
@@ -36,6 +36,7 @@ class SlidableScheduleCard extends StatelessWidget {
   final String? deleteLabel; // 삭제 버튼 라벨
   final bool showConfirmDialog; // 삭제 확인 다이얼로그 표시 여부
   final String? groupTag; // 그룹 태그 (한 번에 하나만 열기)
+  final bool isCompletedItem; // 🎯 완료박스 아이템 여부 (완료 취소 기능)
 
   const SlidableScheduleCard({
     super.key,
@@ -51,44 +52,92 @@ class SlidableScheduleCard extends StatelessWidget {
     this.deleteLabel,
     this.showConfirmDialog = true, // 기본값: 확인 다이얼로그 표시
     this.groupTag,
+    this.isCompletedItem = false, // 🎯 기본값: 일반 아이템 (완료 처리)
   });
+
+  // 삭제 버튼 위젯 생성
+  Widget _buildDeleteButton() {
+    return Container(
+      color: Colors.transparent, // 🎯 배경 완전 투명
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.only(left: 16, right: 16), // 🎯 카드와 16px 간격
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFF0000),
+          borderRadius: BorderRadius.circular(26),
+        ),
+        alignment: Alignment.center,
+        child: SvgPicture.asset(
+          'asset/icon/trash_icon.svg',
+          width: 24,
+          height: 24,
+          colorFilter: const ColorFilter.mode(
+            Color(0xFFFFFFFF),
+            BlendMode.srcIn,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 완료 버튼 위젯 생성
+  Widget _buildCompleteButton() {
+    return Container(
+      color: Colors.transparent, // 🎯 배경 완전 투명
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(
+        left: 0,
+        right: 24,
+      ), // 🎯 Schedule 카드 예외: Container 때문에 right 24px
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: const Color(0xFF0CF20C),
+          borderRadius: BorderRadius.circular(26),
+        ),
+        alignment: Alignment.center,
+        child: SvgPicture.asset(
+          // 🎯 조건 분기: 완료박스에서는 CheckBack_Icon, 일반에서는 Check_icon
+          isCompletedItem
+              ? 'asset/icon/CheckBack_Icon.svg'
+              : 'asset/icon/Check_icon.svg',
+          width: 24,
+          height: 24,
+          colorFilter: const ColorFilter.mode(
+            Color(0xFFFFFFFF),
+            BlendMode.srcIn,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Slidable(
-      // ✅ Key는 각 아이템을 고유하게 식별 (필수!)
-      // 이유: Flutter의 위젯 트리 동기화를 위해 필요
-      // 조건: scheduleId를 사용한 고유한 값
-      // 결과: 삭제 후 잘못된 아이템이 열려있는 버그 방지
+    return SwipeActionCell(
       key: ValueKey('schedule_$scheduleId'),
 
-      // ✅ 그룹 태그 설정 (선택사항)
-      // 이유: 같은 그룹에서 한 번에 하나의 Slidable만 열림
-      // 조건: SlidableAutoCloseBehavior로 감싸져 있어야 함
-      // 결과: iOS 네이티브처럼 하나만 열린 상태 유지
-      groupTag: groupTag,
-
-      // ✅ 스크롤 시 자동 닫힘 (iOS 네이티브 동작)
-      // 이유: 사용자가 스크롤하면 자동으로 Slidable이 닫혀야 자연스럽다
-      closeOnScroll: true,
-
-      // ========================================
-      // startActionPane: 왼쪽에서 오른쪽 스와이프 → 삭제
-      // ========================================
-      startActionPane: ActionPane(
-        motion: const BehindMotion(), // BehindMotion으로 변경 (iOS 표준)
-        extentRatio: 0.144, // 초기 56px (0.144), 스와이프 시 확장
-        // 🎯 iOS Mail 완벽 재현: 일정 거리 이상 스와이프 시 자동 삭제
-        dismissible: DismissiblePane(
-          dismissThreshold: 0.6, // 60% 이상 스와이프하면 삭제
-          closeOnCancel: true,
-          confirmDismiss: () async {
-            // 햅틱 피드백
+      // 🎯 풀 스와이프 설정 (끝까지 당기면 자동 실행)
+      backgroundColor: Colors.transparent, // 🎯 배경 완전 투명
+      fullSwipeFactor: 0.5, // 50% 이상 스와이프 시 풀 스와이프로 간주
+      openAnimationDuration: 250, // 250ms로 빠른 오픈 애니메이션
+      closeAnimationDuration: 300, // 300ms로 부드러운 클로즈 애니메이션
+      openAnimationCurve: Curves.easeOutCubic, // iOS 네이티브 스타일 곡선
+      closeAnimationCurve: Curves.easeInOutCubic, // 부드러운 닫힘
+      // 왼쪽에서 오른쪽 스와이프 → 삭제
+      leadingActions: [
+        SwipeAction(
+          performsFirstActionWithFullSwipe: true, // ✅ 끝까지 슬라이드 시 자동 실행
+          widthSpace: 84, // 🎯 52px 버튼 + 16px 양쪽 여백 = 84px
+          forceAlignmentToBoundary: true,
+          nestedAction: SwipeNestedAction(title: "삭제"), // 🎯 네이티브 스타일
+          onTap: (handler) async {
             await HapticFeedback.mediumImpact();
 
-            // 끝까지 스와이프 시 삭제 모달 표시
             if (showConfirmDialog) {
-              bool confirmed = false;
               bool hasRepeat =
                   repeatRule != null &&
                   repeatRule!.isNotEmpty &&
@@ -99,15 +148,12 @@ class SlidableScheduleCard extends StatelessWidget {
                 await showDeleteRepeatConfirmationModal(
                   context,
                   onDeleteThis: () async {
-                    confirmed = true;
                     await onDelete();
                   },
                   onDeleteFuture: () async {
-                    confirmed = true;
                     await onDelete();
                   },
                   onDeleteAll: () async {
-                    confirmed = true;
                     await onDelete();
                   },
                 );
@@ -115,191 +161,39 @@ class SlidableScheduleCard extends StatelessWidget {
                 await showDeleteConfirmationModal(
                   context,
                   onDelete: () async {
-                    confirmed = true;
                     await onDelete();
                   },
                 );
               }
-              return confirmed;
             } else {
               await onDelete();
-              return true;
             }
+            handler(false);
           },
-          onDismissed: () {},
+          color: Colors.transparent, // 🎯 배경 완전 투명
+          content: _buildDeleteButton(),
         ),
+      ],
 
-        // 슬라이드 정도에 따라 버튼 선택 가능하도록
-        children: [
-          CustomSlidableAction(
-            onPressed: (context) async {
-              if (showConfirmDialog) {
-                if (repeatRule != null) {
-                  await showDeleteRepeatConfirmationModal(
-                    context,
-                    onDeleteThis: () async {
-                      await HapticFeedback.mediumImpact();
-                      await onDelete();
-                    },
-                    onDeleteFuture: () async {
-                      await HapticFeedback.mediumImpact();
-                      // TODO: DB에 이후 삭제 함수 추가 필요
-                      await onDelete();
-                    },
-                    onDeleteAll: () async {
-                      await HapticFeedback.mediumImpact();
-                      await onDelete();
-                    },
-                  );
-                } else {
-                  await showDeleteConfirmationModal(
-                    context,
-                    onDelete: () async {
-                      await HapticFeedback.mediumImpact();
-                      await onDelete();
-                    },
-                  );
-                }
-              } else {
-                await HapticFeedback.mediumImpact();
-                await onDelete();
-              }
-            },
-            backgroundColor: Colors.transparent, // 배경을 투명하게
-            foregroundColor: Colors.white,
-            autoClose: true,
-            borderRadius: BorderRadius.circular(100),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return Container(
-                    width: constraints.maxWidth, // 부모 크기에 맞춤
-                    height: 56, // 높이만 56px 고정!!!
-                    constraints: const BoxConstraints(
-                      minWidth: 56,
-                      minHeight: 56,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF0000),
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    child: Center(
-                      child: SvgPicture.asset(
-                        'asset/icon/trash_icon.svg',
-                        width: 24,
-                        height: 24,
-                        colorFilter: const ColorFilter.mode(
-                          Color(0xFFFFFFFF),
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
-
-      // ========================================
-      // endActionPane: 오른쪽에서 왼쪽 스와이프 → 완료 (쉽게 접근)
-      // ========================================
-      endActionPane: ActionPane(
-        motion: const BehindMotion(), // BehindMotion으로 변경 (iOS 표준)
-        extentRatio: 0.144, // 초기 56px (0.144), 스와이프 시 확장
-        // ✅ DismissiblePane: 끝까지 스와이프 시 즉시 완료 처리
-        // 이유: 사용자가 빠르게 완료할 수 있도록
-        // 조건: dismissThreshold 이상 스와이프 시 발동
-        dismissible: DismissiblePane(
-          // ✅ dismissThreshold: dismiss가 발동되는 임계값
-          // 이유: 0.5 = 50% 이상 스와이프 시 dismiss 실행
-          // 조건: 0.0 ~ 1.0 사이 값 (기본값: 0.4)
-          // 결과: 충분히 스와이프했을 때만 완료 처리
-          dismissThreshold: 0.5,
-
-          // ✅ closeOnCancel: 취소 시 닫힘 여부
-          // 이유: false로 설정하면 취소 시에도 열린 상태 유지
-          // 조건: true로 설정해서 취소 시 자동 닫힘
-          closeOnCancel: true,
-
-          // ✅ 애니메이션 시간 (iOS 네이티브 스타일)
-          // 이유: iOS 표준 애니메이션 타이밍은 200~300ms
-          // 조건: 너무 빠르거나 느리지 않게 300ms로 설정
-          dismissalDuration: const Duration(milliseconds: 300),
-          resizeDuration: const Duration(milliseconds: 300),
-
-          // ✅ onDismissed: 완전히 스와이프했을 때 실행
-          // 이유: 사용자가 끝까지 스와이프했을 때의 완료 처리
-          // 다음: 햅틱 피드백 → 완료 처리 → DB 업데이트 → 이벤트 로그
-          onDismissed: () async {
-            // 1. 햅틱 피드백 (iOS 네이티브 스타일)
-            // 이유: 사용자에게 즉각적인 촉각 피드백 제공
-            // 조건: mediumImpact는 완료 같은 중간 중요도 액션에 적합
-            await HapticFeedback.mediumImpact();
-
-            // 2. 완료 액션 실행
-            // 이유: DB에서 일정을 완료 처리하고 UI 갱신
-            // 조건: onComplete 콜백이 제공되어야 함
+      // 오른쪽에서 왼쪽 스와이프 → 완료
+      trailingActions: [
+        SwipeAction(
+          performsFirstActionWithFullSwipe: true, // ✅ 끝까지 슬라이드 시 자동 실행
+          widthSpace: 84, // 🎯 52px 버튼 + 16px 양쪽 여백 = 84px
+          forceAlignmentToBoundary: true,
+          nestedAction: SwipeNestedAction(title: "완료"), // 🎯 네이티브 스타일
+          onTap: (handler) async {
+            await HapticFeedback.lightImpact();
             await onComplete();
+            handler(false);
           },
+          color: Colors.transparent, // 🎯 배경 완전 투명
+          content: _buildCompleteButton(),
         ),
+      ],
 
-        // ✅ 액션 버튼 정의
-        // 이유: 스와이프하지 않고 버튼을 직접 탭할 수도 있음
-        children: [
-          CustomSlidableAction(
-            onPressed: (context) async {
-              await HapticFeedback.lightImpact();
-              await onComplete();
-            },
-            backgroundColor: Colors.transparent, // 배경을 투명하게
-            foregroundColor: Colors.white,
-            autoClose: true,
-            borderRadius: BorderRadius.circular(100),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return Container(
-                    width: constraints.maxWidth, // 부모 크기에 맞춤
-                    height: 56, // 높이만 56px 고정!!!
-                    constraints: const BoxConstraints(
-                      minWidth: 56,
-                      minHeight: 56,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0CF20C),
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    child: Center(
-                      child: SvgPicture.asset(
-                        'asset/icon/Check_icon.svg',
-                        width: 24,
-                        height: 24,
-                        colorFilter: const ColorFilter.mode(
-                          Color(0xFFFFFFFF),
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
-
-      // ✅ child: 실제 표시되는 위젯
-      // 이유: GestureDetector로 감싸서 탭 이벤트 처리
-      // 조건: onTap이 제공된 경우에만 탭 가능
       child: GestureDetector(
         onTap: onTap,
-        // ✅ iOS 네이티브 스타일: 탭 시 배경색 변경 피드백
         behavior: HitTestBehavior.opaque,
         child: child,
       ),

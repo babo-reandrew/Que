@@ -7,7 +7,6 @@ import 'package:intl/intl.dart'; // ✅ DateFormat for 요일
 import 'package:smooth_sheets/smooth_sheets.dart'; // ✅ smooth_sheets 추가
 import 'package:animated_reorderable_list/animated_reorderable_list.dart'; // 🆕 드래그 재정렬
 import 'package:flutter_svg/flutter_svg.dart'; // ✅ SVG 아이콘 추가
-import 'package:flutter_slidable/flutter_slidable.dart'; // ✅ Slidable 추가
 import 'package:figma_squircle/figma_squircle.dart'; // ✅ Figma 스무싱 적용
 import '../component/toast/action_toast.dart'; // ✅ 토스트 추가
 import '../component/schedule_card.dart';
@@ -3118,74 +3117,8 @@ class _DateDetailViewState extends State<DateDetailView>
       '  📊 입력 데이터: 일정=${schedules.length}, 할일=${tasks.length}, 습관=${habits.length}',
     );
 
-    // 🎯 인박스 모드일 때는 TempExtractedItems 테이블에서 데이터 조회
-    if (_isInboxMode) {
-      print('  🎯 [인박스 모드] TempExtractedItems 데이터 조회 시작');
-
-      final db = GetIt.I<AppDatabase>();
-      final tempItems = await (db.select(
-        db.tempExtractedItems,
-      )..where((tbl) => tbl.isConfirmed.equals(true))).get();
-
-      print('  📊 임시 추출 데이터: ${tempItems.length}개');
-
-      List<UnifiedListItem> items = [];
-
-      // 날짜별로 그룹핑 (startDate, dueDate, executionDate 모두 고려)
-      final itemsByDate = <DateTime?, List<TempExtractedItemData>>{};
-
-      for (final item in tempItems) {
-        DateTime? itemDate;
-
-        // 날짜 우선순위: startDate > dueDate > executionDate
-        if (item.startDate != null) {
-          itemDate = DateTime(
-            item.startDate!.year,
-            item.startDate!.month,
-            item.startDate!.day,
-          );
-        } else if (item.dueDate != null) {
-          itemDate = DateTime(
-            item.dueDate!.year,
-            item.dueDate!.month,
-            item.dueDate!.day,
-          );
-        } else if (item.executionDate != null) {
-          itemDate = DateTime(
-            item.executionDate!.year,
-            item.executionDate!.month,
-            item.executionDate!.day,
-          );
-        }
-
-        itemsByDate.putIfAbsent(itemDate, () => []).add(item);
-      }
-
-      // 날짜순 정렬 (null은 맨 뒤로)
-      final sortedDates = itemsByDate.keys.toList()
-        ..sort((a, b) {
-          if (a == null && b == null) return 0;
-          if (a == null) return 1;
-          if (b == null) return -1;
-          return a.compareTo(b);
-        });
-
-      // 날짜별 아이템 추가 (헤더 없음)
-      for (final itemDate in sortedDates) {
-        final dateItems = itemsByDate[itemDate]!;
-
-        // 해당 날짜의 아이템들 추가
-        for (final item in dateItems) {
-          print('    ✅ 임시 데이터 추가: "${item.title}" (type=${item.itemType})');
-
-          // TODO: TempExtractedItemData를 UnifiedListItem으로 변환하는 로직 필요
-          // 지금은 일단 스킵 - 다음 단계에서 처리
-        }
-      }
-
-      print('  ✅ [인박스 모드] 통합 리스트 생성 완료: ${items.length}개');
-      return items;
-    }
+    // 🎯 인박스 모드에서도 정상적인 일정/할일/습관 데이터를 표시
+    // 기존 TempExtractedItems 조회 로직은 제거하고, 일반 모드와 동일하게 처리
 
     // 🎯 완료된 습관 ID 조회 (HabitCompletion 테이블)
     final completedHabits = await GetIt.I<AppDatabase>()
@@ -4209,301 +4142,92 @@ class _DateDetailViewState extends State<DateDetailView>
     ScheduleData schedule,
     DateTime date,
   ) {
-    return Slidable(
-      key: ValueKey('slidable_schedule_${schedule.id}'),
-      closeOnScroll: true,
-      // 좌→우: 삭제
-      startActionPane: ActionPane(
-        motion: const BehindMotion(),
-        extentRatio: 0.144,
-        dismissible: DismissiblePane(
-          onDismissed: () async {
-            await HapticFeedback.mediumImpact();
-            await GetIt.I<AppDatabase>().deleteSchedule(schedule.id);
-            setState(() {});
-          },
-        ),
-        children: [
-          CustomSlidableAction(
-            onPressed: (context) async {
-              await HapticFeedback.mediumImpact();
-              await GetIt.I<AppDatabase>().deleteSchedule(schedule.id);
-              setState(() {});
-            },
-            backgroundColor: Colors.transparent,
-            borderRadius: BorderRadius.circular(100),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            autoClose: true,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF0000),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: SvgPicture.asset(
-                  'asset/icon/trash_icon.svg',
-                  width: 24,
-                  height: 24,
-                  colorFilter: const ColorFilter.mode(
-                    Colors.white,
-                    BlendMode.srcIn,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      // 우→좌: 완료 해제
-      endActionPane: ActionPane(
-        motion: const BehindMotion(),
-        extentRatio: 0.144,
-        children: [
-          CustomSlidableAction(
-            onPressed: (context) async {
-              // 🎯 햅틱 피드백 먼저 제공 (즉각적인 반응)
-              await HapticFeedback.lightImpact();
+    return SlidableScheduleCard(
+      scheduleId: schedule.id,
+      repeatRule: schedule.repeatRule,
+      showConfirmDialog: false, // 완료박스에서는 빠른 삭제
+      isCompletedItem: true, // 🎯 완료박스 아이템 (완료 취소 아이콘 사용)
+      onDelete: () async {
+        await GetIt.I<AppDatabase>().deleteSchedule(schedule.id);
+        setState(() {});
+      },
+      onComplete: () async {
+        // 🔥 반복 일정인지 확인
+        final pattern = await GetIt.I<AppDatabase>().getRecurringPattern(
+          entityType: 'schedule',
+          entityId: schedule.id,
+        );
 
-              // 🔥 반복 일정인지 확인
-              final pattern = await GetIt.I<AppDatabase>().getRecurringPattern(
-                entityType: 'schedule',
-                entityId: schedule.id,
-              );
-
-              if (pattern != null) {
-                // 🔥 반복 일정: ScheduleCompletion 삭제
-                await GetIt.I<AppDatabase>().deleteScheduleCompletion(
-                  schedule.id,
-                  date,
-                );
-                print(
-                  '🔄 [CompletedSchedule] 완료 해제: ${schedule.summary} (날짜: $date)',
-                );
-              } else {
-                // 🔥 일반 일정: completed 필드 업데이트
-                await GetIt.I<AppDatabase>().uncompleteSchedule(schedule.id);
-                print('🔄 [CompletedSchedule] 완료 해제: ${schedule.summary}');
-              }
-              // ✅ StreamBuilder가 자동으로 반응하여 완료박스에서 사라지고 리스트로 이동
-            },
-            backgroundColor: Colors.transparent,
-            borderRadius: BorderRadius.circular(100),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            autoClose: true,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0CF20C),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: const Icon(Icons.undo, color: Colors.white, size: 24),
-              ),
-            ),
-          ),
-        ],
-      ),
+        if (pattern != null) {
+          // 🔥 반복 일정: ScheduleCompletion 삭제
+          await GetIt.I<AppDatabase>().deleteScheduleCompletion(
+            schedule.id,
+            date,
+          );
+          print(
+            '🔄 [CompletedSchedule] 완료 해제: ${schedule.summary} (날짜: $date)',
+          );
+        } else {
+          // 🔥 일반 일정: completed 필드 업데이트
+          await GetIt.I<AppDatabase>().uncompleteSchedule(schedule.id);
+          print('🔄 [CompletedSchedule] 완료 해제: ${schedule.summary}');
+        }
+        // ✅ StreamBuilder가 자동으로 반응하여 완료박스에서 사라지고 리스트로 이동
+      },
       child: _buildCompletedScheduleCard(schedule, date),
     );
   }
 
   /// 스와이프 가능한 완료된 Task 카드
   Widget _buildSwipeableCompletedTask(TaskData task, DateTime date) {
-    return Slidable(
-      key: ValueKey('slidable_task_${task.id}'),
-      closeOnScroll: true,
-      // 좌→우: 삭제
-      startActionPane: ActionPane(
-        motion: const BehindMotion(),
-        extentRatio: 0.144,
-        dismissible: DismissiblePane(
-          onDismissed: () async {
-            await HapticFeedback.mediumImpact();
-            await GetIt.I<AppDatabase>().deleteTask(task.id);
-            setState(() {});
-          },
-        ),
-        children: [
-          CustomSlidableAction(
-            onPressed: (context) async {
-              await HapticFeedback.mediumImpact();
-              await GetIt.I<AppDatabase>().deleteTask(task.id);
-              setState(() {});
-            },
-            backgroundColor: Colors.transparent,
-            borderRadius: BorderRadius.circular(100),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            autoClose: true,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF0000),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: SvgPicture.asset(
-                  'asset/icon/trash_icon.svg',
-                  width: 24,
-                  height: 24,
-                  colorFilter: const ColorFilter.mode(
-                    Colors.white,
-                    BlendMode.srcIn,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      // 우→좌: 완료 해제
-      endActionPane: ActionPane(
-        motion: const BehindMotion(),
-        extentRatio: 0.144,
-        children: [
-          CustomSlidableAction(
-            onPressed: (context) async {
-              // 🎯 햅틱 피드백 먼저 제공 (즉각적인 반응)
-              await HapticFeedback.lightImpact();
+    return SlidableTaskCard(
+      taskId: task.id,
+      repeatRule: task.repeatRule,
+      showConfirmDialog: false, // 완료박스에서는 빠른 삭제
+      isCompletedItem: true, // 🎯 완료박스 아이템 (완료 취소 아이콘 사용)
+      onDelete: () async {
+        await GetIt.I<AppDatabase>().deleteTask(task.id);
+        setState(() {});
+      },
+      onComplete: () async {
+        // 🔥 반복 할일인지 확인
+        final pattern = await GetIt.I<AppDatabase>().getRecurringPattern(
+          entityType: 'task',
+          entityId: task.id,
+        );
 
-              // 🔥 반복 할일인지 확인
-              final pattern = await GetIt.I<AppDatabase>().getRecurringPattern(
-                entityType: 'task',
-                entityId: task.id,
-              );
-
-              if (pattern != null) {
-                // 🔥 반복 할일: TaskCompletion 삭제
-                await GetIt.I<AppDatabase>().deleteTaskCompletion(
-                  task.id,
-                  date,
-                );
-                print(
-                  '🔄 [CompletedTask] 완료 해제 (스와이프): ${task.title} (날짜: $date)',
-                );
-              } else {
-                // 🔥 일반 할일: completed 필드 업데이트
-                await GetIt.I<AppDatabase>().uncompleteTask(task.id);
-                print('🔄 [CompletedTask] 완료 해제 (스와이프): ${task.title}');
-              }
-              // ✅ StreamBuilder가 자동으로 반응하여 완료박스에서 사라지고 리스트로 이동
-            },
-            backgroundColor: Colors.transparent,
-            borderRadius: BorderRadius.circular(100),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            autoClose: true,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0CF20C),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: const Icon(Icons.undo, color: Colors.white, size: 24),
-              ),
-            ),
-          ),
-        ],
-      ),
+        if (pattern != null) {
+          // 🔥 반복 할일: TaskCompletion 삭제
+          await GetIt.I<AppDatabase>().deleteTaskCompletion(task.id, date);
+          print('🔄 [CompletedTask] 완료 해제 (스와이프): ${task.title} (날짜: $date)');
+        } else {
+          // 🔥 일반 할일: completed 필드 업데이트
+          await GetIt.I<AppDatabase>().uncompleteTask(task.id);
+          print('🔄 [CompletedTask] 완료 해제 (스와이프): ${task.title}');
+        }
+        // ✅ StreamBuilder가 자동으로 반응하여 완료박스에서 사라지고 리스트로 이동
+      },
       child: _buildCompletedTaskCard(task, date),
     );
   }
 
   /// 스와이프 가능한 완료된 Habit 카드
   Widget _buildSwipeableCompletedHabit(HabitData habit, DateTime date) {
-    return Slidable(
-      key: ValueKey('slidable_habit_${habit.id}'),
-      closeOnScroll: true,
-      // 좌→우: 삭제
-      startActionPane: ActionPane(
-        motion: const BehindMotion(),
-        extentRatio: 0.144,
-        dismissible: DismissiblePane(
-          onDismissed: () async {
-            await HapticFeedback.mediumImpact();
-            await GetIt.I<AppDatabase>().deleteHabit(habit.id);
-            setState(() {});
-          },
-        ),
-        children: [
-          CustomSlidableAction(
-            onPressed: (context) async {
-              await HapticFeedback.mediumImpact();
-              await GetIt.I<AppDatabase>().deleteHabit(habit.id);
-              setState(() {});
-            },
-            backgroundColor: Colors.transparent,
-            borderRadius: BorderRadius.circular(100),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            autoClose: true,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF0000),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: SvgPicture.asset(
-                  'asset/icon/trash_icon.svg',
-                  width: 24,
-                  height: 24,
-                  colorFilter: const ColorFilter.mode(
-                    Colors.white,
-                    BlendMode.srcIn,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      // 우→좌: 완료 해제
-      endActionPane: ActionPane(
-        motion: const BehindMotion(),
-        extentRatio: 0.144,
-        children: [
-          CustomSlidableAction(
-            onPressed: (context) async {
-              // 🎯 햅틱 피드백 먼저 제공 (즉각적인 반응)
-              await HapticFeedback.lightImpact();
-
-              // 완료 해제 (HabitCompletion 삭제)
-              await GetIt.I<AppDatabase>().deleteHabitCompletion(
-                habit.id,
-                date,
-              );
-              print('🔄 [CompletedHabit] 완료 해제 (스와이프): ${habit.title}');
-              // ✅ StreamBuilder가 자동으로 반응하여 완료박스에서 사라지고 리스트로 이동
-            },
-            backgroundColor: Colors.transparent,
-            borderRadius: BorderRadius.circular(100),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            autoClose: true,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0CF20C),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: const Icon(Icons.undo, color: Colors.white, size: 24),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return SlidableHabitCard(
+      habitId: habit.id,
+      repeatRule: habit.repeatRule,
+      showConfirmDialog: false, // 완료박스에서는 빠른 삭제
+      isCompletedItem: true, // 🎯 완료박스 아이템 (완료 취소 아이콘 사용)
+      onDelete: () async {
+        await GetIt.I<AppDatabase>().deleteHabit(habit.id);
+        setState(() {});
+      },
+      onComplete: () async {
+        // 완료 해제 (HabitCompletion 삭제)
+        await GetIt.I<AppDatabase>().deleteHabitCompletion(habit.id, date);
+        print('🔄 [CompletedHabit] 완료 해제 (스와이프): ${habit.title}');
+        // ✅ StreamBuilder가 자동으로 반응하여 완료박스에서 사라지고 리스트로 이동
+      },
       child: _buildCompletedHabitCard(habit, date),
     );
   }

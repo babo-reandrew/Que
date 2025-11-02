@@ -52,6 +52,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
   // 상태 변수
   // ========================================
   QuickAddType? _selectedType; // 선택된 타입 (일정/할일/습관)
+  bool _showTypePopup = false; // 🌊 타입 선택 팝업 표시 여부 (내부 상태)
   final TextEditingController _textController = TextEditingController();
   final FocusNode _focusNode = FocusNode(); // 🔥 키보드 제어용 FocusNode
   String _selectedColorId = 'gray'; // 선택된 색상 ID
@@ -137,6 +138,9 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
 
     // ✅ 습관 선택 시 → 바로 모달만 표시 (QuickAdd 상태 변경 없음)
     if (type == QuickAddType.habit) {
+      setState(() {
+        _showTypePopup = false; // 🌊 팝업 닫기
+      });
       _showFullHabitBottomSheet();
       return;
     }
@@ -145,6 +149,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
     if (_selectedType == type) {
       setState(() {
         _selectedType = null;
+        _showTypePopup = false; // 🌊 팝업 닫기
       });
       widget.onTypeChanged?.call(null);
 
@@ -166,6 +171,7 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
 
     setState(() {
       _selectedType = type;
+      _showTypePopup = false; // 🌊 타입 선택 후 팝업 닫기
     });
 
     // 🎯 새 타입으로 전환 - 캐시에서 데이터 복원
@@ -722,68 +728,67 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
 
                 const SizedBox(height: 8), // Figma: gap 8px
                 // ✅ 2. 타입 선택기 또는 타입 선택 팝업 (Frame 704 ↔ Frame 705)
-                // 🔥 위치와 크기 변화를 모두 부드럽게 애니메이션
-                AnimatedAlign(
-                  // 🎯 위치 변화도 애니메이션 (가속도 적용)
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOutCubic,
-                  alignment: Alignment.centerRight, // 우측 정렬 유지
-                  child: AnimatedSize(
-                    // 🎯 높이 변화를 자동으로 감지하고 부드럽게 애니메이션
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOutCubic,
-                    alignment: Alignment.bottomCenter, // 하단 고정, 위로 확장
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      switchInCurve: Curves.easeInOutCubic,
-                      switchOutCurve: Curves.easeInOutCubic,
-                      transitionBuilder:
-                          (Widget child, Animation<double> animation) {
-                            // 🌟 위치 이동 + 스케일 + 페이드 조합
-                            return SlideTransition(
-                              position:
-                                  Tween<Offset>(
-                                    begin: const Offset(0.05, 0), // 오른쪽에서 5% 이동
-                                    end: Offset.zero,
-                                  ).animate(
-                                    CurvedAnimation(
-                                      parent: animation,
-                                      curve: Curves.easeInOutCubic, // 가속도 커브
-                                    ),
-                                  ),
-                              child: ScaleTransition(
-                                scale: Tween<double>(
-                                  begin: 0.95,
-                                  end: 1.0,
-                                ).animate(animation),
-                                alignment: Alignment.bottomRight,
-                                child: FadeTransition(
-                                  opacity: Tween<double>(
-                                    begin: 0.0,
-                                    end: 1.0,
-                                  ).animate(animation),
-                                  child: child,
-                                ),
-                              ),
-                            );
-                          },
-                      layoutBuilder:
-                          (
-                            Widget? currentChild,
-                            List<Widget> previousChildren,
-                          ) {
-                            // 🔥 이전/현재 위젯을 Stack으로 겹쳐서 부드러운 전환
-                            return Stack(
-                              alignment: Alignment.bottomRight,
-                              children: <Widget>[
-                                ...previousChildren,
-                                if (currentChild != null) currentChild,
-                              ],
-                            );
-                          },
-                      child: widget.showTypePopup && _selectedType == null
-                          ? _buildTypePopup()
-                          : _buildTypeSelector(),
+                // 🌊 유기적 모핑 애니메이션 - 하나의 Container가 형태 변화
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: GestureDetector(
+                    // 🎯 팝업이 닫혀있고 타입이 선택되지 않았을 때만 팝업 열기
+                    onTap: () {
+                      if (!_showTypePopup && _selectedType == null) {
+                        setState(() {
+                          _showTypePopup = true;
+                        });
+                      }
+                    },
+                    child: AnimatedContainer(
+                      // 🎯 핵심: 업계 최고 수준의 유기적 곡선 (Apple-style easing)
+                      duration: const Duration(milliseconds: 550),
+                      curve: Curves.easeInOutCubicEmphasized,
+
+                      // 📏 크기 변화 (52px ↔ 172px)
+                      width: 220, // 고정 너비
+                      height: _showTypePopup && _selectedType == null
+                          ? 172
+                          : 52,
+
+                      // 🎨 패딩 변화 (부드러운 내용물 전환)
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+
+                      // 🌈 데코레이션 변화 (그림자, 테두리, 배경)
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFFFF),
+                        border: Border.all(
+                          color: const Color(0xFF111111).withOpacity(0.1),
+                          width: 1,
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          _showTypePopup && _selectedType == null ? 24 : 34,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFBABABA).withOpacity(0.08),
+                            offset: const Offset(0, 2),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+
+                      // 🔄 내용물 전환 (매우 부드러운 Fade 애니메이션)
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 400),
+                        switchInCurve: Curves.easeIn,
+                        switchOutCurve: Curves.easeOut,
+                        transitionBuilder: (child, animation) {
+                          // 🌊 크로스페이드: 기존 컨텐츠 fade out + 새 컨텐츠 fade in
+                          return FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          );
+                        },
+                        child: _showTypePopup && _selectedType == null
+                            ? _buildTypePopupContent()
+                            : _buildTypeSelectorContent(),
+                      ),
                     ),
                   ),
                 ),
@@ -805,20 +810,11 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
     );
   }
 
-  /// ✅ 타입 선택기 (Figma: Frame 704 - 입력 박스 아래에 별도 배치)
-  /// 이거를 설정하고 → Frame 701 아래에 gap 8px로 배치해서
-  /// 이거를 해서 → Figma 디자인처럼 수직으로 정렬한다
-  /// ✅ Figma: Frame 704는 항상 표시됨
-  Widget _buildTypeSelector() {
-    // Figma: Frame 704 (220×52px)
-    // 🔥 고정 너비 220px (TypePopup과 동일하게 통일)
+  /// 🌊 타입 선택기 내용 (Container 내부용)
+  Widget _buildTypeSelectorContent() {
     return Container(
       key: const ValueKey('typeSelector'),
-      width: 220, // 🔥 고정 너비로 통일 (위치 점프 방지)
-      height: 52, // Figma: Frame 704 height
-      padding: const EdgeInsets.symmetric(
-        horizontal: 4,
-      ), // Figma: padding 0px 4px
+      padding: const EdgeInsets.symmetric(horizontal: 0),
       child: QuickAddTypeSelector(
         selectedType: _selectedType,
         onTypeSelected: _onTypeSelected,
@@ -826,23 +822,22 @@ class _QuickAddControlBoxState extends State<QuickAddControlBox>
     );
   }
 
-  /// ✅ 타입 선택 팝업 (Figma: Frame 705 - Frame 704와 같은 위치에서 확장)
-  /// 이거를 설정하고 → 追加 버튼 클릭 시 Frame 704가 Frame 705로 전환되어
-  /// 이거를 해서 → 같은 위치에서 자연스럽게 52px → 172px로 확장된다
-  Widget _buildTypePopup() {
-    // Figma: Frame 705 (220×172px)
-    // Frame 704와 같은 위치, 높이만 확장
-    return QuickDetailPopup(
+  /// 🌊 타입 선택 팝업 내용 (Container 내부용)
+  Widget _buildTypePopupContent() {
+    return Container(
       key: const ValueKey('typePopup'),
-      onScheduleSelected: () {
-        _onTypeSelected(QuickAddType.schedule);
-      },
-      onTaskSelected: () {
-        _onTypeSelected(QuickAddType.task);
-      },
-      onHabitSelected: () {
-        _onTypeSelected(QuickAddType.habit);
-      },
+      padding: const EdgeInsets.symmetric(horizontal: 0),
+      child: QuickDetailPopup(
+        onScheduleSelected: () {
+          _onTypeSelected(QuickAddType.schedule);
+        },
+        onTaskSelected: () {
+          _onTypeSelected(QuickAddType.task);
+        },
+        onHabitSelected: () {
+          _onTypeSelected(QuickAddType.habit);
+        },
+      ),
     );
   }
 

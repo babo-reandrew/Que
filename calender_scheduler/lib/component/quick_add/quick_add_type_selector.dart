@@ -19,29 +19,8 @@ class QuickAddTypeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Figma: QuickAdd_ActionType (212×52px, radius 34px)
-    return Container(
-      width: 212, // Figma: Frame 704 width
-      height: 52, // Figma: Frame 704 height
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFFFF), // Figma: #FFFFFF
-        border: Border.all(
-          color: const Color(
-            0xFF111111,
-          ).withOpacity(0.1), // Figma: rgba(17,17,17,0.1)
-          width: 1,
-        ),
-        borderRadius: BorderRadius.circular(34), // Figma: 34px
-        // Figma: 0px 2px 8px rgba(186,186,186,0.08)
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFBABABA).withOpacity(0.08),
-            offset: const Offset(0, 2),
-            blurRadius: 8,
-          ),
-        ],
-      ),
-      // Figma: padding 2px 20px, gap 8px
+    // 🌊 단순화된 구조 - 외부 Container에서 모든 스타일 관리
+    return Padding(
       padding: const EdgeInsets.fromLTRB(20, 2, 20, 2),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,

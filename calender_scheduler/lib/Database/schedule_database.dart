@@ -795,6 +795,27 @@ class AppDatabase extends _$AppDatabase {
         'Z';
   }
 
+  /// 날짜 파싱 헬퍼 (iCalendar 형식 → DateTime)
+  /// ✅ EXDATE 문자열 파싱용 (예: "20250113T000000Z")
+  DateTime? _parseDateTime(String dtStr) {
+    try {
+      // 형식: YYYYMMDDTHHmmssZ
+      if (dtStr.length < 15) return null;
+
+      final year = int.parse(dtStr.substring(0, 4));
+      final month = int.parse(dtStr.substring(4, 6));
+      final day = int.parse(dtStr.substring(6, 8));
+      final hour = int.parse(dtStr.substring(9, 11));
+      final minute = int.parse(dtStr.substring(11, 13));
+      final second = int.parse(dtStr.substring(13, 15));
+
+      return DateTime(year, month, day, hour, minute, second);
+    } catch (e) {
+      print('❌ [DB] EXDATE 파싱 실패: $dtStr');
+      return null;
+    }
+  }
+
   // ==================== RecurringException (예외 인스턴스) 함수 ====================
 
   /// 반복 예외 생성 (단일 인스턴스 수정/삭제)
@@ -1535,18 +1556,12 @@ class AppDatabase extends _$AppDatabase {
     required RecurringPatternData pattern,
     required DateTime targetDate,
   }) async {
-    // EXDATE 파싱
+    // EXDATE 파싱 (iCalendar 형식)
     final exdates = pattern.exdate.isEmpty
         ? <DateTime>[]
         : pattern.exdate
               .split(',')
-              .map((s) {
-                try {
-                  return DateTime.parse(s.trim());
-                } catch (e) {
-                  return null;
-                }
-              })
+              .map((s) => _parseDateTime(s.trim()))
               .whereType<DateTime>()
               .toList();
 
@@ -1565,6 +1580,7 @@ class AppDatabase extends _$AppDatabase {
         59,
       ),
       exdates: exdates,
+      until: pattern.until, // ✅ UNTIL 전달
     );
 
     // 예외 처리 (취소된 인스턴스 제외)
@@ -1833,17 +1849,12 @@ class AppDatabase extends _$AppDatabase {
     required RecurringPatternData pattern,
     required DateTime targetDate,
   }) async {
+    // EXDATE 파싱 (iCalendar 형식)
     final exdates = pattern.exdate.isEmpty
         ? <DateTime>[]
         : pattern.exdate
               .split(',')
-              .map((s) {
-                try {
-                  return DateTime.parse(s.trim());
-                } catch (e) {
-                  return null;
-                }
-              })
+              .map((s) => _parseDateTime(s.trim()))
               .whereType<DateTime>()
               .toList();
 
@@ -1862,6 +1873,7 @@ class AppDatabase extends _$AppDatabase {
         59,
       ),
       exdates: exdates,
+      until: pattern.until, // ✅ UNTIL 전달
     );
 
     final exceptions = await getRecurringExceptions(pattern.id);
@@ -2033,17 +2045,12 @@ class AppDatabase extends _$AppDatabase {
     required RecurringPatternData pattern,
     required DateTime targetDate,
   }) async {
+    // EXDATE 파싱 (iCalendar 형식)
     final exdates = pattern.exdate.isEmpty
         ? <DateTime>[]
         : pattern.exdate
               .split(',')
-              .map((s) {
-                try {
-                  return DateTime.parse(s.trim());
-                } catch (e) {
-                  return null;
-                }
-              })
+              .map((s) => _parseDateTime(s.trim()))
               .whereType<DateTime>()
               .toList();
 
@@ -2062,6 +2069,7 @@ class AppDatabase extends _$AppDatabase {
         59,
       ),
       exdates: exdates,
+      until: pattern.until, // ✅ UNTIL 전달
     );
 
     final exceptions = await getRecurringExceptions(pattern.id);

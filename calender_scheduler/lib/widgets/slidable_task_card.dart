@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // 햅틱 피드백용
-import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:flutter_swipe_action_cell/flutter_swipe_action_cell.dart';
 import 'package:flutter_svg/flutter_svg.dart'; // SVG 아이콘용
 import '../component/modal/delete_confirmation_modal.dart'; // 🗑️ 삭제 확인 모달 추가
 import '../component/modal/delete_repeat_confirmation_modal.dart'; // 🔄 반복 삭제 확인 모달 추가
@@ -40,6 +40,7 @@ class SlidableTaskCard extends StatelessWidget {
   final String? inboxLabel; // 인박스 버튼 라벨
   final bool showConfirmDialog; // 삭제 확인 다이얼로그 표시 여부
   final String? groupTag; // 그룹 태그 (한 번에 하나만 열기)
+  final bool isCompletedItem; // 🎯 완료박스 아이템 여부 (완료 취소 기능)
 
   const SlidableTaskCard({
     super.key,
@@ -58,289 +59,202 @@ class SlidableTaskCard extends StatelessWidget {
     this.inboxLabel,
     this.showConfirmDialog = false, // 기본값: 확인 다이얼로그 미표시 (빠른 삭제)
     this.groupTag,
+    this.isCompletedItem = false, // 🎯 기본값: 일반 아이템 (완료 처리)
   });
+
+  // 삭제 버튼 위젯 생성
+  Widget _buildDeleteButton() {
+    return Container(
+      color: Colors.transparent, // 🎯 배경 완전 투명
+      alignment: Alignment.centerLeft,
+      padding: onInbox != null
+          ? const EdgeInsets.only(
+              left: 16,
+              right: 6,
+            ) // 🎯 인박스 있을 때: 왼쪽 16px, 오른쪽 6px (총 12px 간격)
+          : const EdgeInsets.only(
+              left: 16,
+              right: 16,
+            ), // 🎯 인박스 없을 때: 카드와 16px 간격
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFF0000),
+          borderRadius: BorderRadius.circular(26),
+        ),
+        alignment: Alignment.center,
+        child: SvgPicture.asset(
+          'asset/icon/trash_icon.svg',
+          width: 24,
+          height: 24,
+          colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+        ),
+      ),
+    );
+  }
+
+  // 인박스 버튼 위젯 생성
+  Widget _buildInboxButton() {
+    return Container(
+      color: Colors.transparent, // 🎯 배경 완전 투명
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(
+        left: 6,
+        right: 16,
+      ), // 🎯 삭제와 6px, 카드와 16px 간격
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: const Color(0xFFFAFAFA),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: const Color(0x33566099), width: 1),
+        ),
+        alignment: Alignment.center,
+        child: SvgPicture.asset(
+          'asset/icon/Inbox.svg',
+          width: 24,
+          height: 24,
+          colorFilter: const ColorFilter.mode(
+            Color(0xFF566099),
+            BlendMode.srcIn,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 완료 버튼 위젯 생성
+  Widget _buildCompleteButton() {
+    return Container(
+      color: Colors.transparent, // 🎯 배경 완전 투명
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(left: 16, right: 16), // 🎯 카드와 16px 간격
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: const Color(0xFF0CF20C),
+          borderRadius: BorderRadius.circular(26),
+        ),
+        alignment: Alignment.center,
+        child: SvgPicture.asset(
+          // 🎯 조건 분기: 완료박스에서는 CheckBack_Icon, 일반에서는 Check_icon
+          isCompletedItem
+              ? 'asset/icon/CheckBack_Icon.svg'
+              : 'asset/icon/Check_icon.svg',
+          width: 24,
+          height: 24,
+          colorFilter: const ColorFilter.mode(
+            Color(0xFFFFFFFF),
+            BlendMode.srcIn,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Slidable(
-      // ✅ Key는 각 아이템을 고유하게 식별 (필수!)
-      // 이유: Flutter의 위젯 트리 동기화를 위해 필요
-      // 조건: taskId를 사용한 고유한 값
-      // 결과: 삭제 후 잘못된 아이템이 열려있는 버그 방지
+    // 왼쪽 스와이프 액션 리스트 생성
+    final List<SwipeAction> leadingActions = [
+      // 삭제 버튼
+      SwipeAction(
+        performsFirstActionWithFullSwipe: true, // ✅ 끝까지 슬라이드 시 자동 실행
+        widthSpace: onInbox != null ? 74 : 84, // 🎯 인박스 있을 때 74px, 없을 때 84px
+        forceAlignmentToBoundary: true,
+        nestedAction: SwipeNestedAction(title: "삭제"), // 🎯 네이티브 스타일
+        onTap: (handler) async {
+          await HapticFeedback.mediumImpact();
+
+          if (showConfirmDialog) {
+            bool hasRepeat =
+                repeatRule != null &&
+                repeatRule!.isNotEmpty &&
+                repeatRule != '{}' &&
+                repeatRule != '[]';
+
+            if (hasRepeat) {
+              await showDeleteRepeatConfirmationModal(
+                context,
+                onDeleteThis: () async {
+                  await onDelete();
+                },
+                onDeleteFuture: () async {
+                  await onDelete();
+                },
+                onDeleteAll: () async {
+                  await onDelete();
+                },
+              );
+            } else {
+              await showDeleteConfirmationModal(
+                context,
+                onDelete: () async {
+                  await onDelete();
+                },
+              );
+            }
+          } else {
+            await onDelete();
+          }
+          handler(false);
+        },
+        color: Colors.transparent,
+        content: _buildDeleteButton(),
+      ),
+    ];
+
+    // 인박스 버튼이 있는 경우 추가
+    if (onInbox != null) {
+      leadingActions.add(
+        SwipeAction(
+          performsFirstActionWithFullSwipe: false, // ❌ 인박스는 풀 스와이프 비활성화
+          widthSpace: 74, // 🎯 52px 버튼 + 6px 왼쪽 + 16px 오른쪽 = 74px
+          forceAlignmentToBoundary: true,
+          nestedAction: SwipeNestedAction(title: "인박스"), // 🎯 네이티브 스타일
+          onTap: (handler) async {
+            await HapticFeedback.lightImpact();
+            await onInbox!();
+            handler(false);
+          },
+          color: Colors.transparent,
+          content: _buildInboxButton(),
+        ),
+      );
+    }
+
+    return SwipeActionCell(
       key: ValueKey('task_$taskId'),
 
-      // ✅ 그룹 태그 설정 (선택사항)
-      // 이유: 같은 그룹에서 한 번에 하나의 Slidable만 열림
-      // 조건: SlidableAutoCloseBehavior로 감싸져 있어야 함
-      // 결과: iOS 네이티브처럼 하나만 열린 상태 유지
-      groupTag: groupTag,
+      // 🎯 풀 스와이프 설정 (끝까지 당기면 자동 실행)
+      backgroundColor: Colors.transparent, // 배경 투명
+      fullSwipeFactor: 0.5, // 50% 이상 스와이프 시 풀 스와이프로 간주
+      openAnimationDuration: 250, // 250ms로 빠른 오픈 애니메이션
+      closeAnimationDuration: 300, // 300ms로 부드러운 클로즈 애니메이션
+      openAnimationCurve: Curves.easeOutCubic, // iOS 네이티브 스타일 곡선
+      closeAnimationCurve: Curves.easeInOutCubic, // 부드러운 닫힘
+      // 왼쪽에서 오른쪽 스와이프 → 삭제 (+ 인박스)
+      leadingActions: leadingActions,
 
-      // ✅ 스크롤 시 자동 닫힘 (iOS 네이티브 동작)
-      // 이유: 사용자가 스크롤하면 자동으로 Slidable이 닫혀야 자연스럽다
-      closeOnScroll: true,
-
-      // ========================================
-      // startActionPane: 왼쪽에서 오른쪽 스와이프 → 인박스 → 삭제
-      // iOS Mail 정확한 동작: 0-30% 인박스만, 30-60% 삭제만
-      // ========================================
-      startActionPane: ActionPane(
-        motion: const DrawerMotion(), // DrawerMotion: 서랍처럼 순차적으로 나타남
-        extentRatio: onInbox != null
-            ? 0.6
-            : 0.144, // 초기 56px (0.144), 스와이프 시 확장
-        // 끝까지 스와이프 시 삭제 실행
-        dismissible: DismissiblePane(
-          dismissThreshold: 0.6, // 60% 이상 스와이프하면 삭제
-          closeOnCancel: true,
-          confirmDismiss: () async {
-            // 햅틱 피드백
-            await HapticFeedback.mediumImpact();
-
-            // 끝까지 스와이프 시 삭제 모달 표시
-            if (showConfirmDialog) {
-              bool confirmed = false;
-              bool hasRepeat =
-                  repeatRule != null &&
-                  repeatRule!.isNotEmpty &&
-                  repeatRule != '{}' &&
-                  repeatRule != '[]';
-
-              if (hasRepeat) {
-                await showDeleteRepeatConfirmationModal(
-                  context,
-                  onDeleteThis: () async {
-                    confirmed = true;
-                    await onDelete();
-                  },
-                  onDeleteFuture: () async {
-                    confirmed = true;
-                    await onDelete();
-                  },
-                  onDeleteAll: () async {
-                    confirmed = true;
-                    await onDelete();
-                  },
-                );
-              } else {
-                await showDeleteConfirmationModal(
-                  context,
-                  onDelete: () async {
-                    confirmed = true;
-                    await onDelete();
-                  },
-                );
-              }
-              return confirmed;
-            } else {
-              await onDelete();
-              return true;
-            }
-          },
-          onDismissed: () {
-          },
-        ),
-
-        children: [
-          // 삭제 버튼 (0-30% 구간에서 먼저 보임)
-          CustomSlidableAction(
-            onPressed: (context) async {
-              await HapticFeedback.mediumImpact();
-
-              if (showConfirmDialog) {
-                bool hasRepeat =
-                    repeatRule != null &&
-                    repeatRule!.isNotEmpty &&
-                    repeatRule != '{}' &&
-                    repeatRule != '[]';
-
-                if (hasRepeat) {
-                  await showDeleteRepeatConfirmationModal(
-                    context,
-                    onDeleteThis: () async {
-                      await onDelete();
-                    },
-                    onDeleteFuture: () async {
-                      await onDelete();
-                    },
-                    onDeleteAll: () async {
-                      await onDelete();
-                    },
-                  );
-                } else {
-                  await showDeleteConfirmationModal(
-                    context,
-                    onDelete: () async {
-                      await onDelete();
-                    },
-                  );
-                }
-              } else {
-                await onDelete();
-              }
-            },
-            backgroundColor: Colors.transparent,
-            borderRadius: BorderRadius.circular(100),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            autoClose: true,
-            child: Padding(
-              padding: onInbox != null
-                  ? const EdgeInsets.only(left: 8, right: 4)
-                  : const EdgeInsets.only(left: 8),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return Container(
-                    width: constraints.maxWidth, // 부모 크기에 맞춤
-                    height: 56, // 높이만 56px 고정!!!
-                    constraints: const BoxConstraints(
-                      minWidth: 56, // 최소 56px
-                      minHeight: 56,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF0000),
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    child: Center(
-                      child: SvgPicture.asset(
-                        'asset/icon/trash_icon.svg',
-                        width: 24,
-                        height: 24,
-                        colorFilter: const ColorFilter.mode(
-                          Colors.white,
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          // 인박스 버튼 (30-60% 구간에서 보임)
-          ...onInbox != null
-              ? [
-                  CustomSlidableAction(
-                    onPressed: (context) async {
-                      await HapticFeedback.lightImpact();
-
-                      // 인박스로 이동 (executionDate만 제거)
-                      await onInbox!();
-                    },
-                    backgroundColor: Colors.transparent,
-                    foregroundColor: const Color(0xFF566099),
-                    borderRadius: BorderRadius.circular(100),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    autoClose: true,
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 4, right: 8),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          return Container(
-                            width: constraints.maxWidth, // 부모 크기에 맞춤
-                            height: 56, // 높이만 56px 고정!!!
-                            constraints: const BoxConstraints(
-                              minWidth: 56, // 최소 56px
-                              minHeight: 56,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFAFAFA),
-                              borderRadius: BorderRadius.circular(100),
-                              border: Border.all(
-                                color: const Color(0x33566099),
-                                width: 1,
-                              ),
-                            ),
-                            child: Center(
-                              child: SvgPicture.asset(
-                                'asset/icon/Inbox.svg',
-                                width: 24,
-                                height: 24,
-                                colorFilter: const ColorFilter.mode(
-                                  Color(0xFF566099),
-                                  BlendMode.srcIn,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ]
-              : [],
-        ],
-      ),
-
-      // ========================================
-      // endActionPane: 오른쪽에서 왼쪽 스와이프 → 완료 (쉽게 접근)
-      // ========================================
-      endActionPane: ActionPane(
-        motion: const BehindMotion(), // BehindMotion으로 변경 (iOS 표준)
-        extentRatio: 0.144, // 초기 56px (0.144), 스와이프 시 확장
-        // ✅ DismissiblePane: 끝까지 스와이프 시 즉시 완료 처리
-        // 이유: 사용자가 빠르게 완료할 수 있도록
-        dismissible: DismissiblePane(
-          dismissThreshold: 0.5,
-          closeOnCancel: true,
-          dismissalDuration: const Duration(milliseconds: 300),
-          resizeDuration: const Duration(milliseconds: 300),
-
-          onDismissed: () async {
-            // 1. 햅틱 피드백 (iOS 네이티브 스타일)
-            await HapticFeedback.mediumImpact();
-
-            // 2. 완료 액션 실행
+      // 오른쪽에서 왼쪽 스와이프 → 완료
+      trailingActions: [
+        SwipeAction(
+          performsFirstActionWithFullSwipe: true, // ✅ 끝까지 슬라이드 시 자동 실행
+          widthSpace: 84, // 🎯 52px 버튼 + 16px 양쪽 여백 = 84px
+          forceAlignmentToBoundary: true,
+          nestedAction: SwipeNestedAction(title: "완료"), // 🎯 네이티브 스타일
+          onTap: (handler) async {
+            await HapticFeedback.lightImpact();
             await onComplete();
+            handler(false);
           },
+          color: Colors.transparent,
+          content: _buildCompleteButton(),
         ),
+      ],
 
-        // ✅ 액션 버튼 정의
-        children: [
-          CustomSlidableAction(
-            onPressed: (context) async {
-              await HapticFeedback.lightImpact();
-              await onComplete();
-            },
-            autoClose: true,
-            backgroundColor: Colors.transparent,
-            foregroundColor: Colors.white,
-            borderRadius: BorderRadius.circular(100),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return Container(
-                    width: constraints.maxWidth, // 부모 크기에 맞춤
-                    height: 56, // 높이만 56px 고정!!!
-                    constraints: const BoxConstraints(
-                      minWidth: 56, // 최소 56px
-                      minHeight: 56,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0CF20C),
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    child: Center(
-                      child: SvgPicture.asset(
-                        'asset/icon/Check_icon.svg',
-                        width: 24,
-                        height: 24,
-                        colorFilter: const ColorFilter.mode(
-                          Color(0xFFFFFFFF),
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
-
-      // ✅ child: 실제 표시되는 위젯
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,

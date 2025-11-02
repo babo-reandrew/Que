@@ -1,7 +1,6 @@
 import 'package:drift/drift.dart';
 import '../Database/schedule_database.dart';
-import '../model/entities.dart';
-import '../model/schedule.dart';
+import 'rrule_utils.dart';
 
 /// ✅ 반복 이벤트 수정/삭제 헬퍼 함수 (RFC 5545 표준 완벽 준수)
 ///
@@ -45,7 +44,6 @@ Future<int> updateScheduleThisOnly({
   required DateTime selectedDate,
   required ScheduleCompanion updatedSchedule,
 }) async {
-
   // 1. 원본 RecurringPattern에 EXDATE 추가 (해당 날짜 제외)
   final exdateAdded = await db.addExdate(
     entityType: 'schedule',
@@ -54,8 +52,7 @@ Future<int> updateScheduleThisOnly({
   );
 
   if (!exdateAdded) {
-  } else {
-  }
+  } else {}
 
   // 2. 완전히 새로운 Schedule 생성 (단일 일정, 반복 없음)
   final newScheduleId = await db.createSchedule(
@@ -92,7 +89,6 @@ Future<int> updateScheduleThisOnly({
     ),
   );
 
-
   return newScheduleId; // 새로운 Schedule ID 반환 (DailyCardOrder 업데이트용)
 }
 
@@ -114,19 +110,61 @@ Future<void> updateScheduleFuture({
     return;
   }
 
-
   // 🔥 트랜잭션으로 묶어서 원자성 보장
   await db.transaction(() async {
-    // 2. 기존 패턴의 UNTIL을 어제로 설정 (선택 날짜 이전까지만 유효)
-    final yesterday = selectedDate.subtract(const Duration(days: 1));
+    // 2. 기존 패턴의 UNTIL 계산
+    // ✅ 해당 주에 기존 반복이 있는지 확인
+    final weekStart = selectedDate.subtract(
+      Duration(days: selectedDate.weekday - 1),
+    );
+    final weekEnd = weekStart.add(const Duration(days: 6));
+
+    // 해당 주의 반복 인스턴스 조회
+    final weekInstances = RRuleUtils.generateInstances(
+      rruleString: pattern.rrule,
+      dtstart: pattern.dtstart,
+      rangeStart: weekStart,
+      rangeEnd: weekEnd,
+    );
+
+    // selectedDate보다 이전 날짜의 인스턴스가 있는지 확인
+    final hasInstanceBeforeSelected = weekInstances.any((instance) {
+      final instanceDate = DateTime(
+        instance.year,
+        instance.month,
+        instance.day,
+      );
+      return instanceDate.isBefore(selectedDate);
+    });
+
+    // UNTIL 계산
+    DateTime untilDate;
+    if (hasInstanceBeforeSelected) {
+      // 해당 주에 기존 반복이 있으면: 전날까지
+      final yesterday = selectedDate.subtract(const Duration(days: 1));
+      untilDate = DateTime(
+        yesterday.year,
+        yesterday.month,
+        yesterday.day,
+        23,
+        59,
+        59,
+      );
+    } else {
+      // 해당 주에 기존 반복이 없으면: 이전 주의 마지막 날까지
+      final lastWeekEnd = weekStart.subtract(const Duration(days: 1));
+      untilDate = DateTime(
+        lastWeekEnd.year,
+        lastWeekEnd.month,
+        lastWeekEnd.day,
+        23,
+        59,
+        59,
+      );
+    }
 
     await db.updateRecurringPattern(
-      RecurringPatternCompanion(
-        id: Value(pattern.id),
-        until: Value(
-          DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59),
-        ),
-      ),
+      RecurringPatternCompanion(id: Value(pattern.id), until: Value(untilDate)),
     );
 
     // 3. 새로운 Schedule 생성 (선택 날짜부터 시작)
@@ -155,24 +193,21 @@ Future<void> updateScheduleFuture({
     }
 
     // 🔥 5. 고아 예외 정리 (치명적 누락 해결!)
-    await (db.delete(db.recurringException)
-          ..where(
-            (tbl) =>
-                tbl.recurringPatternId.equals(pattern.id) &
-                tbl.originalDate.isBiggerOrEqualValue(selectedDate),
-          ))
+    await (db.delete(db.recurringException)..where(
+          (tbl) =>
+              tbl.recurringPatternId.equals(pattern.id) &
+              tbl.originalDate.isBiggerOrEqualValue(selectedDate),
+        ))
         .go();
 
     // 🔥 6. 고아 완료 기록 정리 (치명적 누락 해결!)
-    await (db.delete(db.scheduleCompletion)
-          ..where(
-            (tbl) =>
-                tbl.scheduleId.equals(schedule.id) &
-                tbl.completedDate.isBiggerOrEqualValue(selectedDate),
-          ))
+    await (db.delete(db.scheduleCompletion)..where(
+          (tbl) =>
+              tbl.scheduleId.equals(schedule.id) &
+              tbl.completedDate.isBiggerOrEqualValue(selectedDate),
+        ))
         .go();
   });
-
 }
 
 /// ✅ すべての回 수정: Base Event + RecurringPattern 업데이트
@@ -201,7 +236,6 @@ Future<void> updateScheduleAll({
       );
     }
   }
-
 }
 
 // ==================== Schedule 삭제 헬퍼 함수 ====================
@@ -214,7 +248,6 @@ Future<void> deleteScheduleThisOnly({
   required ScheduleData schedule,
   required DateTime selectedDate,
 }) async {
-
   // 원본 RecurringPattern에 EXDATE 추가 (해당 날짜 제외)
   final exdateAdded = await db.addExdate(
     entityType: 'schedule',
@@ -225,7 +258,6 @@ Future<void> deleteScheduleThisOnly({
   if (!exdateAdded) {
     throw Exception('EXDATE 추가 실패');
   }
-
 }
 
 /// ✅ この予定以降 삭제: RFC 5545 UNTIL로 종료일 설정
@@ -243,21 +275,50 @@ Future<void> deleteScheduleFuture({
     return;
   }
 
-
-  final yesterday = selectedDate.subtract(const Duration(days: 1));
-  final until = DateTime(
-    yesterday.year,
-    yesterday.month,
-    yesterday.day,
-    23,
-    59,
-    59,
+  // ✅ 해당 주에 기존 반복이 있는지 확인
+  final weekStart = selectedDate.subtract(
+    Duration(days: selectedDate.weekday - 1),
   );
+  final weekEnd = weekStart.add(const Duration(days: 6));
+
+  final weekInstances = RRuleUtils.generateInstances(
+    rruleString: pattern.rrule,
+    dtstart: pattern.dtstart,
+    rangeStart: weekStart,
+    rangeEnd: weekEnd,
+  );
+
+  final hasInstanceBeforeSelected = weekInstances.any((instance) {
+    final instanceDate = DateTime(instance.year, instance.month, instance.day);
+    return instanceDate.isBefore(selectedDate);
+  });
+
+  DateTime untilDate;
+  if (hasInstanceBeforeSelected) {
+    final yesterday = selectedDate.subtract(const Duration(days: 1));
+    untilDate = DateTime(
+      yesterday.year,
+      yesterday.month,
+      yesterday.day,
+      23,
+      59,
+      59,
+    );
+  } else {
+    final lastWeekEnd = weekStart.subtract(const Duration(days: 1));
+    untilDate = DateTime(
+      lastWeekEnd.year,
+      lastWeekEnd.month,
+      lastWeekEnd.day,
+      23,
+      59,
+      59,
+    );
+  }
 
   await db.updateRecurringPattern(
-    RecurringPatternCompanion(id: Value(pattern.id), until: Value(until)),
+    RecurringPatternCompanion(id: Value(pattern.id), until: Value(untilDate)),
   );
-
 }
 
 /// ✅ すべての回 삭제: RecurringPattern + Base Schedule 삭제
@@ -280,7 +341,6 @@ Future<int> updateTaskThisOnly({
   required DateTime selectedDate,
   required TaskCompanion updatedTask,
 }) async {
-
   // 1. 원본 RecurringPattern에 EXDATE 추가 (해당 날짜 제외)
   final exdateAdded = await db.addExdate(
     entityType: 'task',
@@ -289,15 +349,12 @@ Future<int> updateTaskThisOnly({
   );
 
   if (!exdateAdded) {
-  } else {
-  }
+  } else {}
 
   // 2. 완전히 새로운 Task 생성 (단일 할일, 반복 없음)
   final newTaskId = await db.createTask(
     TaskCompanion(
-      title: updatedTask.title.present
-          ? updatedTask.title
-          : Value(task.title),
+      title: updatedTask.title.present ? updatedTask.title : Value(task.title),
       completed: updatedTask.completed.present
           ? updatedTask.completed
           : Value(task.completed),
@@ -317,7 +374,6 @@ Future<int> updateTaskThisOnly({
       createdAt: Value(DateTime.now()),
     ),
   );
-
 
   return newTaskId; // 새로운 Task ID 반환
 }
@@ -341,14 +397,53 @@ Future<void> updateTaskFuture({
 
   // 🔥 트랜잭션으로 묶어서 원자성 보장
   await db.transaction(() async {
-    final yesterday = selectedDate.subtract(const Duration(days: 1));
+    // ✅ 해당 주에 기존 반복이 있는지 확인
+    final weekStart = selectedDate.subtract(
+      Duration(days: selectedDate.weekday - 1),
+    );
+    final weekEnd = weekStart.add(const Duration(days: 6));
+
+    final weekInstances = RRuleUtils.generateInstances(
+      rruleString: pattern.rrule,
+      dtstart: pattern.dtstart,
+      rangeStart: weekStart,
+      rangeEnd: weekEnd,
+    );
+
+    final hasInstanceBeforeSelected = weekInstances.any((instance) {
+      final instanceDate = DateTime(
+        instance.year,
+        instance.month,
+        instance.day,
+      );
+      return instanceDate.isBefore(selectedDate);
+    });
+
+    DateTime untilDate;
+    if (hasInstanceBeforeSelected) {
+      final yesterday = selectedDate.subtract(const Duration(days: 1));
+      untilDate = DateTime(
+        yesterday.year,
+        yesterday.month,
+        yesterday.day,
+        23,
+        59,
+        59,
+      );
+    } else {
+      final lastWeekEnd = weekStart.subtract(const Duration(days: 1));
+      untilDate = DateTime(
+        lastWeekEnd.year,
+        lastWeekEnd.month,
+        lastWeekEnd.day,
+        23,
+        59,
+        59,
+      );
+    }
+
     await db.updateRecurringPattern(
-      RecurringPatternCompanion(
-        id: Value(pattern.id),
-        until: Value(
-          DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59),
-        ),
-      ),
+      RecurringPatternCompanion(id: Value(pattern.id), until: Value(untilDate)),
     );
 
     final newTaskId = await db.createTask(updatedTask);
@@ -377,24 +472,21 @@ Future<void> updateTaskFuture({
     }
 
     // 🔥 고아 예외 정리 (치명적 누락 해결!)
-    await (db.delete(db.recurringException)
-          ..where(
-            (tbl) =>
-                tbl.recurringPatternId.equals(pattern.id) &
-                tbl.originalDate.isBiggerOrEqualValue(selectedDate),
-          ))
+    await (db.delete(db.recurringException)..where(
+          (tbl) =>
+              tbl.recurringPatternId.equals(pattern.id) &
+              tbl.originalDate.isBiggerOrEqualValue(selectedDate),
+        ))
         .go();
 
     // 🔥 고아 완료 기록 정리 (치명적 누락 해결!)
-    await (db.delete(db.taskCompletion)
-          ..where(
-            (tbl) =>
-                tbl.taskId.equals(task.id) &
-                tbl.completedDate.isBiggerOrEqualValue(selectedDate),
-          ))
+    await (db.delete(db.taskCompletion)..where(
+          (tbl) =>
+              tbl.taskId.equals(task.id) &
+              tbl.completedDate.isBiggerOrEqualValue(selectedDate),
+        ))
         .go();
   });
-
 }
 
 /// ✅ すべての回 수정: Base Event + RecurringPattern 업데이트
@@ -424,7 +516,6 @@ Future<void> updateTaskAll({
       );
     }
   }
-
 }
 
 // ==================== Task 삭제 헬퍼 함수 ====================
@@ -436,7 +527,6 @@ Future<void> deleteTaskThisOnly({
   required TaskData task,
   required DateTime selectedDate,
 }) async {
-
   // 원본 RecurringPattern에 EXDATE 추가 (해당 날짜 제외)
   final exdateAdded = await db.addExdate(
     entityType: 'task',
@@ -447,7 +537,6 @@ Future<void> deleteTaskThisOnly({
   if (!exdateAdded) {
     throw Exception('EXDATE 추가 실패');
   }
-
 }
 
 /// ✅ この予定以降 삭제: RFC 5545 UNTIL로 종료일 설정
@@ -465,20 +554,50 @@ Future<void> deleteTaskFuture({
     return;
   }
 
-  final yesterday = selectedDate.subtract(const Duration(days: 1));
-  final until = DateTime(
-    yesterday.year,
-    yesterday.month,
-    yesterday.day,
-    23,
-    59,
-    59,
+  // ✅ 해당 주에 기존 반복이 있는지 확인
+  final weekStart = selectedDate.subtract(
+    Duration(days: selectedDate.weekday - 1),
   );
+  final weekEnd = weekStart.add(const Duration(days: 6));
+
+  final weekInstances = RRuleUtils.generateInstances(
+    rruleString: pattern.rrule,
+    dtstart: pattern.dtstart,
+    rangeStart: weekStart,
+    rangeEnd: weekEnd,
+  );
+
+  final hasInstanceBeforeSelected = weekInstances.any((instance) {
+    final instanceDate = DateTime(instance.year, instance.month, instance.day);
+    return instanceDate.isBefore(selectedDate);
+  });
+
+  DateTime until;
+  if (hasInstanceBeforeSelected) {
+    final yesterday = selectedDate.subtract(const Duration(days: 1));
+    until = DateTime(
+      yesterday.year,
+      yesterday.month,
+      yesterday.day,
+      23,
+      59,
+      59,
+    );
+  } else {
+    final lastWeekEnd = weekStart.subtract(const Duration(days: 1));
+    until = DateTime(
+      lastWeekEnd.year,
+      lastWeekEnd.month,
+      lastWeekEnd.day,
+      23,
+      59,
+      59,
+    );
+  }
 
   await db.updateRecurringPattern(
     RecurringPatternCompanion(id: Value(pattern.id), until: Value(until)),
   );
-
 }
 
 /// ✅ すべての回 삭제: RecurringPattern + Base Task 삭제
@@ -500,7 +619,6 @@ Future<int> updateHabitThisOnly({
   required DateTime selectedDate,
   required HabitCompanion updatedHabit,
 }) async {
-
   // 1. 원본 RecurringPattern에 EXDATE 추가 (해당 날짜 제외)
   final exdateAdded = await db.addExdate(
     entityType: 'habit',
@@ -509,8 +627,7 @@ Future<int> updateHabitThisOnly({
   );
 
   if (!exdateAdded) {
-  } else {
-  }
+  } else {}
 
   // 2. 완전히 새로운 Habit 생성 (단일 습관, 반복 없음)
   final newHabitId = await db.createHabit(
@@ -528,7 +645,6 @@ Future<int> updateHabitThisOnly({
       createdAt: Value(DateTime.now()),
     ),
   );
-
 
   return newHabitId; // 새로운 Habit ID 반환
 }
@@ -551,18 +667,54 @@ Future<void> updateHabitFuture({
     return;
   }
 
-
   await db.transaction(() async {
-    // 2. 기존 패턴의 UNTIL을 어제로 설정 (선택 날짜 이전까지만 유효)
-    final yesterday = selectedDate.subtract(const Duration(days: 1));
+    // ✅ 해당 주에 기존 반복이 있는지 확인
+    final weekStart = selectedDate.subtract(
+      Duration(days: selectedDate.weekday - 1),
+    );
+    final weekEnd = weekStart.add(const Duration(days: 6));
+
+    final weekInstances = RRuleUtils.generateInstances(
+      rruleString: pattern.rrule,
+      dtstart: pattern.dtstart,
+      rangeStart: weekStart,
+      rangeEnd: weekEnd,
+    );
+
+    final hasInstanceBeforeSelected = weekInstances.any((instance) {
+      final instanceDate = DateTime(
+        instance.year,
+        instance.month,
+        instance.day,
+      );
+      return instanceDate.isBefore(selectedDate);
+    });
+
+    DateTime untilDate;
+    if (hasInstanceBeforeSelected) {
+      final yesterday = selectedDate.subtract(const Duration(days: 1));
+      untilDate = DateTime(
+        yesterday.year,
+        yesterday.month,
+        yesterday.day,
+        23,
+        59,
+        59,
+      );
+    } else {
+      final lastWeekEnd = weekStart.subtract(const Duration(days: 1));
+      untilDate = DateTime(
+        lastWeekEnd.year,
+        lastWeekEnd.month,
+        lastWeekEnd.day,
+        23,
+        59,
+        59,
+      );
+    }
 
     await db.updateRecurringPattern(
-      RecurringPatternCompanion(
-        id: Value(pattern.id),
-        until: Value(
-          DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59),
-        ),
-      ),
+      RecurringPatternCompanion(id: Value(pattern.id), until: Value(untilDate)),
     );
 
     // 3. 새로운 Habit 생성 (선택 날짜부터 시작)
@@ -588,24 +740,21 @@ Future<void> updateHabitFuture({
     }
 
     // 🔥 5. 고아 예외 정리 (치명적 누락 해결!)
-    await (db.delete(db.recurringException)
-          ..where(
-            (tbl) =>
-                tbl.recurringPatternId.equals(pattern.id) &
-                tbl.originalDate.isBiggerOrEqualValue(selectedDate),
-          ))
+    await (db.delete(db.recurringException)..where(
+          (tbl) =>
+              tbl.recurringPatternId.equals(pattern.id) &
+              tbl.originalDate.isBiggerOrEqualValue(selectedDate),
+        ))
         .go();
 
     // 🔥 6. 고아 완료 기록 정리 (치명적 누락 해결!)
-    await (db.delete(db.habitCompletion)
-          ..where(
-            (tbl) =>
-                tbl.habitId.equals(habit.id) &
-                tbl.completedDate.isBiggerOrEqualValue(selectedDate),
-          ))
+    await (db.delete(db.habitCompletion)..where(
+          (tbl) =>
+              tbl.habitId.equals(habit.id) &
+              tbl.completedDate.isBiggerOrEqualValue(selectedDate),
+        ))
         .go();
   });
-
 }
 
 /// ✅ すべての回 수정: Base Event + RecurringPattern 업데이트
@@ -634,7 +783,6 @@ Future<void> updateHabitAll({
       );
     }
   }
-
 }
 
 // ==================== Habit 삭제 헬퍼 함수 ====================
@@ -646,7 +794,6 @@ Future<void> deleteHabitThisOnly({
   required HabitData habit,
   required DateTime selectedDate,
 }) async {
-
   // 원본 RecurringPattern에 EXDATE 추가 (해당 날짜 제외)
   final exdateAdded = await db.addExdate(
     entityType: 'habit',
@@ -657,7 +804,6 @@ Future<void> deleteHabitThisOnly({
   if (!exdateAdded) {
     throw Exception('EXDATE 추가 실패');
   }
-
 }
 
 /// ✅ この予定以降 삭제: RFC 5545 UNTIL로 종료일 설정
@@ -675,21 +821,50 @@ Future<void> deleteHabitFuture({
     return;
   }
 
-
-  final yesterday = selectedDate.subtract(const Duration(days: 1));
-  final until = DateTime(
-    yesterday.year,
-    yesterday.month,
-    yesterday.day,
-    23,
-    59,
-    59,
+  // ✅ 해당 주에 기존 반복이 있는지 확인
+  final weekStart = selectedDate.subtract(
+    Duration(days: selectedDate.weekday - 1),
   );
+  final weekEnd = weekStart.add(const Duration(days: 6));
+
+  final weekInstances = RRuleUtils.generateInstances(
+    rruleString: pattern.rrule,
+    dtstart: pattern.dtstart,
+    rangeStart: weekStart,
+    rangeEnd: weekEnd,
+  );
+
+  final hasInstanceBeforeSelected = weekInstances.any((instance) {
+    final instanceDate = DateTime(instance.year, instance.month, instance.day);
+    return instanceDate.isBefore(selectedDate);
+  });
+
+  DateTime until;
+  if (hasInstanceBeforeSelected) {
+    final yesterday = selectedDate.subtract(const Duration(days: 1));
+    until = DateTime(
+      yesterday.year,
+      yesterday.month,
+      yesterday.day,
+      23,
+      59,
+      59,
+    );
+  } else {
+    final lastWeekEnd = weekStart.subtract(const Duration(days: 1));
+    until = DateTime(
+      lastWeekEnd.year,
+      lastWeekEnd.month,
+      lastWeekEnd.day,
+      23,
+      59,
+      59,
+    );
+  }
 
   await db.updateRecurringPattern(
     RecurringPatternCompanion(id: Value(pattern.id), until: Value(until)),
   );
-
 }
 
 /// ✅ すべての回 삭제: RecurringPattern + Base Habit 삭제
@@ -791,21 +966,19 @@ Future<int> removeScheduleRecurrenceFuture({
     );
 
     // 3. 고아 예외 정리
-    await (db.delete(db.recurringException)
-          ..where(
-            (tbl) =>
-                tbl.recurringPatternId.equals(pattern.id) &
-                tbl.originalDate.isBiggerOrEqualValue(selectedDate),
-          ))
+    await (db.delete(db.recurringException)..where(
+          (tbl) =>
+              tbl.recurringPatternId.equals(pattern.id) &
+              tbl.originalDate.isBiggerOrEqualValue(selectedDate),
+        ))
         .go();
 
     // 4. 고아 완료 기록 정리
-    await (db.delete(db.scheduleCompletion)
-          ..where(
-            (tbl) =>
-                tbl.scheduleId.equals(schedule.id) &
-                tbl.completedDate.isBiggerOrEqualValue(selectedDate),
-          ))
+    await (db.delete(db.scheduleCompletion)..where(
+          (tbl) =>
+              tbl.scheduleId.equals(schedule.id) &
+              tbl.completedDate.isBiggerOrEqualValue(selectedDate),
+        ))
         .go();
   });
 
@@ -927,21 +1100,19 @@ Future<int> removeTaskRecurrenceFuture({
     );
 
     // 3. 고아 예외 정리
-    await (db.delete(db.recurringException)
-          ..where(
-            (tbl) =>
-                tbl.recurringPatternId.equals(pattern.id) &
-                tbl.originalDate.isBiggerOrEqualValue(selectedDate),
-          ))
+    await (db.delete(db.recurringException)..where(
+          (tbl) =>
+              tbl.recurringPatternId.equals(pattern.id) &
+              tbl.originalDate.isBiggerOrEqualValue(selectedDate),
+        ))
         .go();
 
     // 4. 고아 완료 기록 정리
-    await (db.delete(db.taskCompletion)
-          ..where(
-            (tbl) =>
-                tbl.taskId.equals(task.id) &
-                tbl.completedDate.isBiggerOrEqualValue(selectedDate),
-          ))
+    await (db.delete(db.taskCompletion)..where(
+          (tbl) =>
+              tbl.taskId.equals(task.id) &
+              tbl.completedDate.isBiggerOrEqualValue(selectedDate),
+        ))
         .go();
   });
 
@@ -1052,21 +1223,19 @@ Future<int> removeHabitRecurrenceFuture({
     );
 
     // 3. 고아 예외 정리
-    await (db.delete(db.recurringException)
-          ..where(
-            (tbl) =>
-                tbl.recurringPatternId.equals(pattern.id) &
-                tbl.originalDate.isBiggerOrEqualValue(selectedDate),
-          ))
+    await (db.delete(db.recurringException)..where(
+          (tbl) =>
+              tbl.recurringPatternId.equals(pattern.id) &
+              tbl.originalDate.isBiggerOrEqualValue(selectedDate),
+        ))
         .go();
 
     // 4. 고아 완료 기록 정리
-    await (db.delete(db.habitCompletion)
-          ..where(
-            (tbl) =>
-                tbl.habitId.equals(habit.id) &
-                tbl.completedDate.isBiggerOrEqualValue(selectedDate),
-          ))
+    await (db.delete(db.habitCompletion)..where(
+          (tbl) =>
+              tbl.habitId.equals(habit.id) &
+              tbl.completedDate.isBiggerOrEqualValue(selectedDate),
+        ))
         .go();
   });
 

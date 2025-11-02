@@ -34,63 +34,34 @@ class QuickDetailPopup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ 모든 애니메이션 제거 - 정적 UI만 렌더링
-    // 애니메이션은 부모(Hero)에서 완전히 제어
-    return Container(
-      width: 220,
-      height: 172, // Figma: Frame 705 고정 높이
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Container(
-        width: 212, // Figma: Frame 653
-        height: 172,
-        padding: const EdgeInsets.fromLTRB(10, 10, 12, 10), // Figma 스펙
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFFFFF), // Figma: #FFFFFF
-          border: Border.all(
-            color: const Color(
-              0xFF111111,
-            ).withOpacity(0.1), // Figma: rgba(17, 17, 17, 0.1)
-            width: 1,
+    // 🌊 단순화된 구조 - 외부 Container에서 모든 스타일 관리
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10), // 내부 여백
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Frame 650: 今日のスケジュール
+          _buildPopupItem(
+            svgPath: 'asset/icon/Schedule_icon.svg',
+            text: '今日のスケジュール', // Figma 텍스트
+            onTap: onScheduleSelected,
           ),
-          borderRadius: BorderRadius.circular(24), // Figma: 24px
-          boxShadow: const [
-            BoxShadow(
-              color: Color.fromRGBO(
-                186,
-                186,
-                186,
-                0.08,
-              ), // Figma: rgba(186, 186, 186, 0.08)
-              offset: Offset(0, 2),
-              blurRadius: 8,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Frame 650: 今日のスケジュール
-            _buildPopupItem(
-              svgPath: 'asset/icon/Schedule_icon.svg',
-              text: '今日のスケジュール', // Figma 텍스트
-              onTap: onScheduleSelected,
-            ),
-            const SizedBox(height: 4), // Figma: gap 4px
-            // Frame 651: タスク
-            _buildPopupItem(
-              svgPath: 'asset/icon/Task_icon.svg',
-              text: 'タスク', // Figma 텍스트
-              onTap: onTaskSelected,
-            ),
-            const SizedBox(height: 4), // Figma: gap 4px
-            // Frame 652: ルーティン
-            _buildPopupItem(
-              svgPath: 'asset/icon/routine_icon.svg',
-              text: 'ルーティン', // Figma 텍스트
-              onTap: onHabitSelected,
-            ),
-          ],
-        ),
+          const SizedBox(height: 4), // Figma: gap 4px
+          // Frame 651: タスク
+          _buildPopupItem(
+            svgPath: 'asset/icon/Task_icon.svg',
+            text: 'タスク', // Figma 텍스트
+            onTap: onTaskSelected,
+          ),
+          const SizedBox(height: 4), // Figma: gap 4px
+          // Frame 652: ルーティン
+          _buildPopupItem(
+            svgPath: 'asset/icon/routine_icon.svg',
+            text: 'ルーティン', // Figma 텍스트
+            onTap: onHabitSelected,
+          ),
+        ],
       ),
     );
   }
